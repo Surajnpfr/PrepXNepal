@@ -1,0 +1,6 @@
+{
+  "name": "PrepX Nepal - Online Exam Platform",
+  "description": "Nepal's premier CEE competitive exam preparation platform featuring timed mocks with negative marking, detailed performance reports, rank prediction, Study Coins, and manual payment verification.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
