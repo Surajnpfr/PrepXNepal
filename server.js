@@ -1,42 +1,20 @@
 /**
- * Hosting entrypoint (Hostinger Node / `npm start`).
- * Runs the TypeScript Express API via tsx — no separate tsc emit required.
- *
- * Do not replace this with `import('./server/index.ts')` under plain Node;
- * that fails without a TypeScript loader.
+ * Hostinger / `npm start` entrypoint.
+ * Loads the pre-built API bundle (no tsx → no runtime esbuild binary).
+ * Run `npm run build` first so dist-server/index.js exists.
  */
-import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const entry = path.join(root, 'server', 'index.ts');
+const bundle = path.join(root, 'dist-server', 'index.js');
 
-const child = spawn(process.execPath, ['--import', 'tsx', entry], {
-  cwd: root,
-  stdio: 'inherit',
-  env: process.env,
-});
-
-child.on('error', (err) => {
-  console.error('Failed to start PrepX server:', err);
+if (!fs.existsSync(bundle)) {
+  console.error(
+    'Missing dist-server/index.js. Run `npm run build` (includes server bundle) before start.'
+  );
   process.exit(1);
-});
-
-child.on('exit', (code, signal) => {
-  if (signal) {
-    process.kill(process.pid, signal);
-    return;
-  }
-  process.exit(code ?? 1);
-});
-
-for (const sig of ['SIGINT', 'SIGTERM']) {
-  process.on(sig, () => {
-    try {
-      child.kill(sig);
-    } catch {
-      /* ignore */
-    }
-  });
 }
+
+await import(pathToFileURL(bundle).href);

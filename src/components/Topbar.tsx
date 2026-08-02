@@ -193,7 +193,13 @@ export const Topbar: React.FC<TopbarProps> = ({
           <div className="flex items-center gap-2">
             <Show when="signed-in">
               <div className="flex items-center gap-2 bg-slate-100/60 p-1 pr-3 rounded-xl border border-slate-200/50">
-                <UserButton userProfileMode="modal" afterSignOutUrl="/" />
+                <UserButton
+                  userProfileMode="modal"
+                  afterSignOutUrl="/"
+                  userProfileProps={{
+                    apiKeysProps: { hide: true },
+                  }}
+                />
                 <div className="text-left hidden sm:block">
                   <div className="text-[10px] font-black text-slate-800 leading-none">{userProfile.name}</div>
                   <span className="text-[8px] font-bold text-slate-400 font-mono tracking-wide">{userProfile.role} • {userProfile.plan}</span>

@@ -53,7 +53,10 @@ const CLERK_AUTHORIZED_PARTIES = (process.env.CLERK_AUTHORIZED_PARTIES || '')
   .filter(Boolean);
 
 if (!SECRET_KEY) {
-  console.error('CLERK_SECRET_KEY is missing. Add it to .env.local');
+  console.error(
+    'CLERK_SECRET_KEY is missing. Set it in the host Environment Variables panel ' +
+      '(or .env.local for local dev). Without it the process exits and the proxy returns 503.'
+  );
   process.exit(1);
 }
 
