@@ -2305,7 +2305,7 @@ function publicErrorMessage(err, fallback) {
 
 // server/index.ts
 var __dirname2 = path4.dirname(fileURLToPath2(import.meta.url));
-var root2 = path4.resolve(__dirname2, "..");
+var root2 = fs3.existsSync(path4.join(__dirname2, "package.json")) ? __dirname2 : path4.resolve(__dirname2, "..");
 dotenv.config({ path: path4.join(root2, ".env.local") });
 dotenv.config({ path: path4.join(root2, ".env") });
 var PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
@@ -3497,6 +3497,10 @@ async function boot() {
       console.log(`Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks)`);
       if (fs3.existsSync(distDir)) {
         console.log(`Serving SPA from ${distDir}`);
+      } else {
+        console.warn(
+          `SPA dist not found at ${distDir}. Run npm run build so / serves the frontend.`
+        );
       }
     });
   } catch (err) {

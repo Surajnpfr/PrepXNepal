@@ -32,7 +32,10 @@ import {
 } from './userPatchPolicy.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, '..');
+/** Bundled `server.js` lives at repo root; source `server/index.ts` lives in /server. */
+const root = fs.existsSync(path.join(__dirname, 'package.json'))
+  ? __dirname
+  : path.resolve(__dirname, '..');
 
 dotenv.config({ path: path.join(root, '.env.local') });
 dotenv.config({ path: path.join(root, '.env') });
@@ -1484,6 +1487,10 @@ async function boot() {
       console.log(`Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks)`);
       if (fs.existsSync(distDir)) {
         console.log(`Serving SPA from ${distDir}`);
+      } else {
+        console.warn(
+          `SPA dist not found at ${distDir}. Run npm run build so / serves the frontend.`
+        );
       }
     });
   } catch (err: any) {
