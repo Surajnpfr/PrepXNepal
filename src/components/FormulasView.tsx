@@ -57,7 +57,7 @@ export const FormulasView: React.FC = () => {
           High-Yield Formula Sheets & Saved Notes
         </h1>
         <p className="text-xs sm:text-sm text-slate-600">
-          Instant offline-cached revision formulas for CEE Physics, Chemistry, Botany, Zoology, and Mathematics.
+          Instant offline-cached revision formulas for CEE Physics, Chemistry, Botany, Zoology, and MAT.
         </p>
       </div>
 
@@ -116,7 +116,7 @@ export const FormulasView: React.FC = () => {
                   <h3 className="font-bold text-slate-900 text-base mt-1">{sheet.title}</h3>
                 </div>
                 <button 
-                  onClick={() => alert(`Downloading offline formula sheet for ${sheet.title}`)}
+                  onClick={() => window.print()}
                   className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
                   title="Download PDF Formula Sheet"
                 >

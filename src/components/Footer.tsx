@@ -3,15 +3,16 @@ import {
   HelpCircle, 
   CheckCircle2, 
   ShieldCheck, 
-  CreditCard, 
   ChevronDown, 
   ChevronUp, 
-  Sparkles,
-  ArrowUpRight,
   Lock
 } from 'lucide-react';
 
-export const Footer: React.FC = () => {
+interface FooterProps {
+  onNavigate: (tab: string, subTab?: string) => void;
+}
+
+export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   // Mobile accordion state for collapsible sections
   const [openSection, setOpenSection] = useState<string | null>(null);
 
@@ -20,7 +21,7 @@ export const Footer: React.FC = () => {
   };
 
   return (
-    <footer className="bg-[#F5F8FD] text-[#172033] border-t border-[#E3E9F2] mt-16 font-sans relative overflow-hidden shadow-[0_-4px_20px_rgba(37,99,235,0.02)]">
+    <footer className="bg-[#F5F8FD] text-[#172033] border-t border-[#E3E9F2] mt-16 font-sans relative overflow-hidden shadow-[0_-4px_20px_rgba(37,99,235,0.02)] select-none">
       {/* Subtle atmospheric ambient glow behind footer */}
       <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-full max-w-5xl h-48 bg-gradient-to-r from-blue-200/20 via-indigo-200/15 to-purple-200/20 blur-3xl pointer-events-none" />
 
@@ -47,7 +48,7 @@ export const Footer: React.FC = () => {
             </div>
 
             <p className="text-[#627089] text-xs sm:text-[13px] leading-relaxed max-w-xs font-normal">
-              Personalized mock tests, chapter-level analytics and focused revision tools for Nepal CEE and IOE entrance preparation.
+              Personalized mock tests, chapter-level analytics and focused revision tools for Nepal CEE preparation.
             </p>
 
             <div className="pt-1 text-[11px] text-[#8A96A8] font-medium flex items-center gap-1.5">
@@ -70,28 +71,48 @@ export const Footer: React.FC = () => {
               </span>
             </button>
 
-            <ul className={`space-y-2.5 pt-3 text-xs sm:text-[13px] font-medium text-[#627089] md:block ${
+            <ul className={`space-y-2.5 pt-3 text-xs sm:text-[13px] font-medium text-[#627089] list-none pl-0 md:block ${
               openSection === 'prep' ? 'block' : 'hidden md:block'
             }`}>
               <li>
-                <a href="#cee" className="hover:text-[#1F4FC1] transition-colors flex items-center gap-1 group">
-                  <span>Nepal CEE</span>
-                </a>
+                <button 
+                  onClick={() => onNavigate('policies', 'info')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Nepal CEE Rules
+                </button>
               </li>
               <li>
-                <a href="#ioe" className="hover:text-[#1F4FC1] transition-colors">IOE Entrance</a>
+                <button 
+                  onClick={() => onNavigate('catalog')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Mock Tests
+                </button>
               </li>
               <li>
-                <a href="#mocks" className="hover:text-[#1F4FC1] transition-colors">Mock Tests</a>
+                <button 
+                  onClick={() => onNavigate('catalog')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Previous Year Papers
+                </button>
               </li>
               <li>
-                <a href="#pyp" className="hover:text-[#1F4FC1] transition-colors">Previous Year Papers</a>
+                <button 
+                  onClick={() => onNavigate('formulas')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Formula Library
+                </button>
               </li>
               <li>
-                <a href="#formulas" className="hover:text-[#1F4FC1] transition-colors">Formula Library</a>
-              </li>
-              <li>
-                <a href="#planner" className="hover:text-[#1F4FC1] transition-colors">Study Planner</a>
+                <button 
+                  onClick={() => onNavigate('planner')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Study Planner
+                </button>
               </li>
             </ul>
           </div>
@@ -103,33 +124,63 @@ export const Footer: React.FC = () => {
               className="w-full flex items-center justify-between md:cursor-default text-left py-1"
             >
               <h4 className="font-bold text-[#172033] text-xs sm:text-[14px] tracking-tight">
-                Platform
+                Platform Navigation
               </h4>
               <span className="md:hidden text-[#8A96A8]">
                 {openSection === 'platform' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </span>
             </button>
 
-            <ul className={`space-y-2.5 pt-3 text-xs sm:text-[13px] font-medium text-[#627089] md:block ${
+            <ul className={`space-y-2.5 pt-3 text-xs sm:text-[13px] font-medium text-[#627089] list-none pl-0 md:block ${
               openSection === 'platform' ? 'block' : 'hidden md:block'
             }`}>
               <li>
-                <a href="#dashboard" className="hover:text-[#1F4FC1] transition-colors">Dashboard</a>
+                <button 
+                  onClick={() => onNavigate('home')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Dashboard
+                </button>
               </li>
               <li>
-                <a href="#reports" className="hover:text-[#1F4FC1] transition-colors">Performance Reports</a>
+                <button 
+                  onClick={() => onNavigate('reports')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Performance Reports
+                </button>
               </li>
               <li>
-                <a href="#saved" className="hover:text-[#1F4FC1] transition-colors">Saved Questions</a>
+                <button 
+                  onClick={() => onNavigate('saved')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Saved Questions
+                </button>
               </li>
               <li>
-                <a href="#coins" className="hover:text-[#1F4FC1] transition-colors">Study Coins</a>
+                <button 
+                  onClick={() => onNavigate('coins')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Study Coins Wallet
+                </button>
               </li>
               <li>
-                <a href="#pricing" className="hover:text-[#1F4FC1] transition-colors">Pricing</a>
+                <button 
+                  onClick={() => onNavigate('payment')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Subscription Pricing
+                </button>
               </li>
               <li>
-                <a href="#help" className="hover:text-[#1F4FC1] transition-colors">Help Centre</a>
+                <button 
+                  onClick={() => onNavigate('policies', 'info')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Help Centre Desk
+                </button>
               </li>
             </ul>
           </div>
@@ -137,37 +188,61 @@ export const Footer: React.FC = () => {
           {/* COLUMN 4 — SUPPORT */}
           <div className="border-t md:border-t-0 border-[#E3E9F2] pt-4 md:pt-0 space-y-3">
             <h4 className="font-bold text-[#172033] text-xs sm:text-[14px] tracking-tight">
-              Support
+              Academic Support
             </h4>
 
             <p className="text-[#627089] text-xs sm:text-[13px] leading-snug">
-              Need help with your account, mock test or payment?
+              Need assistance with subscriptions, CEE marks, or payment verifications?
             </p>
 
-            {/* Primary Support Button (44px height) */}
-            <a
-              href="mailto:support@prepxnepal.com"
-              className="h-[44px] px-4 bg-[#2563EB] hover:bg-[#1F4FC1] text-white font-bold text-xs sm:text-[13px] rounded-[14px] shadow-[0_4px_14px_rgba(37,99,235,0.25)] flex items-center justify-center gap-2 transition-all cursor-pointer hover:-translate-y-0.5 active:translate-y-0 w-full sm:w-auto inline-flex"
+            <button
+              onClick={() => onNavigate('policies', 'issue')}
+              className="h-[44px] px-4 bg-[#2563EB] hover:bg-[#1F4FC1] text-white font-bold text-xs sm:text-[13px] rounded-[14px] shadow-[0_4px_14px_rgba(37,99,235,0.25)] flex items-center justify-center gap-2 transition-all cursor-pointer w-full text-center"
             >
               <HelpCircle className="w-4 h-4 text-white/90" />
-              <span>Contact Support</span>
-            </a>
+              <span>Contact Support Desk</span>
+            </button>
 
-            <ul className="space-y-2 pt-1 text-xs sm:text-[13px] font-medium text-[#627089]">
+            <ul className="space-y-2 pt-1 text-xs sm:text-[13px] font-medium text-[#627089] list-none pl-0">
               <li>
-                <a href="#faq" className="hover:text-[#1F4FC1] transition-colors">Frequently Asked Questions</a>
+                <button 
+                  onClick={() => onNavigate('policies', 'faq')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Frequently Asked Questions
+                </button>
               </li>
               <li>
-                <a href="#verification" className="hover:text-[#1F4FC1] transition-colors">Payment Verification</a>
+                <button 
+                  onClick={() => onNavigate('payment')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Payment Reference Claim
+                </button>
               </li>
               <li>
-                <a href="#issue" className="hover:text-[#1F4FC1] transition-colors">Report an Issue</a>
+                <button 
+                  onClick={() => onNavigate('policies', 'issue')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full text-rose-600 font-semibold"
+                >
+                  Report a Problem
+                </button>
               </li>
               <li>
-                <a href="#terms" className="hover:text-[#1F4FC1] transition-colors">Terms of Service</a>
+                <button 
+                  onClick={() => onNavigate('policies', 'terms')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Terms of Service
+                </button>
               </li>
               <li>
-                <a href="#privacy" className="hover:text-[#1F4FC1] transition-colors">Privacy Policy</a>
+                <button 
+                  onClick={() => onNavigate('policies', 'privacy')}
+                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
+                >
+                  Privacy Policy
+                </button>
               </li>
             </ul>
           </div>
@@ -208,9 +283,6 @@ export const Footer: React.FC = () => {
                 Bank Transfer
               </span>
             </div>
-            <p className="text-[11px] text-[#8A96A8]">
-              Manual payment verification is available when required.
-            </p>
           </div>
 
           {/* Group 3 — Security and Fair Use */}
@@ -243,13 +315,33 @@ export const Footer: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-[12px]">
-            <a href="#terms" className="hover:text-[#1F4FC1] transition-colors">Terms of Service</a>
+            <button 
+              onClick={() => onNavigate('policies', 'terms')}
+              className="hover:text-[#1F4FC1] transition-colors cursor-pointer"
+            >
+              Terms of Service
+            </button>
             <span className="text-slate-300">•</span>
-            <a href="#privacy" className="hover:text-[#1F4FC1] transition-colors">Privacy Policy</a>
+            <button 
+              onClick={() => onNavigate('policies', 'privacy')}
+              className="hover:text-[#1F4FC1] transition-colors cursor-pointer"
+            >
+              Privacy Policy
+            </button>
             <span className="text-slate-300">•</span>
-            <a href="#coins-policy" className="hover:text-[#1F4FC1] transition-colors">Study Coins Policy</a>
+            <button 
+              onClick={() => onNavigate('policies', 'coins-policy')}
+              className="hover:text-[#1F4FC1] transition-colors cursor-pointer"
+            >
+              Study Coins Policy
+            </button>
             <span className="text-slate-300">•</span>
-            <a href="#refund" className="hover:text-[#1F4FC1] transition-colors">Refund Policy</a>
+            <button 
+              onClick={() => onNavigate('policies', 'refund')}
+              className="hover:text-[#1F4FC1] transition-colors cursor-pointer"
+            >
+              Refund Policy
+            </button>
           </div>
 
         </div>

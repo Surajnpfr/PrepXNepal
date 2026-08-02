@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { UserProfile } from '../types';
+import { isStaffRole } from '../lib/clerkUserMapper';
 
 interface SidebarProps {
   activeTab: string;
@@ -40,34 +41,82 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   setMobileOpen,
   pendingPaymentCount = 0,
-  savedQuestionsCount = 5,
+  savedQuestionsCount = 0,
 }) => {
   const handleNav = (tab: string) => {
     setActiveTab(tab);
     setMobileOpen(false);
   };
 
-  const navItems = [
-    { id: 'home', label: 'Home', icon: LayoutDashboard },
+  const coreNavItems = [
+    { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'catalog', label: 'Mock Tests', icon: FileCheck },
-    { id: 'formulas', label: 'Study', icon: BookOpen },
-    { id: 'reports', label: 'Progress', icon: BarChart3 },
-    { id: 'saved', label: 'Saved', icon: Bookmark, badge: savedQuestionsCount },
+    { id: 'payment', label: 'Pricing & Plans', icon: Zap },
   ];
 
-  const secondaryItems: any[] = [
+  const studyNavItems = [
+    { id: 'formulas', label: 'Formula Library', icon: BookOpen },
+    { id: 'saved', label: 'Saved Questions', icon: Bookmark, badge: savedQuestionsCount },
     { id: 'planner', label: 'Study Planner', icon: CalendarCheck },
-    { id: 'policies', label: 'Help', icon: HelpCircle },
   ];
 
-  if (userProfile.role === 'Admin' || userProfile.role === 'Moderator') {
-    secondaryItems.push({
+  const canAccessAdmin = isStaffRole(userProfile);
+
+  const analyticsNavItems: any[] = [
+    { id: 'reports', label: 'Progress Reports', icon: BarChart3 },
+    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+    { id: 'policies', label: 'Help & Support', icon: HelpCircle },
+  ];
+
+  if (canAccessAdmin) {
+    analyticsNavItems.push({
       id: 'admin',
       label: 'Admin Desk',
       icon: Sliders,
       badge: pendingPaymentCount > 0 ? pendingPaymentCount : undefined,
     });
   }
+
+  const renderNavGroup = (title: string, items: any[]) => (
+    <div className="space-y-1">
+      {!isCollapsed && (
+        <div className="px-3 pt-3 pb-1 text-[10px] uppercase font-mono font-black tracking-widest text-slate-400">
+          {title}
+        </div>
+      )}
+      {items.map((item) => {
+        const Icon = item.icon;
+        const isActive = activeTab === item.id || (item.id === 'catalog' && activeTab === 'mock-engine');
+
+        return (
+          <button
+            key={item.id}
+            onClick={() => handleNav(item.id)}
+            title={isCollapsed ? item.label : undefined}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all cursor-pointer relative group ${
+              isActive
+                ? 'bg-[#2563EB]/10 text-[#2563EB] font-bold border border-[#2563EB]/25 shadow-[0_2px_8px_rgba(37,99,235,0.08)] backdrop-blur-md'
+                : 'text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-medium'
+            }`}
+          >
+            <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-[#2563EB]' : 'text-slate-400 group-hover:text-slate-700'}`} />
+            
+            {!isCollapsed && (
+              <span className="truncate flex-1 text-left">{item.label}</span>
+            )}
+
+            {!isCollapsed && item.badge !== undefined && (
+              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                isActive ? 'bg-[#2563EB]/20 text-[#2563EB]' : 'bg-slate-200/70 text-slate-700'
+              }`}>
+                {item.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   const sidebarContent = (
     <div className="h-full flex flex-col justify-between font-sans py-2">
@@ -106,81 +155,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Main Nav Items */}
-        <div className="p-3 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id || (item.id === 'catalog' && activeTab === 'mock-engine');
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNav(item.id)}
-                title={isCollapsed ? item.label : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all cursor-pointer relative group ${
-                  isActive
-                    ? 'bg-[#2563EB]/10 text-[#2563EB] font-bold border border-[#2563EB]/25 shadow-[0_2px_8px_rgba(37,99,235,0.1)] backdrop-blur-md'
-                    : 'text-slate-600 hover:bg-white/80 hover:text-slate-900 font-medium'
-                }`}
-              >
-                <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-[#2563EB]' : 'text-slate-400 group-hover:text-slate-700'}`} />
-                
-                {!isCollapsed && (
-                  <span className="truncate flex-1 text-left">{item.label}</span>
-                )}
-
-                {!isCollapsed && item.badge !== undefined && (
-                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                    isActive ? 'bg-[#2563EB]/20 text-[#2563EB]' : 'bg-slate-200/70 text-slate-700'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Divider */}
-        <div className="mx-3 my-2 border-t border-slate-200/60" />
-
-        {/* Secondary Items */}
-        <div className="p-3 pt-0 space-y-1">
-          {secondaryItems.map((item: any) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNav(item.id)}
-                title={isCollapsed ? item.label : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all cursor-pointer relative group ${
-                  isActive
-                    ? 'bg-[#2563EB]/10 text-[#2563EB] font-bold border border-[#2563EB]/25 shadow-[0_2px_8px_rgba(37,99,235,0.1)] backdrop-blur-md'
-                    : 'text-slate-600 hover:bg-white/80 hover:text-slate-900 font-medium'
-                }`}
-              >
-                <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#2563EB]' : 'text-slate-400 group-hover:text-slate-700'}`} />
-
-                {!isCollapsed && (
-                  <div className="flex-1 text-left flex items-center justify-between">
-                    <span className="truncate">{item.label}</span>
-                    {item.badge && (
-                      <span className="text-[10px] font-mono font-bold bg-rose-600 text-white px-1.5 py-0.5 rounded-full">
-                        {item.badge}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+        {/* Categorized Navigation Groups */}
+        <div className="p-3 space-y-2 overflow-y-auto max-h-[calc(100vh-140px)]">
+          {renderNavGroup('Main Workspace', coreNavItems)}
+          {renderNavGroup('Study & Practice', studyNavItems)}
+          {renderNavGroup('Analytics & Governance', analyticsNavItems)}
         </div>
       </div>
 
-      {/* Bottom Desktop Collapse Trigger */}
-      <div className="p-3 border-t border-slate-200/50">
+      {/* Bottom Desktop Collapse Trigger & User Status Card */}
+      <div className="p-3 border-t border-slate-200/50 space-y-2">
+        {!isCollapsed && (
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 flex items-center gap-2.5 text-xs">
+            <div className="w-7 h-7 rounded-lg bg-blue-100 text-[#2563EB] font-mono font-black flex items-center justify-center shrink-0">
+              {userProfile.name ? userProfile.name.charAt(0) : 'U'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-slate-900 truncate text-[11px]">{userProfile.name}</div>
+              <div className="text-[10px] font-mono text-slate-500 truncate">{userProfile.plan} Tier</div>
+            </div>
+          </div>
+        )}
+
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="hidden md:flex w-full items-center justify-center p-2 text-slate-400 hover:text-slate-700 hover:bg-white/80 rounded-xl transition-colors cursor-pointer"

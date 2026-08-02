@@ -17,6 +17,7 @@ import {
   Info
 } from 'lucide-react';
 import { AttemptReport } from '../types';
+import { downloadQuestionPaperPdf } from '../lib/downloadQuestionPaperPdf';
 
 interface ReportViewProps {
   report: AttemptReport;
@@ -26,11 +27,19 @@ interface ReportViewProps {
 export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showChapterAnalysis, setShowChapterAnalysis] = useState(false);
 
   const handleCopyShare = () => {
     navigator.clipboard.writeText(`https://prepx.np/report/share/${report.shareToken}`);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleDownloadPdf = () => {
+    const result = downloadQuestionPaperPdf(report);
+    if (result.ok === false) {
+      alert(result.error);
+    }
   };
 
   return (
@@ -61,7 +70,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
           </button>
 
           <button
-            onClick={() => alert(`Downloading official PDF report for ${report.mockTitle}...`)}
+            onClick={handleDownloadPdf}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-all"
           >
             <Download className="w-4 h-4" />
@@ -186,7 +195,13 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
             <div className="text-xs font-bold text-slate-800">Key Recommendation Strategy:</div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Focus on eliminating negative marking deductions in Chemistry and Botany. Skipping uncertain questions yields a higher net score than random guessing under CEE rules.
+              {report.recommendations?.[0]
+                ? `Priority: ${report.recommendations[0].title}${
+                    report.recommendations[0].chapter
+                      ? ` (${report.recommendations[0].subject} · ${report.recommendations[0].chapter})`
+                      : ''
+                  }. Skipping uncertain questions usually beats random guessing under CEE −0.25 marking.`
+                : 'Skipping uncertain questions usually beats random guessing under CEE −0.25 marking. Focus revision on your weakest chapters from the analysis below.'}
             </p>
           </div>
         </div>
@@ -194,44 +209,69 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
 
       {/* Chapter Breakdown Table */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-        <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100">
-          Detailed Chapter Mastery Analysis
-        </h3>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
-                <th className="p-3">Subject</th>
-                <th className="p-3">Chapter</th>
-                <th className="p-3 text-center">Correct / Total</th>
-                <th className="p-3 text-center">Accuracy</th>
-                <th className="p-3 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {report.chapterScores.map((chap, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/80">
-                  <td className="p-3 font-semibold text-slate-800">{chap.subject}</td>
-                  <td className="p-3 text-slate-900 font-medium">{chap.chapter}</td>
-                  <td className="p-3 text-center font-mono">{chap.correct} / {chap.total}</td>
-                  <td className="p-3 text-center font-mono font-bold">{chap.accuracy}%</td>
-                  <td className="p-3 text-right">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold font-mono ${
-                      chap.status === 'Weak'
-                        ? 'bg-rose-100 text-rose-800'
-                        : chap.status === 'Strong'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {chap.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <h3 className="font-bold text-slate-900 text-base">
+            Detailed Chapter Mastery Analysis
+          </h3>
+          {showChapterAnalysis && (
+            <button
+              onClick={() => setShowChapterAnalysis(false)}
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+            >
+              Hide Analysis
+            </button>
+          )}
         </div>
+
+        {!showChapterAnalysis ? (
+          <div className="text-center py-4 space-y-3">
+            <p className="text-xs text-slate-500 font-semibold max-w-lg mx-auto leading-relaxed">
+              Analyze your correct-to-total ratios, individual chapter accuracy percentages, and dynamic mastery statuses (Weak, Improving, Strong) across all 20+ physics, chemistry, and biology exam topics.
+            </p>
+            <button
+              onClick={() => setShowChapterAnalysis(true)}
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
+            >
+              <BookOpen className="w-4 h-4 text-cyan-400" />
+              <span>Show Detailed Chapter Mastery Report</span>
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
+                  <th className="p-3">Subject</th>
+                  <th className="p-3">Chapter</th>
+                  <th className="p-3 text-center">Correct / Total</th>
+                  <th className="p-3 text-center">Accuracy</th>
+                  <th className="p-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {report.chapterScores.map((chap, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/80">
+                    <td className="p-3 font-semibold text-slate-800">{chap.subject}</td>
+                    <td className="p-3 text-slate-900 font-medium">{chap.chapter}</td>
+                    <td className="p-3 text-center font-mono">{chap.correct} / {chap.total}</td>
+                    <td className="p-3 text-center font-mono font-bold">{chap.accuracy}%</td>
+                    <td className="p-3 text-right">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold font-mono ${
+                        chap.status === 'Weak'
+                          ? 'bg-rose-100 text-rose-800'
+                          : chap.status === 'Strong'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {chap.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Recommended Revision Tasks */}

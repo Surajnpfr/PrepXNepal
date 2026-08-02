@@ -1,8 +1,43 @@
+# Dependencies
 node_modules/
+
+# Build / tooling
 build/
 dist/
 coverage/
-.DS_Store
+*.tsbuildinfo
+.vite/
+server.js
+
+# Logs & OS
 *.log
-.env*
-!.env.example
+npm-debug.log*
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Secrets — keep .env.example tracked
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Local SQLite question bank (never commit live DB)
+data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Misc local dumps
+*.pem
+*.key

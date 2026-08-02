@@ -1,6 +1,22 @@
-export type UserRole = 'Student' | 'Moderator' | 'Admin';
-export type ExamType = 'Nepal CEE' | 'IOE Entrance';
+export type UserRole = 'Student' | 'Moderator (Questions)' | 'Moderator (Billing)' | 'Admin';
+export type ExamType = 'Nepal CEE';
 export type PlanTier = 'Free' | 'Premium' | 'Unlimited';
+
+export interface PricingPlan {
+  id: string;
+  code: string; // 'Free' | 'Premium' | 'Unlimited' or custom
+  name: string; // e.g. 'Free Tier', 'Standard Premium', 'Unlimited Elite'
+  tier: PlanTier;
+  priceNpr: number;
+  originalPriceNpr?: number;
+  mocksGranted: number | null; // null = unlimited
+  coinsGranted: number;
+  description: string;
+  features: string[];
+  isPopular?: boolean;
+  badgeText?: string;
+  status: 'active' | 'archived';
+}
 
 export interface UserProfile {
   id: string;
@@ -16,9 +32,29 @@ export interface UserProfile {
   preferredLanguage: 'en' | 'ne';
   darkTheme: boolean;
   avatarUrl?: string;
+  isClerkLive?: boolean;
+  clerkId?: string;
+  /** Latest mock overall score synced to Clerk publicMetadata for leaderboard. */
+  lastMockScore?: number;
+  /** Latest mock percentile synced to Clerk publicMetadata for leaderboard. */
+  lastPercentile?: number;
 }
 
-export type SubjectName = 'Physics' | 'Chemistry' | 'Zoology' | 'Botany' | 'MAT' | 'Mathematics' | 'English';
+export type SubjectName = 'Physics' | 'Chemistry' | 'Zoology' | 'Botany' | 'MAT';
+
+export type MockMode = 'fixed' | 'dynamic';
+export type MockScope = 'full' | 'subject' | 'chapter';
+
+export interface ChapterAllocationRule {
+  subject: SubjectName;
+  chapter: string;
+  count: number;
+}
+
+export interface MockAllocation {
+  subjects: Partial<Record<SubjectName, number>>;
+  chapters?: ChapterAllocationRule[];
+}
 
 export interface QuestionOptions {
   A: string;
@@ -32,22 +68,34 @@ export interface Question {
   subject: SubjectName;
   chapter: string;
   stem: string;
+  /** Optional figure/diagram URL (MAT pattern questions, physics diagrams, etc.). */
+  imageUrl?: string;
   options: QuestionOptions;
-  correctOptionKey: 'A' | 'B' | 'C' | 'D';
-  explanation: string;
+  /** Optional images for choices A–D. */
+  optionImages?: Partial<Record<'A' | 'B' | 'C' | 'D', string>>;
+  correctOptionKey?: 'A' | 'B' | 'C' | 'D';
+  explanation?: string;
   tags: string[];
   language: 'en' | 'ne';
   status: 'pending_review' | 'published' | 'flagged';
   source?: string;
   flagCount?: number;
+  batchId?: string;
 }
 
 export interface MockTest {
   id: string;
   title: string;
   examType: ExamType;
-  kind: 'Mock' | 'PYP'; // PYP = Previous Year Paper
-  durationSec: number; // e.g. 10800 (3 hrs) or 7200 (2 hrs)
+  /** fixed = frozen paper; dynamic = sample at start. Defaults to fixed for legacy seed data. */
+  mode?: MockMode;
+  /** full | subject | chapter. Inferred from kind/testCategory when omitted. */
+  scope?: MockScope;
+  kind: 'Mock' | 'Chapter'; // derived from scope for catalog filters
+  testCategory?: 'full' | 'chapter';
+  subject?: 'Physics' | 'Chemistry' | 'Zoology' | 'Botany' | 'MAT' | 'Combined';
+  chapterName?: string;
+  durationSec: number; // e.g. 10800 (3 hrs) or 1800 (30 mins)
   totalQuestions: number;
   questionsPerPage: number; // default 20
   correctMarks: number; // e.g. 1
@@ -56,7 +104,11 @@ export interface MockTest {
   isPublished: boolean;
   coinPrice?: number; // 0 or amount required if redeemed via coins
   year?: string;
+  allocation?: MockAllocation;
+  importBatchId?: string;
   questions: Question[];
+  /** Server session binding start → score (not persisted). */
+  attemptSessionId?: string;
 }
 
 export interface AttemptState {
@@ -106,6 +158,7 @@ export interface RecommendationTask {
 
 export interface AttemptReport {
   id: string;
+  userId?: string;
   attemptId: string;
   mockId: string;
   mockTitle: string;
@@ -133,10 +186,15 @@ export interface AttemptReport {
   targetGap: number;
   recommendations: RecommendationTask[];
   shareToken: string;
+  /** Snapshot of the paper for PDF review (optional for older reports). */
+  paperQuestions?: Question[];
+  /** Student answers keyed by question id. */
+  paperAnswers?: Record<string, 'A' | 'B' | 'C' | 'D'>;
 }
 
 export interface CoinTransaction {
   id: string;
+  userId?: string;
   delta: number;
   reason: string;
   refType: string;
@@ -192,4 +250,43 @@ export interface BulkImportLog {
   errorCount: number;
   errors: { line: number; message: string }[];
   importedAt: string;
+}
+
+export type NotificationKind =
+  | 'mock_complete'
+  | 'coins'
+  | 'payment'
+  | 'target'
+  | 'catalog'
+  | 'system'
+  | 'planner';
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  kind: NotificationKind;
+  title: string;
+  desc: string;
+  /** ISO timestamp — source of truth for ordering / relative time. */
+  createdAt: string;
+  read: boolean;
+  /** Optional deep-link tab when the notification is opened. */
+  hrefTab?: string;
+  /** Optional entity id (report, claim, mock, etc.). */
+  refId?: string;
+}
+
+export interface StudyPlanTask {
+  id: string;
+  userId: string;
+  /** Local calendar day YYYY-MM-DD. */
+  dateKey: string;
+  subject: string;
+  title: string;
+  durationMin: number;
+  completed: boolean;
+  highYield: boolean;
+  source: 'auto' | 'custom';
+  chapter?: string;
+  refReportId?: string;
 }

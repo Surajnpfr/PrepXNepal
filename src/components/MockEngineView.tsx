@@ -18,18 +18,28 @@ import { MockTest, Question, AttemptState } from '../types';
 
 interface MockEngineViewProps {
   mockTest: MockTest;
-  onSubmitAttempt: (attempt: AttemptState) => void;
+  onSubmitAttempt: (attempt: AttemptState) => void | Promise<void>;
   onExit: () => void;
+  /** Question ids already saved for this user (from Saved Questions store). */
+  initialBookmarkedIds?: string[];
+  onToggleSavedQuestion?: (question: Question, saved: boolean) => void;
 }
 
 export const MockEngineView: React.FC<MockEngineViewProps> = ({
   mockTest,
   onSubmitAttempt,
   onExit,
+  initialBookmarkedIds = [],
+  onToggleSavedQuestion,
 }) => {
   // Page & Question state
   const questionsPerPage = mockTest.questionsPerPage || 20;
   const totalPages = Math.ceil(mockTest.questions.length / questionsPerPage);
+
+  const [hasConfirmedInstructions, setHasConfirmedInstructions] = useState<boolean>(() => {
+    return !!localStorage.getItem(`prepx_attempt_${mockTest.id}`);
+  });
+  const [isAgreedToTerms, setIsAgreedToTerms] = useState<boolean>(false);
 
   const [attempt, setAttempt] = useState<AttemptState>(() => {
     // Check localStorage for saved session recovery
@@ -43,14 +53,13 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
     }
 
     const now = new Date();
-    const ends = new Date(now.getTime() + mockTest.durationSec * 1000);
     return {
       id: `att-${Date.now()}`,
       mockId: mockTest.id,
       mockTitle: mockTest.title,
       examType: mockTest.examType,
       startedAt: now.toISOString(),
-      endsAt: ends.toISOString(),
+      endsAt: now.toISOString(), // Temporary, finalized upon starting exam
       answers: {},
       markedForReview: [],
       currentPage: 1,
@@ -61,12 +70,21 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
   });
 
   const [remainingSecs, setRemainingSecs] = useState<number>(() => {
-    const ends = new Date(attempt.endsAt).getTime();
-    const now = new Date().getTime();
-    return Math.max(0, Math.floor((ends - now) / 1000));
+    const saved = localStorage.getItem(`prepx_attempt_${mockTest.id}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const ends = new Date(parsed.endsAt).getTime();
+        const now = new Date().getTime();
+        return Math.max(0, Math.floor((ends - now) / 1000));
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return mockTest.durationSec;
   });
 
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => [...initialBookmarkedIds]);
   const [flaggedIds, setFlaggedIds] = useState<string[]>([]);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showPaletteDrawer, setShowPaletteDrawer] = useState(false);
@@ -76,11 +94,15 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
 
   // Incremental save to localStorage
   useEffect(() => {
-    localStorage.setItem(`prepx_attempt_${mockTest.id}`, JSON.stringify(attempt));
-  }, [attempt, mockTest.id]);
+    if (hasConfirmedInstructions) {
+      localStorage.setItem(`prepx_attempt_${mockTest.id}`, JSON.stringify(attempt));
+    }
+  }, [attempt, mockTest.id, hasConfirmedInstructions]);
 
   // Timer Countdown loop
   useEffect(() => {
+    if (!hasConfirmedInstructions) return;
+
     if (remainingSecs <= 0) {
       handleFinalSubmit();
       return;
@@ -98,7 +120,19 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [remainingSecs]);
+  }, [remainingSecs, hasConfirmedInstructions]);
+
+  const handleStartExam = () => {
+    const now = new Date();
+    const ends = new Date(now.getTime() + mockTest.durationSec * 1000);
+    setAttempt(prev => ({
+      ...prev,
+      startedAt: now.toISOString(),
+      endsAt: ends.toISOString()
+    }));
+    setRemainingSecs(mockTest.durationSec);
+    setHasConfirmedInstructions(true);
+  };
 
   const handleSelectOption = (qId: string, key: 'A' | 'B' | 'C' | 'D') => {
     setAttempt(prev => ({
@@ -123,9 +157,15 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
   };
 
   const handleToggleBookmark = (qId: string) => {
-    setBookmarkedIds(prev => 
-      prev.includes(qId) ? prev.filter(id => id !== qId) : [...prev, qId]
-    );
+    const question = mockTest.questions.find((q) => q.id === qId);
+    setBookmarkedIds((prev) => {
+      const exists = prev.includes(qId);
+      const next = exists ? prev.filter((id) => id !== qId) : [...prev, qId];
+      if (question && onToggleSavedQuestion) {
+        onToggleSavedQuestion(question, !exists);
+      }
+      return next;
+    });
   };
 
   const handleToggleFlag = (qId: string) => {
@@ -149,7 +189,8 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
 
   const answeredCount = Object.keys(attempt.answers).filter(k => attempt.answers[k]).length;
   const reviewCount = attempt.markedForReview.length;
-  const unansweredCount = mockTest.totalQuestions - answeredCount;
+  const actualTotalQuestions = mockTest.questions.length || mockTest.totalQuestions;
+  const unansweredCount = Math.max(0, actualTotalQuestions - answeredCount);
 
   // Format timer HH:MM:SS
   const formatTime = (seconds: number) => {
@@ -158,6 +199,92 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
     const secs = seconds % 60;
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (!hasConfirmedInstructions) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white font-sans flex items-center justify-center p-4">
+        <div className="bg-white text-slate-800 rounded-2xl max-w-2xl w-full p-6 sm:p-8 border border-slate-200 shadow-2xl space-y-6">
+          
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-[#2563EB] font-black">Examination Hall Entry Gate</span>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">
+                MEC CEE Regulations
+              </h2>
+            </div>
+            <button 
+              onClick={onExit}
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1.5 text-xs">
+              <div className="font-bold text-slate-800">Exam Details:</div>
+              <div className="grid grid-cols-2 gap-2 text-slate-600 font-medium">
+                <div>• Total Questions: <span className="font-bold text-slate-900">{mockTest.questions.length || mockTest.totalQuestions} MCQs</span></div>
+                <div>• Total Duration: <span className="font-bold text-slate-900">{Math.round(mockTest.durationSec / 60)} mins</span></div>
+                <div>• Exam Format: <span className="font-bold text-slate-900">Nepal CEE Standard</span></div>
+                <div>• Penalty Scheme: <span className="font-bold text-[#E11D48]">-0.25 negative marks</span></div>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs leading-relaxed text-slate-600 font-semibold">
+              <div className="flex items-start gap-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB] mt-1.5 shrink-0" />
+                <span><strong>Pagination:</strong> Questions are organized across 10 pages containing 20 questions each. You can navigate back and forth between pages.</span>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB] mt-1.5 shrink-0" />
+                <span><strong>No Retrospective Changes:</strong> You are allowed exactly one response per question. Once you complete the test, answers are submitted for evaluation immediately.</span>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB] mt-1.5 shrink-0" />
+                <span><strong>Auto-Save Integrity:</strong> The system automatically caches your current inputs every 10 seconds. Reloading the page or recovering from a network disconnect will resume from your exact state.</span>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#E11D48] mt-1.5 shrink-0" />
+                <span><strong>Countdown Constraint:</strong> Reaching 00:00:00 will trigger a silent backend auto-submission. Unanswered questions do not deduct points.</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 space-y-4">
+            <label className="flex items-start gap-3 cursor-pointer text-xs select-none">
+              <input 
+                type="checkbox" 
+                checked={isAgreedToTerms}
+                onChange={(e) => setIsAgreedToTerms(e.target.checked)}
+                className="w-4 h-4 rounded text-[#2563EB] focus:ring-[#2563EB]/20 border-slate-300 cursor-pointer mt-0.5"
+              />
+              <span className="text-slate-600 font-bold leading-normal">
+                I certify that I have read the academic code of conduct and agree to abide by the negative marking penalizations.
+              </span>
+            </label>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={onExit}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Back to Desk
+              </button>
+              <button 
+                disabled={!isAgreedToTerms}
+                onClick={handleStartExam}
+                className="flex-1 py-3 bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl transition-all cursor-pointer shadow-md"
+              >
+                Begin MEC CEE Mock Exam
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans flex flex-col">
@@ -382,10 +509,22 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                     {q.stem}
                   </div>
 
+                  {q.imageUrl && (
+                    <div className="pt-2">
+                      <img
+                        src={q.imageUrl}
+                        alt="Question figure"
+                        className="max-h-56 w-auto max-w-full rounded-xl border border-slate-200 bg-white object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+
                   {/* Options List A, B, C, D */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     {(['A', 'B', 'C', 'D'] as const).map((key) => {
                       const isSelected = selectedKey === key;
+                      const optionImage = q.optionImages?.[key];
                       return (
                         <button
                           key={key}
@@ -401,8 +540,18 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                           }`}>
                             {key}
                           </span>
-                          <span className="text-xs sm:text-sm pt-0.5 leading-snug">
-                            {q.options[key]}
+                          <span className="text-xs sm:text-sm pt-0.5 leading-snug flex-1 space-y-2">
+                            <span className="block">{q.options[key]}</span>
+                            {optionImage && (
+                              <img
+                                src={optionImage}
+                                alt={`Option ${key}`}
+                                className={`max-h-28 w-auto rounded-lg border object-contain ${
+                                  isSelected ? 'border-white/40 bg-white' : 'border-slate-200 bg-white'
+                                }`}
+                                loading="lazy"
+                              />
+                            )}
                           </span>
                         </button>
                       );

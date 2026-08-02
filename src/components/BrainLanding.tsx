@@ -45,22 +45,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp, onClose 
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-[#F4F7FD] text-[#0F172A] overflow-y-auto font-sans antialiased selection:bg-blue-100 relative">
-      
-      {/* ATMOSPHERIC BACKGROUND LIGHTING & COLOR FIELDS */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
-        {/* Soft Cyan Glow Top Left */}
-        <div className="absolute -top-[120px] -left-[120px] w-[550px] h-[550px] rounded-full bg-cyan-200/30 blur-[130px]" />
-        
-        {/* Radial Blue Glow Behind Hero Preview */}
-        <div className="absolute top-[80px] right-[5%] w-[650px] h-[650px] rounded-full bg-blue-500/12 blur-[150px]" />
-        
-        {/* Subtle Violet Glow Bottom Right */}
-        <div className="absolute top-[600px] right-[-100px] w-[500px] h-[500px] rounded-full bg-purple-500/10 blur-[140px]" />
-        
-        {/* Soft Indigo Glow Middle Left */}
-        <div className="absolute top-[1000px] left-[-80px] w-[450px] h-[450px] rounded-full bg-indigo-500/10 blur-[120px]" />
-      </div>
+    <div className="fixed inset-0 z-[100] bg-slate-50 text-slate-900 overflow-y-auto font-sans antialiased selection:bg-blue-100 relative">
 
       {/* 1. FLOATING LIQUID GLASS HEADER */}
       <header className="sticky top-4 z-50 max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 transition-all">

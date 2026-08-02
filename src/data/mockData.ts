@@ -1,31 +1,14 @@
 import { 
-  UserProfile, 
   MockTest, 
   Question, 
   AttemptReport, 
   CoinTransaction, 
   PaymentClaim, 
   FormulaSheet, 
-  RecommendationTask 
+  PricingPlan 
 } from '../types';
 
-export const INITIAL_USER_PROFILE: UserProfile = {
-  id: 'usr-ce-101',
-  name: 'Krrish Nyoupane',
-  email: 'krrish.nyoupane@gmail.com',
-  role: 'Student',
-  targetScore: 165,
-  targetExam: 'Nepal CEE',
-  examDate: '2026-09-15', // ~45 days away
-  plan: 'Premium',
-  mocksRemaining: 8,
-  studyCoinBalance: 245,
-  preferredLanguage: 'en',
-  darkTheme: false,
-  avatarUrl: '',
-};
-
-// High-Yield Questions Bank for CEE & IOE
+// High-Yield Questions Bank for CEE
 const SAMPLE_QUESTIONS: Question[] = [
   // PHYSICS
   {
@@ -278,11 +261,15 @@ export function buildFullMockQuestions(count = 200): Question[] {
 }
 
 export const INITIAL_MOCK_TESTS: MockTest[] = [
+  // --- FULL MOCK TESTS ---
   {
     id: 'mock-cee-full-01',
     title: 'Nepal CEE Official Grand Mock #1 (2026 Edition)',
     examType: 'Nepal CEE',
     kind: 'Mock',
+    testCategory: 'full',
+    subject: 'Combined',
+    chapterName: 'Full CEE Syllabus (Physics, Chemistry, Zoology, Botany, MAT)',
     durationSec: 10800, // 3 hours (180 mins)
     totalQuestions: 200,
     questionsPerPage: 20,
@@ -293,33 +280,20 @@ export const INITIAL_MOCK_TESTS: MockTest[] = [
     questions: buildFullMockQuestions(200),
   },
   {
-    id: 'pyp-cee-2081',
-    title: 'CEE 2081 Past Official Exam Paper',
+    id: 'mock-cee-full-02',
+    title: 'Nepal CEE High-Yield Grand Mock #2 (Full Simulation)',
     examType: 'Nepal CEE',
-    kind: 'PYP',
-    durationSec: 10800,
+    kind: 'Mock',
+    testCategory: 'full',
+    subject: 'Combined',
+    chapterName: 'Full CEE Syllabus (Physics, Chemistry, Zoology, Botany, MAT)',
+    durationSec: 10800, // 3 hours
     totalQuestions: 200,
     questionsPerPage: 20,
     correctMarks: 1,
     wrongMarks: -0.25,
     unansweredMarks: 0,
     isPublished: true,
-    year: '2081 BS',
-    questions: buildFullMockQuestions(200),
-  },
-  {
-    id: 'pyp-cee-2080',
-    title: 'CEE 2080 Past Official Exam Paper',
-    examType: 'Nepal CEE',
-    kind: 'PYP',
-    durationSec: 10800,
-    totalQuestions: 200,
-    questionsPerPage: 20,
-    correctMarks: 1,
-    wrongMarks: -0.25,
-    unansweredMarks: 0,
-    isPublished: true,
-    year: '2080 BS',
     questions: buildFullMockQuestions(200),
   },
   {
@@ -327,6 +301,9 @@ export const INITIAL_MOCK_TESTS: MockTest[] = [
     title: 'CEE Free Demo Diagnostic Mock (50 Questions)',
     examType: 'Nepal CEE',
     kind: 'Mock',
+    testCategory: 'full',
+    subject: 'Combined',
+    chapterName: 'Full Syllabus Quick Diagnostic',
     durationSec: 3600, // 60 mins
     totalQuestions: 50,
     questionsPerPage: 10,
@@ -337,158 +314,141 @@ export const INITIAL_MOCK_TESTS: MockTest[] = [
     coinPrice: 0,
     questions: buildFullMockQuestions(50),
   },
+
+  // --- CHAPTER-WISE MOCK TESTS ---
   {
-    id: 'mock-ioe-model-01',
-    title: 'IOE Entrance Model Test #1 (Maths & Physics Heavy)',
-    examType: 'IOE Entrance',
-    kind: 'Mock',
-    durationSec: 7200, // 2 hours
-    totalQuestions: 100,
-    questionsPerPage: 20,
+    id: 'mock-chap-phy-01',
+    title: 'Physics: Mechanics & Kinematics Chapter Mock',
+    examType: 'Nepal CEE',
+    kind: 'Chapter',
+    testCategory: 'chapter',
+    subject: 'Physics',
+    chapterName: 'Mechanics & Kinematics',
+    durationSec: 1800, // 30 mins
+    totalQuestions: 25,
+    questionsPerPage: 10,
     correctMarks: 1,
     wrongMarks: -0.25,
     unansweredMarks: 0,
     isPublished: true,
-    questions: buildFullMockQuestions(100),
-  }
-];
-
-export const INITIAL_PAST_REPORTS: AttemptReport[] = [
+    coinPrice: 0,
+    questions: buildFullMockQuestions(25),
+  },
   {
-    id: 'rep-cee-801',
-    attemptId: 'att-801',
-    mockId: 'mock-cee-full-01',
-    mockTitle: 'Nepal CEE Official Grand Mock #1 (2026 Edition)',
+    id: 'mock-chap-phy-02',
+    title: 'Physics: Electrostatics & Magnetism Chapter Mock',
     examType: 'Nepal CEE',
-    completedAt: '2026-07-28 14:30',
-    overallScore: 142.5,
-    maxScore: 200,
-    accuracyPercentage: 78.4,
-    totalAttempted: 175,
-    correctCount: 151,
-    wrongCount: 24,
-    skippedCount: 25,
-    timeSpentSec: 9840, // 2h 44m
-    predictedRank: 148,
-    rankBand: [125, 170],
-    percentile: 96.8,
-    subjectScores: [
-      { subject: 'Physics', total: 50, score: 38.25, accuracy: 81.2 },
-      { subject: 'Chemistry', total: 50, score: 36.5, accuracy: 77.0 },
-      { subject: 'Zoology', total: 40, score: 31.0, accuracy: 82.5 },
-      { subject: 'Botany', total: 40, score: 26.75, accuracy: 71.0 },
-      { subject: 'MAT', total: 20, score: 10.0, accuracy: 58.0 }
-    ],
-    chapterScores: [
-      { subject: 'Physics', chapter: 'Electrostatics', total: 10, correct: 9, wrong: 1, skipped: 0, accuracy: 90, status: 'Strong' },
-      { subject: 'Physics', chapter: 'Simple Harmonic Motion', total: 8, correct: 6, wrong: 2, skipped: 0, accuracy: 75, status: 'Average' },
-      { subject: 'Chemistry', chapter: 'Chemical Kinetics', total: 10, correct: 4, wrong: 5, skipped: 1, accuracy: 40, status: 'Weak' },
-      { subject: 'Botany', chapter: 'Genetics & Molecular Biology', total: 12, correct: 5, wrong: 6, skipped: 1, accuracy: 41.6, status: 'Weak' },
-      { subject: 'MAT', chapter: 'Verbal Reasoning', total: 10, correct: 4, wrong: 4, skipped: 2, accuracy: 40, status: 'Weak' },
-      { subject: 'Zoology', chapter: 'Human Physiology - Circulation', total: 10, correct: 9, wrong: 1, skipped: 0, accuracy: 90, status: 'Strong' }
-    ],
-    mistakeAnalysis: {
-      wrongVsSkippedRatio: '24 Wrong / 25 Skipped',
-      slowCorrectCount: 12,
-      speedSecPerQuestion: 56
-    },
-    targetScore: 165,
-    targetGap: 22.5,
-    recommendations: [
-      {
-        id: 'rec-01',
-        title: 'Chemical Kinetics Formula & Problem Mastery',
-        subject: 'Chemistry',
-        chapter: 'Chemical Kinetics',
-        type: 'Revision Pack',
-        coinCost: 15,
-        estimatedMinutes: 25,
-        questionCount: 30,
-        completed: false
-      },
-      {
-        id: 'rec-02',
-        title: 'Genetics & Translation High-Yield Speed Drill',
-        subject: 'Botany',
-        chapter: 'Genetics & Molecular Biology',
-        type: 'Practice Quiz',
-        coinCost: 15,
-        estimatedMinutes: 20,
-        questionCount: 25,
-        completed: false
-      }
-    ],
-    shareToken: 'px-token-9988221'
+    kind: 'Chapter',
+    testCategory: 'chapter',
+    subject: 'Physics',
+    chapterName: 'Electrostatics & Magnetism',
+    durationSec: 1800, // 30 mins
+    totalQuestions: 25,
+    questionsPerPage: 10,
+    correctMarks: 1,
+    wrongMarks: -0.25,
+    unansweredMarks: 0,
+    isPublished: true,
+    coinPrice: 0,
+    questions: buildFullMockQuestions(25),
+  },
+  {
+    id: 'mock-chap-chem-01',
+    title: 'Chemistry: Organic Reaction Mechanisms & Named Reactions',
+    examType: 'Nepal CEE',
+    kind: 'Chapter',
+    testCategory: 'chapter',
+    subject: 'Chemistry',
+    chapterName: 'Organic Chemistry',
+    durationSec: 2100, // 35 mins
+    totalQuestions: 30,
+    questionsPerPage: 10,
+    correctMarks: 1,
+    wrongMarks: -0.25,
+    unansweredMarks: 0,
+    isPublished: true,
+    coinPrice: 0,
+    questions: buildFullMockQuestions(30),
+  },
+  {
+    id: 'mock-chap-chem-02',
+    title: 'Chemistry: Physical Chemistry & Chemical Equilibrium',
+    examType: 'Nepal CEE',
+    kind: 'Chapter',
+    testCategory: 'chapter',
+    subject: 'Chemistry',
+    chapterName: 'Physical Chemistry',
+    durationSec: 1800, // 30 mins
+    totalQuestions: 25,
+    questionsPerPage: 10,
+    correctMarks: 1,
+    wrongMarks: -0.25,
+    unansweredMarks: 0,
+    isPublished: true,
+    coinPrice: 0,
+    questions: buildFullMockQuestions(25),
+  },
+  {
+    id: 'mock-chap-zoo-01',
+    title: 'Zoology: Human Physiology & Circulatory System',
+    examType: 'Nepal CEE',
+    kind: 'Chapter',
+    testCategory: 'chapter',
+    subject: 'Zoology',
+    chapterName: 'Human Physiology',
+    durationSec: 1800, // 30 mins
+    totalQuestions: 25,
+    questionsPerPage: 10,
+    correctMarks: 1,
+    wrongMarks: -0.25,
+    unansweredMarks: 0,
+    isPublished: true,
+    coinPrice: 0,
+    questions: buildFullMockQuestions(25),
+  },
+  {
+    id: 'mock-chap-bot-01',
+    title: 'Botany: Genetics, Cell Division & Molecular Biology',
+    examType: 'Nepal CEE',
+    kind: 'Chapter',
+    testCategory: 'chapter',
+    subject: 'Botany',
+    chapterName: 'Genetics & Cell Biology',
+    durationSec: 1800, // 30 mins
+    totalQuestions: 25,
+    questionsPerPage: 10,
+    correctMarks: 1,
+    wrongMarks: -0.25,
+    unansweredMarks: 0,
+    isPublished: true,
+    coinPrice: 0,
+    questions: buildFullMockQuestions(25),
+  },
+  {
+    id: 'mock-chap-mat-01',
+    title: 'MAT: Mental Agility & Logical Reasoning Speed Test',
+    examType: 'Nepal CEE',
+    kind: 'Chapter',
+    testCategory: 'chapter',
+    subject: 'MAT',
+    chapterName: 'Mental Agility & Logic',
+    durationSec: 1500, // 25 mins
+    totalQuestions: 20,
+    questionsPerPage: 10,
+    correctMarks: 1,
+    wrongMarks: -0.25,
+    unansweredMarks: 0,
+    isPublished: true,
+    coinPrice: 0,
+    questions: buildFullMockQuestions(20),
   }
 ];
 
-export const INITIAL_COIN_TRANSACTIONS: CoinTransaction[] = [
-  {
-    id: 'ctx-101',
-    delta: +20,
-    reason: 'Completed CEE Full Mock #1',
-    refType: 'attempt',
-    refId: 'att-801',
-    createdAt: '2026-07-28 14:31'
-  },
-  {
-    id: 'ctx-100',
-    delta: +15,
-    reason: 'Profile setup & target score configured',
-    refType: 'profile',
-    refId: 'usr-ce-101',
-    createdAt: '2026-07-20 10:00'
-  },
-  {
-    id: 'ctx-099',
-    delta: +50,
-    reason: 'Weekly CEE Challenge Rank #12 Finisher',
-    refType: 'challenge',
-    refId: 'chal-082026',
-    createdAt: '2026-07-25 18:00'
-  },
-  {
-    id: 'ctx-098',
-    delta: +160,
-    reason: 'Welcome bonus for joining PrepX Nepal',
-    refType: 'signup',
-    refId: 'usr-ce-101',
-    createdAt: '2026-07-20 09:00'
-  }
-];
+export const INITIAL_PAST_REPORTS: AttemptReport[] = [];
 
-export const INITIAL_PAYMENT_CLAIMS: PaymentClaim[] = [
-  {
-    id: 'pay-claim-901',
-    userId: 'usr-ce-101',
-    userName: 'Krrish Nyoupane',
-    userEmail: 'krrish.nyoupane@gmail.com',
-    planCode: 'Premium',
-    amountNpr: 149,
-    paymentMethod: 'eSewa',
-    transactionRef: 'ESWA-20260728-99481',
-    screenshotUrl: 'https://images.unsplash.com/photo-1556742049-0a67d512a95e?auto=format&fit=crop&w=600&q=80',
-    status: 'approved',
-    userNotes: 'Paid via eSewa app for 10 CEE Premium Mocks',
-    submittedAt: '2026-07-20 11:20',
-    verifiedAt: '2026-07-20 11:45',
-    verifiedBy: 'Moderator Sandesh'
-  },
-  {
-    id: 'pay-claim-902',
-    userId: 'usr-ce-202',
-    userName: 'Bikash Adhikari',
-    userEmail: 'bikash.gapyear@gmail.com',
-    planCode: 'Unlimited',
-    amountNpr: 999,
-    paymentMethod: 'Khalti',
-    transactionRef: 'KHLT-88274109',
-    screenshotUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=600&q=80',
-    status: 'pending',
-    userNotes: 'Upgrading to Unlimited Plan for full season access',
-    submittedAt: '2026-07-30 04:15'
-  }
-];
+export const INITIAL_COIN_TRANSACTIONS: CoinTransaction[] = [];
+
+export const INITIAL_PAYMENT_CLAIMS: PaymentClaim[] = [];
 
 export const FORMULA_SHEETS: FormulaSheet[] = [
   {
@@ -523,5 +483,70 @@ export const FORMULA_SHEETS: FormulaSheet[] = [
       { name: 'Overall Photosynthesis', formula: '6CO₂ + 12H₂O + Light -> C₆H₁₂O₆ + 6O₂ + 6H₂O', note: 'Occurs in Chloroplasts' },
       { name: 'ATP Yield per Glucose (Aerobic)', formula: '38 ATP (or 36 ATP depending on shuttle system)', note: 'Glycolysis + Krebs Cycle' }
     ]
+  }
+];
+
+export const INITIAL_PRICING_PLANS: PricingPlan[] = [
+  {
+    id: 'plan-free',
+    code: 'Free',
+    name: 'Free Aspirant',
+    tier: 'Free',
+    priceNpr: 0,
+    originalPriceNpr: 0,
+    mocksGranted: 3,
+    coinsGranted: 20,
+    description: 'Essential CEE preparation tools with free demo diagnostic mock tests.',
+    features: [
+      '3 Free Mock Test Credits',
+      'Basic Performance Report & Score',
+      'High-Yield Formula Sheet Access',
+      'Bookmark & Save Questions',
+      'Student Dashboard Access'
+    ],
+    status: 'active'
+  },
+  {
+    id: 'plan-premium-standard',
+    code: 'Premium',
+    name: 'Standard Premium',
+    tier: 'Premium',
+    priceNpr: 149,
+    originalPriceNpr: 299,
+    mocksGranted: 10,
+    coinsGranted: 100,
+    description: '10 Premium CEE mock credits with national rank prediction & report PDF download.',
+    features: [
+      '10 Premium Mock Test Credits',
+      'Complete Performance Analytics & Rank',
+      'Chapter-wise & Subject Weakness Breakdown',
+      '2x Study Coin Reward Multiplier',
+      'Download & Share Performance PDF',
+      'Saved Questions Review Desk'
+    ],
+    isPopular: true,
+    badgeText: 'Most Popular',
+    status: 'active'
+  },
+  {
+    id: 'plan-unlimited-elite',
+    code: 'Unlimited',
+    name: 'Unlimited Elite Pass',
+    tier: 'Unlimited',
+    priceNpr: 999,
+    originalPriceNpr: 1999,
+    mocksGranted: null,
+    coinsGranted: 500,
+    description: 'Unlimited access to all grand mocks, chapter tests, and future model papers.',
+    features: [
+      'Unlimited Mock Test Attempts',
+      'Unlimited Chapter-wise Speed Practice',
+      'Priority Help & Support Desk',
+      '500 Bonus Study Coins Instant Boost',
+      'All Future 2026 Model Mocks Included',
+      'AI Study Planner Customization'
+    ],
+    badgeText: 'Best Value',
+    status: 'active'
   }
 ];

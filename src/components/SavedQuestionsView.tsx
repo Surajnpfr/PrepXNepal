@@ -1,63 +1,24 @@
 import React, { useState } from 'react';
-import { Bookmark, Search, CheckCircle2, XCircle, ArrowRight, BookOpen, Trash2 } from 'lucide-react';
-import { SubjectName } from '../types';
+import { Bookmark, Search, CheckCircle2, Trash2 } from 'lucide-react';
+import type { SavedQuestionItem } from '../lib/savedQuestions';
+import { formatRelativeTime } from '../lib/notifications';
 
-export const SavedQuestionsView: React.FC = () => {
+interface SavedQuestionsViewProps {
+  items: SavedQuestionItem[];
+  onRemove: (questionId: string) => void;
+  onNavigate?: (tab: string) => void;
+}
+
+export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
+  items,
+  onRemove,
+  onNavigate,
+}) => {
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
-  
-  const [savedItems, setSavedItems] = useState([
-    {
-      id: 'sq-1',
-      subject: 'Physics' as SubjectName,
-      chapter: 'Simple Harmonic Motion',
-      stem: 'A particle executes SHM with amplitude A. At what displacement from the mean position is its kinetic energy equal to its potential energy?',
-      options: { A: 'x = A / 2', B: 'x = A / √2', C: 'x = A / √3', D: 'x = A / 4' },
-      correctOptionKey: 'B',
-      explanation: 'KE = 1/2 m w² (A² - x²) and PE = 1/2 m w² x². Equating KE = PE gives A² - x² = x² => 2x² = A² => x = A / √2.',
-      savedAt: 'Yesterday',
-    },
-    {
-      id: 'sq-2',
-      subject: 'Chemistry' as SubjectName,
-      chapter: 'Chemical Kinetics',
-      stem: 'For a first-order reaction, the time required for 99.9% completion is approximately how many times its half-life (t1/2)?',
-      options: { A: '4 times', B: '8 times', C: '10 times', D: '12 times' },
-      correctOptionKey: 'C',
-      explanation: 't_99.9% = (2.303 / k) log(100 / 0.1) = (2.303 / k) log(10³) = 3 * (2.303 / k) = 3 * (t1/2 / 0.693) * 2.303 ≈ 10 * t1/2.',
-      savedAt: '2 days ago',
-    },
-    {
-      id: 'sq-3',
-      subject: 'Botany' as SubjectName,
-      chapter: 'Plant Physiology & Photosynthesis',
-      stem: 'In C4 plants, the primary CO2 acceptor molecule in mesophyll cells is:',
-      options: { A: 'RuBP (Ribulose 1,5-bisphosphate)', B: 'PEP (Phosphoenolpyruvate)', C: 'OAA (Oxaloacetic acid)', D: 'PGA (Phosphoglyceric acid)' },
-      correctOptionKey: 'B',
-      explanation: 'In C4 mesophyll cells, PEP carboxylase fixes CO2 onto PEP (3-carbon) to form OAA (4-carbon).',
-      savedAt: '3 days ago',
-    },
-    {
-      id: 'sq-4',
-      subject: 'Zoology' as SubjectName,
-      chapter: 'Human Physiology & Endocrinology',
-      stem: 'Which hormone is responsible for the reabsorption of water in the distal convoluted tubule and collecting duct of the nephron?',
-      options: { A: 'Aldosterone', B: 'ADH (Vasopressin)', C: 'Oxytocin', D: 'Renin' },
-      correctOptionKey: 'B',
-      explanation: 'Anti-Diuretic Hormone (ADH) synthesized in the hypothalamus and released by the posterior pituitary increases aquaporin water channels in DCT & collecting duct.',
-      savedAt: '5 days ago',
-    },
-  ]);
+  const [expandedSolutions, setExpandedSolutions] = useState<Record<string, boolean>>({});
 
-  const [expandedSolutions, setExpandedSolutions] = useState<Record<string, boolean>>({
-    'sq-1': true
-  });
-
-  const handleRemove = (id: string) => {
-    setSavedItems(prev => prev.filter(item => item.id !== id));
-  };
-
-  const filtered = savedItems.filter(item => {
+  const filtered = items.filter((item) => {
     if (selectedSubject !== 'All' && item.subject !== selectedSubject) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -75,24 +36,24 @@ export const SavedQuestionsView: React.FC = () => {
             <span>Saved & Flagged Questions</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Review tricky CEE questions you bookmarked during mock tests or practice sets.
+            Review tricky CEE questions you bookmarked during mock tests.
           </p>
         </div>
         <span className="text-xs font-mono font-bold bg-amber-100 text-amber-900 px-3 py-1 rounded-full self-start sm:self-auto">
-          {savedItems.length} Bookmarks
+          {items.length} Bookmarks
         </span>
       </div>
 
-      {/* Controls */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2 text-xs font-bold w-full sm:w-auto">
-          {['All', 'Physics', 'Chemistry', 'Botany', 'Zoology'].map((sub) => (
+          {['All', 'Physics', 'Chemistry', 'Botany', 'Zoology', 'MAT'].map((sub) => (
             <button
               key={sub}
+              type="button"
               onClick={() => setSelectedSubject(sub)}
               className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
-                selectedSubject === sub 
-                  ? 'bg-slate-900 text-white font-bold' 
+                selectedSubject === sub
+                  ? 'bg-slate-900 text-white font-bold'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -113,28 +74,42 @@ export const SavedQuestionsView: React.FC = () => {
         </div>
       </div>
 
-      {/* List */}
       <div className="space-y-4">
         {filtered.length === 0 ? (
           <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 space-y-3">
             <Bookmark className="w-10 h-10 text-slate-300 mx-auto" />
-            <h3 className="text-sm font-bold text-slate-700">No saved questions found</h3>
-            <p className="text-xs text-slate-500">Bookmark questions while taking CEE mock tests to review them here anytime.</p>
+            <h3 className="text-sm font-bold text-slate-700">No saved questions yet</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              Bookmark questions with the star icon while taking a mock. They will appear here for revision.
+            </p>
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('catalog')}
+                className="px-4 py-2 bg-[#2563EB] text-white text-xs font-bold rounded-xl cursor-pointer"
+              >
+                Browse Mock Catalog
+              </button>
+            )}
           </div>
         ) : (
           filtered.map((item) => (
             <div key={item.id} className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between text-xs border-b border-slate-100 pb-2 gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md font-mono text-[10px] uppercase">
                     {item.subject}
                   </span>
-                  <span className="text-slate-500 font-semibold">{item.chapter}</span>
+                  <span className="text-slate-500 font-semibold truncate">{item.chapter}</span>
+                  {item.mockTitle && (
+                    <span className="text-slate-400 font-mono text-[10px] truncate">· {item.mockTitle}</span>
+                  )}
                 </div>
-                <div className="flex items-center gap-3 text-slate-400 text-[11px]">
-                  <span>Saved {item.savedAt}</span>
-                  <button 
-                    onClick={() => handleRemove(item.id)}
+                <div className="flex items-center gap-3 text-slate-400 text-[11px] shrink-0">
+                  <span>Saved {formatRelativeTime(item.savedAt)}</span>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(item.questionId)}
                     className="hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
                     title="Remove Bookmark"
                   >
@@ -143,52 +118,75 @@ export const SavedQuestionsView: React.FC = () => {
                 </div>
               </div>
 
-              <p className="text-sm font-bold text-slate-900 leading-relaxed">
-                {item.stem}
-              </p>
+              <p className="text-sm font-bold text-slate-900 leading-relaxed">{item.stem}</p>
+
+              {item.imageUrl && (
+                <img
+                  src={item.imageUrl}
+                  alt="Question figure"
+                  className="max-h-48 w-auto rounded-xl border border-slate-200 object-contain bg-white"
+                  loading="lazy"
+                />
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-medium pt-1">
-                {Object.entries(item.options).map(([key, value]) => {
-                  const isCorrect = key === item.correctOptionKey;
+                {(['A', 'B', 'C', 'D'] as const).map((key) => {
+                  const value = item.options[key];
+                  const isCorrect = item.correctOptionKey != null && key === item.correctOptionKey;
+                  const optionImage = item.optionImages?.[key];
                   return (
-                    <div 
-                      key={key} 
-                      className={`p-2.5 rounded-xl border flex items-center justify-between ${
-                        isCorrect 
-                          ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 font-bold' 
+                    <div
+                      key={key}
+                      className={`p-2.5 rounded-xl border flex items-start justify-between gap-2 ${
+                        isCorrect
+                          ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 font-bold'
                           : 'bg-slate-50 border-slate-200 text-slate-700'
                       }`}
                     >
-                      <span className="flex items-center gap-2">
-                        <span className={`w-5 h-5 rounded-md flex items-center justify-center font-mono text-[10px] font-bold ${
-                          isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
-                        }`}>
+                      <span className="flex items-start gap-2 min-w-0">
+                        <span
+                          className={`w-5 h-5 rounded-md flex items-center justify-center font-mono text-[10px] font-bold shrink-0 ${
+                            isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+                          }`}
+                        >
                           {key}
                         </span>
-                        <span>{value}</span>
+                        <span className="space-y-1.5">
+                          <span className="block">{value}</span>
+                          {optionImage && (
+                            <img
+                              src={optionImage}
+                              alt={`Option ${key}`}
+                              className="max-h-24 rounded-lg border border-slate-200 bg-white object-contain"
+                              loading="lazy"
+                            />
+                          )}
+                        </span>
                       </span>
-                      {isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                      {isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
                     </div>
                   );
                 })}
               </div>
 
-              {/* Solution Toggle */}
-              <div className="pt-2">
-                <button
-                  onClick={() => setExpandedSolutions(p => ({ ...p, [item.id]: !p[item.id] }))}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>{expandedSolutions[item.id] ? 'Hide Verified Solution' : 'Show Verified CEE Solution'}</span>
-                </button>
-
-                {expandedSolutions[item.id] && (
-                  <div className="mt-2 p-3 bg-blue-50/60 rounded-xl border border-blue-200/80 text-xs text-blue-950 font-medium leading-relaxed">
-                    💡 <strong>Solution Explanation:</strong> {item.explanation}
-                  </div>
-                )}
-              </div>
+              {item.explanation && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedSolutions((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+                    }
+                    className="text-[11px] font-bold text-[#2563EB] hover:underline cursor-pointer"
+                  >
+                    {expandedSolutions[item.id] ? 'Hide explanation' : 'Show explanation'}
+                  </button>
+                  {expandedSolutions[item.id] && (
+                    <p className="mt-2 text-xs text-slate-600 leading-relaxed bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      {item.explanation}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           ))
         )}

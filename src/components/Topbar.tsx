@@ -1,43 +1,53 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   Search, 
   Bell, 
-  Coins, 
   Menu, 
-  User, 
-  Sparkles, 
-  ChevronDown, 
-  Sliders, 
-  CheckCircle2, 
-  LogOut,
-  ShieldAlert,
-  X
 } from 'lucide-react';
-import { UserProfile, UserRole } from '../types';
+import { SignInButton, SignUpButton, UserButton } from '@clerk/clerk-react';
+import { Show } from './Show';
+import { AppNotification, UserProfile } from '../types';
+import { formatRelativeTime } from '../lib/notifications';
 
 interface TopbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   userProfile: UserProfile;
-  setUserRole: (role: UserRole) => void;
   setMobileOpen: (open: boolean) => void;
+  clerkSyncAt?: string | null;
+  clerkSyncError?: string | null;
+  notifications: AppNotification[];
+  onMarkAllRead: () => void;
+  onMarkRead: (id: string) => void;
+  onOpenNotification: (notification: AppNotification) => void;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
   activeTab,
   setActiveTab,
   userProfile,
-  setUserRole,
   setMobileOpen,
+  clerkSyncAt,
+  clerkSyncError,
+  notifications,
+  onMarkAllRead,
+  onMarkRead,
+  onOpenNotification,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: '1', title: 'CEE Mock #4 Published', desc: 'New full length 200 MCQ mock test live with negative marking.', time: '2h ago', read: false },
-    { id: '2', title: '+20 Study Coins Earned', desc: 'You completed Biology Genetics revision set.', time: '5h ago', read: false },
-    { id: '3', title: 'Target Gap Update', desc: 'Your projected CEE rank improved by 140 places!', time: '1d ago', read: true },
-  ]);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showNotifications) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showNotifications]);
 
   const getBreadcrumbTitle = (tab: string) => {
     switch (tab) {
@@ -65,12 +75,11 @@ export const Topbar: React.FC<TopbarProps> = ({
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <header className="sticky top-3 sm:top-4 z-30 mx-3 sm:mx-6 my-2 bg-white/75 backdrop-blur-2xl border border-white/80 rounded-[22px] shadow-[0_8px_32px_rgba(37,99,235,0.06)] px-4 sm:px-6 py-2.5 font-sans transition-all">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-        {/* Left Side: Mobile Menu Button & Title */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMobileOpen(true)}
@@ -84,10 +93,19 @@ export const Topbar: React.FC<TopbarProps> = ({
             <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight">
               {getBreadcrumbTitle(activeTab)}
             </h1>
+            {clerkSyncAt && (
+              <p className="text-[9px] font-mono text-emerald-600 hidden sm:block">
+                Clerk synced {new Date(clerkSyncAt).toLocaleTimeString()}
+              </p>
+            )}
+            {clerkSyncError && (
+              <p className="text-[9px] font-mono text-amber-600 hidden sm:block" title={clerkSyncError}>
+                Clerk sync notice
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Center: Search Field */}
         <form onSubmit={handleSearchSubmit} className="hidden md:block flex-1 max-w-md mx-4">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -101,172 +119,102 @@ export const Topbar: React.FC<TopbarProps> = ({
           </div>
         </form>
 
-        {/* Right Utility Controls */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          {/* Notifications Dropdown Toggle */}
-          <div className="relative">
+          <div className="relative" ref={panelRef}>
             <button
-              onClick={() => {
-                setShowNotifications(!showNotifications);
-                setShowProfileMenu(false);
-              }}
+              onClick={() => setShowNotifications(!showNotifications)}
               className="p-2 text-slate-600 hover:text-slate-900 bg-white/60 hover:bg-white/90 border border-white/80 rounded-xl transition-all cursor-pointer relative shadow-2xs backdrop-blur-md"
               title="Notifications"
+              aria-expanded={showNotifications}
+              aria-haspopup="true"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-600 text-white text-[9px] font-mono font-bold rounded-full flex items-center justify-center border-2 border-white shadow-xs">
-                  {unreadCount}
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-0.5 bg-rose-600 text-white text-[9px] font-mono font-bold rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                  {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </button>
 
-            {/* Notifications Menu */}
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 bg-white/90 backdrop-blur-2xl border border-white/90 rounded-[22px] shadow-[0_12px_36px_rgba(15,23,42,0.12)] p-3.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                   <span className="text-xs font-bold text-slate-900">Notifications</span>
-                  <button 
-                    onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
-                    className="text-[10px] text-[#2563EB] font-semibold hover:underline"
-                  >
-                    Mark all read
-                  </button>
+                  {notifications.length > 0 && (
+                    <button 
+                      type="button"
+                      onClick={onMarkAllRead}
+                      className="text-[10px] text-[#2563EB] font-semibold hover:underline cursor-pointer"
+                    >
+                      Mark all read
+                    </button>
+                  )}
                 </div>
-                <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto my-1">
-                  {notifications.map((n) => (
-                    <div key={n.id} className={`py-2.5 px-1 ${n.read ? 'opacity-70' : ''}`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">{n.title}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{n.time}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">{n.desc}</p>
+                <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto my-1">
+                  {notifications.length === 0 ? (
+                    <div className="py-6 px-2 text-center space-y-1">
+                      <p className="text-xs font-bold text-slate-800">You're all caught up</p>
+                      <p className="text-[11px] text-slate-500 leading-snug">
+                        Mock scores, coin rewards, payments, and new catalog mocks will appear here.
+                      </p>
                     </div>
-                  ))}
+                  ) : (
+                    notifications.map((n) => (
+                      <button
+                        key={n.id}
+                        type="button"
+                        onClick={() => {
+                          onMarkRead(n.id);
+                          onOpenNotification(n);
+                          setShowNotifications(false);
+                        }}
+                        className={`w-full text-left py-2.5 px-1.5 rounded-xl transition-colors cursor-pointer hover:bg-slate-50 ${
+                          n.read ? 'opacity-70' : 'bg-blue-50/40'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-900 truncate">{n.title}</span>
+                          <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                            {formatRelativeTime(n.createdAt)}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">{n.desc}</p>
+                        {!n.read && (
+                          <span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-600" aria-hidden />
+                        )}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Profile Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setShowProfileMenu(!showProfileMenu);
-                setShowNotifications(false);
-              }}
-              className="flex items-center gap-2 p-1 hover:bg-white/80 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-white/80"
-            >
-              <div className="w-8 h-8 rounded-full bg-[#2563EB] text-white font-bold text-xs flex items-center justify-center shadow-2xs ring-2 ring-[#2563EB]/20">
-                KN
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-
-            {/* Profile Dropdown Menu */}
-            {showProfileMenu && (
-              <div className="absolute right-0 mt-2 w-64 bg-white/95 backdrop-blur-2xl border border-white/90 rounded-[22px] shadow-[0_12px_36px_rgba(15,23,42,0.12)] p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150 space-y-3 font-sans">
-                <div className="pb-2.5 border-b border-slate-100">
-                  <div className="font-bold text-slate-900 text-sm">Krrish Nyoupane</div>
-                  <div className="text-xs text-slate-500 font-medium">{userProfile.plan} Tier</div>
-                </div>
-
-                <div className="space-y-1 text-xs font-medium text-slate-700">
-                  <button
-                    onClick={() => {
-                      setActiveTab('home');
-                      setShowProfileMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 hover:bg-slate-50 rounded-xl transition-colors text-left"
-                  >
-                    <User className="w-4 h-4 text-slate-400" />
-                    <span>My Profile</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setActiveTab('coins');
-                      setShowProfileMenu(false);
-                    }}
-                    className="w-full flex items-center justify-between px-2.5 py-2 hover:bg-slate-50 rounded-xl transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Coins className="w-4 h-4 text-amber-500" />
-                      <span>Study Coins</span>
-                    </div>
-                    <span className="text-xs font-bold font-mono text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                      {userProfile.studyCoinBalance}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setActiveTab('leaderboard');
-                      setShowProfileMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 hover:bg-slate-50 rounded-xl transition-colors text-left"
-                  >
-                    <Sparkles className="w-4 h-4 text-purple-500" />
-                    <span>Leaderboard</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setActiveTab('payment');
-                      setShowProfileMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 hover:bg-slate-50 rounded-xl transition-colors text-left"
-                  >
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    <span>Subscription</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setActiveTab('policies');
-                      setShowProfileMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 hover:bg-slate-50 rounded-xl transition-colors text-left"
-                  >
-                    <Sliders className="w-4 h-4 text-slate-400" />
-                    <span>Settings</span>
-                  </button>
-                </div>
-
-                {/* Role Switcher for preview */}
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="text-[10px] uppercase font-mono text-slate-400 font-bold mb-1">Switch Role:</div>
-                  <div className="grid grid-cols-3 gap-1 text-[11px] font-bold">
-                    {(['Student', 'Moderator', 'Admin'] as UserRole[]).map((r) => (
-                      <button
-                        key={r}
-                        onClick={() => {
-                          setUserRole(r);
-                          setShowProfileMenu(false);
-                        }}
-                        className={`py-1 rounded-lg transition-all cursor-pointer ${
-                          userProfile.role === r 
-                            ? 'bg-[#2563EB] text-white shadow-2xs' 
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-slate-100">
-                  <button 
-                    onClick={() => alert('Demo Account Logged In.')}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 font-semibold rounded-xl transition-colors cursor-pointer"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out</span>
-                  </button>
+          <div className="flex items-center gap-2">
+            <Show when="signed-in">
+              <div className="flex items-center gap-2 bg-slate-100/60 p-1 pr-3 rounded-xl border border-slate-200/50">
+                <UserButton userProfileMode="modal" afterSignOutUrl="/" />
+                <div className="text-left hidden sm:block">
+                  <div className="text-[10px] font-black text-slate-800 leading-none">{userProfile.name}</div>
+                  <span className="text-[8px] font-bold text-slate-400 font-mono tracking-wide">{userProfile.role} • {userProfile.plan}</span>
                 </div>
               </div>
-            )}
+            </Show>
+
+            <Show when="signed-out">
+              <div className="flex items-center gap-2">
+                <SignInButton mode="modal" fallbackRedirectUrl="/" forceRedirectUrl="/" signUpFallbackRedirectUrl="/" signUpForceRedirectUrl="/">
+                  <button className="px-3.5 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer">
+                    Sign In
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="modal" fallbackRedirectUrl="/" forceRedirectUrl="/">
+                  <button className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl border border-slate-200 shadow-xs transition-colors cursor-pointer">
+                    Sign Up
+                  </button>
+                </SignUpButton>
+              </div>
+            </Show>
           </div>
         </div>
       </div>

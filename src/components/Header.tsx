@@ -142,7 +142,7 @@ export const Header: React.FC<HeaderProps> = ({
               activeTab === 'catalog' || activeTab === 'mock-engine' ? 'text-cyan-400 font-bold border-cyan-400' : 'border-transparent hover:text-white'
             }`}
           >
-            Mocks & PYP
+            Mocks Engine
           </button>
           <button
             onClick={() => handleNavClick('reports')}
@@ -247,7 +247,7 @@ export const Header: React.FC<HeaderProps> = ({
                 activeTab === 'catalog' || activeTab === 'mock-engine' ? 'bg-cyan-500/10 text-cyan-400 font-bold border border-cyan-500/20' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <span>Mocks & PYP Papers</span>
+              <span>Mock Tests Engine</span>
               <ChevronRight className="w-4 h-4 opacity-60" />
             </button>
 
