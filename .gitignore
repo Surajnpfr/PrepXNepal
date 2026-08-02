@@ -7,7 +7,6 @@ dist/
 coverage/
 *.tsbuildinfo
 .vite/
-server.js
 
 # Logs & OS
 *.log

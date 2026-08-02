@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClerkClient, verifyToken } from '@clerk/backend';
@@ -36,11 +37,15 @@ const root = path.resolve(__dirname, '..');
 dotenv.config({ path: path.join(root, '.env.local') });
 dotenv.config({ path: path.join(root, '.env') });
 
-const PORT = Number(process.env.API_PORT || 3001);
+/** Hostinger and most PaaS inject PORT; keep API_PORT for local/dev. */
+const PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 const SECRET_KEY = process.env.CLERK_SECRET_KEY;
 const BOOTSTRAP_ADMIN_EMAIL =
   process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase() || 'surajnepal2058@gmail.com';
-const API_BIND_HOST = process.env.API_BIND_HOST || '127.0.0.1';
+/** Default localhost for laptop; public bind when hosted (PORT set) or production. */
+const API_BIND_HOST =
+  process.env.API_BIND_HOST ||
+  (process.env.PORT || process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 const MOCK_COMPLETE_COINS = 20;
 const CLERK_AUTHORIZED_PARTIES = (process.env.CLERK_AUTHORIZED_PARTIES || '')
   .split(',')
@@ -1457,9 +1462,26 @@ async function boot() {
     mocksRepo = repos.mocks;
     const total = await questionsRepo.countAll();
     const mockTotal = (await mocksRepo.list()).length;
+
+    // Serve Vite production build from the same Node process (Hostinger-friendly).
+    const distDir = path.join(root, 'dist');
+    if (fs.existsSync(distDir)) {
+      app.use(express.static(distDir, { index: false, maxAge: '1h' }));
+      app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api')) return next();
+        if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+        res.sendFile(path.join(distDir, 'index.html'), (err) => {
+          if (err) next(err);
+        });
+      });
+    }
+
     app.listen(PORT, API_BIND_HOST, () => {
       console.log(`PrepX API listening on http://${API_BIND_HOST}:${PORT}`);
       console.log(`Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks)`);
+      if (fs.existsSync(distDir)) {
+        console.log(`Serving SPA from ${distDir}`);
+      }
     });
   } catch (err: any) {
     console.error('Failed to start API (questions DB):', err?.message || err);
