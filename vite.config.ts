@@ -16,6 +16,15 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    // esbuild 0.28+ cannot downlevel some destructuring in jspdf/html2canvas/canvg
+    // to Vite's default legacy targets (chrome87/safari14). Use a modern baseline.
+    build: {
+      target: 'es2022',
+      chunkSizeWarningLimit: 1200,
+    },
+    esbuild: {
+      target: 'es2022',
+    },
     server: {
       host: true,
       port: 3000,
