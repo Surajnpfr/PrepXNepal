@@ -764,7 +764,15 @@ app.post('/api/mocks/import', requireAuth, async (req, res) => {
 
     const batchId = `mock-batch-${Date.now()}`;
     const questionBatchId = `batch-mockq-${Date.now()}`;
-    const parsed = parseFixedMockImportBatch(payload, { batchId, questionBatchId });
+    const parsed = parseFixedMockImportBatch(payload, {
+      batchId,
+      questionBatchId,
+      filename,
+      // Prefer SetA from filename over generic batch labels.
+      title: filename
+        ? filename.replace(/\.json$/i, '')
+        : label,
+    });
 
     let successCount = 0;
     const imported: ReturnType<typeof toClientMock>[] = [];

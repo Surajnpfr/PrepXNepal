@@ -222,12 +222,40 @@ async function testSampleSuccessAndSqliteRoundTrip() {
   await mRepo.close();
 }
 
+function testQuestionBankSetFileWrapsAsOneMock() {
+  const result = parseFixedMockImportBatch(
+    [
+      {
+        subject: 'Physics',
+        chapter: 'Mechanics',
+        question: 'Q1?',
+        options: { A: 'a', B: 'b', C: 'c', D: 'd' },
+        correctAnswer: 'A',
+      },
+      {
+        subject: 'Chemistry',
+        chapter: 'Organic Chemistry',
+        question: 'Q2?',
+        options: { A: 'a', B: 'b', C: 'c', D: 'd' },
+        correctAnswer: 'B',
+      },
+    ],
+    { filename: 'SetA.json' }
+  );
+  assert.equal(result.errors.length, 0, result.errors.join('; '));
+  assert.equal(result.mocks.length, 1);
+  assert.equal(result.mocks[0].title, 'SetA');
+  assert.equal(result.mocks[0].id, 'mock-set-seta');
+  assert.equal(result.mocks[0].totalQuestions, 2);
+}
+
 async function main() {
   testDefaultAllocationTotal();
   testParseAllocationRejectsChapterOverQuota();
   testParseAllocationEmptySubjectsUsesDefaultForFull();
   testFixedImportRejectsMixedSubjects();
   testFixedImportPartialSuccess();
+  testQuestionBankSetFileWrapsAsOneMock();
   testDynamicCreateDefaultFull();
   await testSampleShortage();
   await testSamplePartialFill();

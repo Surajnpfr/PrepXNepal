@@ -406,6 +406,54 @@ export function parseMockMeta(
 
 export type FixedImportQuestion = Omit<QuestionRecord, 'createdAt' | 'updatedAt'>;
 
+/** True when JSON is a question bank array (not wrapped mock objects). */
+export function looksLikeQuestionBankArray(raw: unknown[]): boolean {
+  if (raw.length === 0) return false;
+  const first = raw[0];
+  if (!first || typeof first !== 'object') return false;
+  const row = first as Record<string, unknown>;
+  // Fixed mock objects include an embedded questions[].
+  if (Array.isArray(row.questions)) return false;
+  const hasStem =
+    (typeof row.question === 'string' && row.question.trim().length > 0) ||
+    (typeof row.stem === 'string' && row.stem.trim().length > 0);
+  const hasAnswer = row.correctAnswer != null || row.correctOptionKey != null;
+  return hasStem && row.options != null && hasAnswer;
+}
+
+export function wrapQuestionBankAsFixedMock(
+  questions: unknown[],
+  opts?: { title?: string; filename?: string | null }
+): Record<string, unknown> {
+  const stemFrom = (value: string) => value.trim().replace(/\.json$/i, '').trim();
+  const fromFile =
+    typeof opts?.filename === 'string' && opts.filename.trim()
+      ? stemFrom(opts.filename)
+      : '';
+  const fromTitle =
+    typeof opts?.title === 'string' && opts.title.trim() ? stemFrom(opts.title) : '';
+  // Prefer filename stem (SetA) over generic batch labels.
+  const title = fromFile || fromTitle || 'Imported Fixed Mock';
+  const idSlug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+  return {
+    id: idSlug ? `mock-set-${idSlug}` : undefined,
+    title,
+    scope: 'full',
+    subject: 'Combined',
+    mode: 'fixed',
+    durationSec: 10800,
+    questionsPerPage: 20,
+    correctMarks: 1,
+    wrongMarks: -0.25,
+    isPublished: true,
+    questions,
+  };
+}
+
 export function parseFixedMockImportItem(
   item: unknown,
   idx: number,
@@ -499,7 +547,7 @@ export function parseFixedMockImportItem(
 
 export function parseFixedMockImportBatch(
   raw: unknown,
-  opts?: { batchId?: string; questionBatchId?: string }
+  opts?: { batchId?: string; questionBatchId?: string; title?: string | null; filename?: string | null }
 ): {
   mocks: Array<
     Omit<MockRecord, 'createdAt' | 'updatedAt' | 'questionIds'> & {
@@ -510,8 +558,19 @@ export function parseFixedMockImportBatch(
   errors: string[];
 } {
   if (!Array.isArray(raw)) {
-    return { mocks: [], errors: ['Input JSON must be an array of fixed mock objects.'] };
+    return {
+      mocks: [],
+      errors: [
+        'Input JSON must be an array of fixed mock objects, or an array of questions (Set*.json style).',
+      ],
+    };
   }
+
+  // SetA.json / question-bank files → one Fixed mock named after the file.
+  const items: unknown[] = looksLikeQuestionBankArray(raw)
+    ? [wrapQuestionBankAsFixedMock(raw, { title: opts?.title ?? undefined, filename: opts?.filename })]
+    : raw;
+
   const mocks: Array<
     Omit<MockRecord, 'createdAt' | 'updatedAt' | 'questionIds'> & {
       mode: 'fixed';
@@ -519,7 +578,7 @@ export function parseFixedMockImportBatch(
     }
   > = [];
   const errors: string[] = [];
-  raw.forEach((item, idx) => {
+  items.forEach((item, idx) => {
     const parsed = parseFixedMockImportItem(item, idx, opts);
     if (parsed.ok === true) mocks.push(parsed.mock);
     else errors.push(parsed.error);

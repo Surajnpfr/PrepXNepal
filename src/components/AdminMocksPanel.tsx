@@ -177,18 +177,39 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
     let lastBatchId: string | null = null;
 
     try {
+      // Read all files first (avoids stale File handles on multi-select / OneDrive).
+      const prepared: { name: string; text: string }[] = [];
       for (const file of jsonFiles) {
         try {
-          const text = await file.text();
-          JSON.parse(text);
-          if (jsonFiles.length === 1) setJsonText(text);
-          const result = await onImportFixedMocks(text, { filename: file.name });
-          successCount += result.successCount;
-          for (const err of result.errors) {
-            errors.push(`[${file.name}] ${err}`);
-          }
+          prepared.push({ name: file.name, text: await file.text() });
+        } catch (err: any) {
+          const msg =
+            err?.message ||
+            'Could not read file (re-select the files and try again, or import in smaller batches).';
+          errors.push(`[${file.name}] ${msg}`);
           fileResults.push({
             filename: file.name,
+            successCount: 0,
+            errors: [msg],
+            batchId: null,
+          });
+        }
+      }
+
+      for (const { name, text } of prepared) {
+        try {
+          JSON.parse(text);
+          if (prepared.length === 1) setJsonText(text);
+          const result = await onImportFixedMocks(text, {
+            filename: name,
+            label: name.replace(/\.json$/i, ''),
+          });
+          successCount += result.successCount;
+          for (const err of result.errors) {
+            errors.push(`[${name}] ${err}`);
+          }
+          fileResults.push({
+            filename: name,
             successCount: result.successCount,
             errors: result.errors,
             batchId: result.batchId,
@@ -196,9 +217,9 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
           if (result.batchId) lastBatchId = result.batchId;
         } catch (err: any) {
           const msg = err?.message || 'invalid file';
-          errors.push(`[${file.name}] ${msg}`);
+          errors.push(`[${name}] ${msg}`);
           fileResults.push({
-            filename: file.name,
+            filename: name,
             successCount: 0,
             errors: [msg],
             batchId: null,
@@ -383,8 +404,10 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
             Import Fixed Mock Tests (batch JSON)
           </h3>
           <p className="text-xs text-slate-500">
-            One or more JSON files — each an array of mocks with embedded questions. Each file becomes its own batch.
-            Questions are upserted into the bank; paper order is frozen.
+            Each file becomes one Fixed Mock. Accepts either (1) an array of mock objects with nested{' '}
+            <code className="font-mono">questions</code>, or (2) a plain question array like{' '}
+            <code className="font-mono">SetA.json</code> — auto-wrapped as mock “SetA” (id{' '}
+            <code className="font-mono">mock-set-seta</code>).
           </p>
           <div
             className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-500 cursor-pointer hover:border-blue-300"
