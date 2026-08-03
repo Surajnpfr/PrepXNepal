@@ -327,6 +327,7 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
     },
 
     async deleteOne(id) {
+      const questionIds = await loadQuestionIds(id);
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -335,7 +336,7 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
           id,
         ]);
         await conn.commit();
-        return result.affectedRows > 0;
+        return { deleted: result.affectedRows > 0, questionIds };
       } catch (err) {
         await conn.rollback();
         throw err;
@@ -380,11 +381,47 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
       return rows.map(mapBatch);
     },
 
+    async updateImportBatchMeta(id, patch) {
+      const [rows] = await pool.query<BatchRow[]>(
+        'SELECT * FROM mock_import_batches WHERE id = ?',
+        [id]
+      );
+      if (!rows[0]) return null;
+      const current = mapBatch(rows[0]);
+      const label =
+        typeof patch.label === 'string' && patch.label.trim()
+          ? patch.label.trim()
+          : current.label;
+      const filename =
+        patch.filename === undefined
+          ? current.filename
+          : typeof patch.filename === 'string' && patch.filename.trim()
+            ? patch.filename.trim()
+            : null;
+      await pool.query('UPDATE mock_import_batches SET label = ?, filename = ? WHERE id = ?', [
+        label,
+        filename,
+        id,
+      ]);
+      const [next] = await pool.query<BatchRow[]>(
+        'SELECT * FROM mock_import_batches WHERE id = ?',
+        [id]
+      );
+      return next[0] ? mapBatch(next[0]) : null;
+    },
+
     async deleteImportBatch(id) {
       const [mocks] = await pool.query<RowDataPacket[]>(
         'SELECT id FROM mock_tests WHERE import_batch_id = ?',
         [id]
       );
+      const questionIds = [
+        ...new Set(
+          (
+            await Promise.all(mocks.map((m) => loadQuestionIds(String(m.id))))
+          ).flat()
+        ),
+      ];
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -394,13 +431,23 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
         }
         await conn.query('DELETE FROM mock_import_batches WHERE id = ?', [id]);
         await conn.commit();
-        return { deletedMocks: mocks.length };
+        return { deletedMocks: mocks.length, questionIds };
       } catch (err) {
         await conn.rollback();
         throw err;
       } finally {
         conn.release();
       }
+    },
+
+    async filterQuestionIdsLinkedToMocks(questionIds) {
+      if (questionIds.length === 0) return [];
+      const placeholders = questionIds.map(() => '?').join(',');
+      const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT DISTINCT question_id FROM mock_questions WHERE question_id IN (${placeholders})`,
+        questionIds
+      );
+      return rows.map((r) => String(r.question_id));
     },
 
     async close() {

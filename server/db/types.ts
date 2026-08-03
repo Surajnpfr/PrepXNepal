@@ -52,6 +52,10 @@ export interface QuestionsRepository {
   createBatch(input: CreateBatchInput): Promise<ImportBatchRecord>;
   listBatches(): Promise<ImportBatchRecord[]>;
   getBatch(id: string): Promise<ImportBatchRecord | null>;
+  updateBatchMeta(
+    id: string,
+    patch: { label?: string; filename?: string | null }
+  ): Promise<ImportBatchRecord | null>;
   deleteBatch(id: string): Promise<{ deletedQuestions: number }>;
   countsBySubject(opts?: { status?: string }): Promise<SubjectCount[]>;
   countsByChapter(opts?: { status?: string; subject?: SubjectName }): Promise<ChapterCount[]>;
@@ -105,10 +109,16 @@ export interface MocksRepository {
       >
     >
   ): Promise<MockRecord | null>;
-  deleteOne(id: string): Promise<boolean>;
+  deleteOne(id: string): Promise<{ deleted: boolean; questionIds: string[] }>;
   createImportBatch(input: CreateMockBatchInput): Promise<MockImportBatchRecord>;
   listImportBatches(): Promise<MockImportBatchRecord[]>;
-  deleteImportBatch(id: string): Promise<{ deletedMocks: number }>;
+  updateImportBatchMeta(
+    id: string,
+    patch: { label?: string; filename?: string | null }
+  ): Promise<MockImportBatchRecord | null>;
+  deleteImportBatch(id: string): Promise<{ deletedMocks: number; questionIds: string[] }>;
+  /** Which of the given question IDs are still linked to any mock paper. */
+  filterQuestionIdsLinkedToMocks(questionIds: string[]): Promise<string[]>;
   close(): Promise<void>;
 }
 
@@ -119,6 +129,7 @@ export function emptySubjectCounts(): SubjectCount[] {
     'Zoology',
     'Botany',
     'MAT',
+    'Mixed',
   ];
   return subjects.map((subject) => ({ subject, count: 0 }));
 }

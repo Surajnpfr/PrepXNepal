@@ -143,6 +143,25 @@ export async function deleteQuestionBatch(
   return res.json();
 }
 
+export async function updateQuestionBatchMeta(
+  getToken: () => Promise<string | null>,
+  batchId: string,
+  patch: { label?: string; filename?: string | null }
+): Promise<ImportBatch> {
+  const headers = await authHeaders(getToken);
+  const res = await fetch(`/api/questions/batches/${encodeURIComponent(batchId)}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to update batch (${res.status})`);
+  }
+  const data = await res.json();
+  return data.batch as ImportBatch;
+}
+
 export async function importQuestionsJson(
   getToken: () => Promise<string | null>,
   questions: unknown,

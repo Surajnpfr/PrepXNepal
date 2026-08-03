@@ -4,7 +4,12 @@ import {
   SUBJECTS,
   isSubject,
   parseImportItem,
+  type OptionImageMap,
+  type OptionKey,
+  type QuestionLanguage,
+  type QuestionOptions,
   type QuestionRecord,
+  type QuestionStatus,
   type SubjectName,
 } from './questionsDomain.ts';
 
@@ -98,6 +103,90 @@ export function ceeAllocationForChapter(subject: SubjectName, chapter: string): 
   return {
     subjects: { [subject]: count },
     chapters: [{ subject, chapter: name, count }],
+  };
+}
+
+/**
+ * Resize a CEE allocation so its draw total equals `targetTotal`.
+ * Chapter rules are scaled proportionally; leftover goes to subject-level remainder.
+ */
+export function resizeAllocationToTotal(
+  allocation: MockAllocation,
+  targetTotal: number
+): MockAllocation {
+  const target = Math.floor(Number(targetTotal));
+  if (!Number.isFinite(target) || target < 1) {
+    return allocation;
+  }
+
+  const chapters = (allocation.chapters || []).filter((c) => c.count > 0);
+  const current = totalFromAllocation(allocation);
+  if (current === target) {
+    return {
+      subjects: { ...allocation.subjects },
+      chapters: chapters.map((c) => ({ ...c })),
+    };
+  }
+
+  // No chapter rules (e.g. Mixed): put the whole target on the first subject with quota, else first key.
+  if (chapters.length === 0) {
+    const subjects: Partial<Record<SubjectName, number>> = {};
+    const keyed = SUBJECTS.filter((s) => (allocation.subjects[s] || 0) > 0);
+    const focus = keyed[0] || SUBJECTS.find((s) => allocation.subjects[s] != null) || 'Physics';
+    subjects[focus] = target;
+    return { subjects, chapters: [] };
+  }
+
+  if (current < 1) {
+    // Degenerate blueprint — dump onto first chapter's subject
+    const first = chapters[0];
+    return {
+      subjects: { [first.subject]: target },
+      chapters: [{ subject: first.subject, chapter: first.chapter, count: target }],
+    };
+  }
+
+  const scaled = chapters.map((c) => ({
+    subject: c.subject,
+    chapter: c.chapter,
+    count: Math.max(0, Math.floor((c.count * target) / current)),
+  }));
+  let sum = scaled.reduce((s, c) => s + c.count, 0);
+  let drift = target - sum;
+
+  // Give leftover to the largest original units first; reclaim from largest if over.
+  const order = chapters
+    .map((c, i) => ({ i, count: c.count }))
+    .sort((a, b) => b.count - a.count);
+
+  if (drift > 0) {
+    let guard = 0;
+    while (drift > 0 && guard < target + order.length) {
+      scaled[order[guard % order.length].i].count += 1;
+      drift -= 1;
+      guard += 1;
+    }
+  } else if (drift < 0) {
+    let guard = 0;
+    while (drift < 0 && guard < target + order.length * 4) {
+      const idx = order[guard % order.length].i;
+      if (scaled[idx].count > 0) {
+        scaled[idx].count -= 1;
+        drift += 1;
+      }
+      guard += 1;
+    }
+  }
+
+  const subjects: Partial<Record<SubjectName, number>> = {};
+  for (const c of scaled) {
+    if (c.count <= 0) continue;
+    subjects[c.subject] = (subjects[c.subject] || 0) + c.count;
+  }
+
+  return {
+    subjects,
+    chapters: scaled.filter((c) => c.count > 0),
   };
 }
 
@@ -406,6 +495,9 @@ export function parseMockMeta(
 
 export type FixedImportQuestion = Omit<QuestionRecord, 'createdAt' | 'updatedAt'>;
 
+/** Official full CEE paper size — Set*.json imports must match exactly. */
+export const CEE_FULL_SET_QUESTION_COUNT = 200;
+
 /** True when JSON is a question bank array (not wrapped mock objects). */
 export function looksLikeQuestionBankArray(raw: unknown[]): boolean {
   if (raw.length === 0) return false;
@@ -454,10 +546,67 @@ export function wrapQuestionBankAsFixedMock(
   };
 }
 
+/** Re-importable Set / question-bank JSON shape (plain array item). */
+export type SetExportQuestion = {
+  subject: SubjectName;
+  chapter: string;
+  question: string;
+  options: QuestionOptions;
+  correctAnswer: OptionKey;
+  explanation: string;
+  tags: string[];
+  language: QuestionLanguage;
+  status: QuestionStatus;
+  source?: string;
+  imageUrl?: string;
+  optionImages?: OptionImageMap;
+};
+
+export function toSetExportQuestion(q: QuestionRecord): SetExportQuestion {
+  const out: SetExportQuestion = {
+    subject: q.subject,
+    chapter: q.chapter,
+    question: q.stem,
+    options: q.options,
+    correctAnswer: q.correctOptionKey,
+    explanation: q.explanation,
+    tags: Array.isArray(q.tags) ? [...q.tags] : [],
+    language: q.language,
+    status: q.status,
+  };
+  if (q.source) out.source = q.source;
+  if (q.imageUrl) out.imageUrl = q.imageUrl;
+  if (q.optionImages && Object.keys(q.optionImages).length > 0) {
+    out.optionImages = { ...q.optionImages };
+  }
+  return out;
+}
+
+export function serializeFixedMockAsSetJson(questions: QuestionRecord[]): SetExportQuestion[] {
+  return questions.map(toSetExportQuestion);
+}
+
+/** Safe download basename for Set exports (always ends with .json). */
+export function setExportFilename(
+  preferred: string | null | undefined,
+  fallbackLabel: string
+): string {
+  const raw = (preferred && preferred.trim()) || fallbackLabel.trim() || 'set-export';
+  const base = raw.replace(/[/\\?%*:|"<>]/g, '-').replace(/\.json$/i, '').trim() || 'set-export';
+  return `${base}.json`;
+}
+
 export function parseFixedMockImportItem(
   item: unknown,
   idx: number,
-  opts?: { batchId?: string; questionBatchId?: string }
+  opts?: {
+    batchId?: string;
+    questionBatchId?: string;
+    /** When set (Set*.json imports), accept only if valid question count matches exactly. */
+    requireExactQuestionCount?: number;
+    /** Stable id prefix for bank upserts, e.g. q-set-seta → q-set-seta-001 */
+    questionIdPrefix?: string;
+  }
 ):
   | {
       ok: true;
@@ -476,15 +625,16 @@ export function parseFixedMockImportItem(
   }
 
   const stamp = Date.now();
+  const prefix = opts?.questionIdPrefix?.trim();
+  const idFactory = (i: number) =>
+    prefix
+      ? `${prefix}-${String(i + 1).padStart(3, '0')}`
+      : `q-mock-${stamp}-${idx}-${i}`;
+
   const questions: FixedImportQuestion[] = [];
   const errors: string[] = [];
   row.questions.forEach((q, qIdx) => {
-    const parsed = parseImportItem(
-      q,
-      qIdx,
-      (i) => `q-mock-${stamp}-${idx}-${i}`,
-      opts?.questionBatchId
-    );
+    const parsed = parseImportItem(q, qIdx, idFactory, opts?.questionBatchId);
     if (parsed.ok === false) {
       errors.push(`Mock #${idx + 1} Q${qIdx + 1}: ${parsed.error}`);
       return;
@@ -492,7 +642,20 @@ export function parseFixedMockImportItem(
     questions.push(parsed.question);
   });
 
-  if (errors.length > 0) {
+  const required = opts?.requireExactQuestionCount;
+  if (required != null) {
+    if (questions.length !== required || errors.length > 0) {
+      const preview = errors.slice(0, 5).join(' | ');
+      return {
+        ok: false,
+        error:
+          `Mock #${idx + 1}: need exactly ${required} valid questions, got ${questions.length} valid` +
+          (errors.length ? ` and ${errors.length} invalid` : '') +
+          ` (array length ${row.questions.length})` +
+          (preview ? `. ${preview}` : ''),
+      };
+    }
+  } else if (errors.length > 0) {
     return { ok: false, error: errors[0] };
   }
 
@@ -567,9 +730,19 @@ export function parseFixedMockImportBatch(
   }
 
   // SetA.json / question-bank files → one Fixed mock named after the file.
-  const items: unknown[] = looksLikeQuestionBankArray(raw)
+  const isSetBank = looksLikeQuestionBankArray(raw);
+  const items: unknown[] = isSetBank
     ? [wrapQuestionBankAsFixedMock(raw, { title: opts?.title ?? undefined, filename: opts?.filename })]
     : raw;
+
+  const setSlug = (() => {
+    if (!isSetBank) return null;
+    const wrapped = items[0] as Record<string, unknown>;
+    const id = typeof wrapped.id === 'string' ? wrapped.id : '';
+    // mock-set-seta → seta
+    const m = /^mock-set-(.+)$/i.exec(id);
+    return m?.[1] || null;
+  })();
 
   const mocks: Array<
     Omit<MockRecord, 'createdAt' | 'updatedAt' | 'questionIds'> & {
@@ -579,7 +752,12 @@ export function parseFixedMockImportBatch(
   > = [];
   const errors: string[] = [];
   items.forEach((item, idx) => {
-    const parsed = parseFixedMockImportItem(item, idx, opts);
+    const parsed = parseFixedMockImportItem(item, idx, {
+      batchId: opts?.batchId,
+      questionBatchId: opts?.questionBatchId,
+      requireExactQuestionCount: isSetBank ? CEE_FULL_SET_QUESTION_COUNT : undefined,
+      questionIdPrefix: setSlug ? `q-set-${setSlug}` : undefined,
+    });
     if (parsed.ok === true) mocks.push(parsed.mock);
     else errors.push(parsed.error);
   });

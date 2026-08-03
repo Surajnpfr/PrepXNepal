@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Atom, BookOpen, FlaskConical, Leaf, Shuffle, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { MockScope, SubjectName } from '../types';
@@ -61,6 +61,8 @@ export interface PracticeGeneratePayload {
   chapterName?: string;
   durationSec?: number;
   questionsPerPage?: number;
+  /** Subject / chapter practice: how many questions to sample. */
+  totalQuestions?: number;
 }
 
 interface UserPracticeGeneratorProps {
@@ -81,6 +83,7 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
   const feedback = useFeedback();
   const [subject, setSubject] = useState<SubjectName>('Physics');
   const [chapter, setChapter] = useState('');
+  const [questionCount, setQuestionCount] = useState(25);
 
   const inventory = useMemo(() => {
     const map = new Map(questionStats.map((s) => [s.subject, s.count]));
@@ -94,8 +97,6 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
 
   const blueprintUnits = useMemo(() => unitsForSubject(subject), [subject]);
 
-  const durationSec = scope === 'full' ? 10800 : scope === 'subject' ? 3600 : 1800;
-
   const availableSummary = useMemo(() => {
     if (scope === 'full') {
       return {
@@ -104,8 +105,9 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
       };
     }
     if (scope === 'subject') {
+      const quota = subjectQuota(subject) || 25;
       return {
-        target: subjectQuota(subject),
+        target: quota,
         available: inventory.find((x) => x.subject === subject)?.count || 0,
       };
     }
@@ -118,8 +120,51 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
     return { target: unit?.count ?? 25, available: bankCount };
   }, [scope, inventory, subject, chapter, blueprintUnits, chapterStats]);
 
+  const maxSelectable = Math.max(1, availableSummary.available || availableSummary.target);
+  const defaultCount = Math.min(
+    availableSummary.target || 25,
+    availableSummary.available > 0 ? availableSummary.available : availableSummary.target || 25
+  );
+
+  useEffect(() => {
+    if (scope === 'full') return;
+    const nextDefault = Math.max(1, defaultCount);
+    const max = Math.max(1, availableSummary.available || nextDefault);
+    setQuestionCount(Math.min(nextDefault, max));
+  }, [scope, subject, chapter, defaultCount, availableSummary.available]);
+
+  const resolvedCount = Math.min(
+    Math.max(1, questionCount || 1),
+    Math.max(1, availableSummary.available || questionCount || 1)
+  );
+
+  const durationSec = useMemo(() => {
+    if (scope === 'full') return 10800;
+    const base = scope === 'subject' ? 3600 : 1800;
+    const baseQs = Math.max(1, availableSummary.target || (scope === 'subject' ? 50 : 25));
+    const scaled = Math.round(base * (resolvedCount / baseQs));
+    return Math.max(300, Math.min(base, scaled));
+  }, [scope, availableSummary.target, resolvedCount]);
+
   const handleStart = async () => {
     if (scope === 'full') {
+      const available = availableSummary.available;
+      if (available <= 0) {
+        await feedback.alert({
+          variant: 'warning',
+          title: 'No questions available',
+          message: 'The question bank is empty for a full mock. Check back after imports.',
+        });
+        return;
+      }
+      if (available < 200) {
+        const ok = await feedback.confirm({
+          title: 'Fewer questions than a full CEE paper',
+          message: `A full mock targets 200 questions, but only ${available} are in the bank. Start with ${available}?`,
+          confirmLabel: `Start with ${available}`,
+        });
+        if (!ok) return;
+      }
       onGenerate({
         title: 'My Dynamic Full CEE Mock',
         scope: 'full',
@@ -129,16 +174,48 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
       });
       return;
     }
-    if (scope === 'subject') {
-      onGenerate({
-        title: `My ${subject} Subject Mock`,
-        scope: 'subject',
-        subject,
-        durationSec,
-        questionsPerPage: 10,
+
+    const demanded = Math.max(1, Math.floor(questionCount) || 1);
+    const available = availableSummary.available;
+    if (available <= 0) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'No questions available',
+        message: 'There are no published questions for this selection yet.',
       });
       return;
     }
+
+    let startCount = demanded;
+    if (demanded > available) {
+      const ok = await feedback.confirm({
+        title: 'Not enough questions in bank',
+        message: `You asked for ${demanded}, but only ${available} are available for this selection. Start with ${available}?`,
+        confirmLabel: `Start with ${available}`,
+      });
+      if (!ok) return;
+      startCount = available;
+      setQuestionCount(available);
+    }
+
+    const startDuration = (() => {
+      const base = scope === 'subject' ? 3600 : 1800;
+      const baseQs = Math.max(1, availableSummary.target || (scope === 'subject' ? 50 : 25));
+      return Math.max(300, Math.min(base, Math.round(base * (startCount / baseQs))));
+    })();
+
+    if (scope === 'subject') {
+      onGenerate({
+        title: `My ${subject} Subject Mock (${startCount} Qs)`,
+        scope: 'subject',
+        subject,
+        durationSec: startDuration,
+        questionsPerPage: Math.min(20, Math.max(5, startCount)),
+        totalQuestions: startCount,
+      });
+      return;
+    }
+
     const chapterName = chapter.trim();
     if (!chapterName) {
       await feedback.alert({
@@ -149,23 +226,29 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
       return;
     }
     onGenerate({
-      title: `My ${subject} · ${chapterName} Chapter Mock`,
+      title: `My ${subject} · ${chapterName} Chapter Mock (${startCount} Qs)`,
       scope: 'chapter',
       subject,
       chapterName,
-      durationSec,
-      questionsPerPage: 10,
+      durationSec: startDuration,
+      questionsPerPage: Math.min(20, Math.max(5, startCount)),
+      totalQuestions: startCount,
     });
   };
 
   const canStart =
     availableSummary.available > 0 &&
-    (scope !== 'chapter' || Boolean(chapter.trim()));
+    (scope !== 'chapter' || Boolean(chapter.trim())) &&
+    resolvedCount >= 1;
 
   const selectSubject = (next: SubjectName) => {
     setSubject(next);
     setChapter('');
   };
+
+  const quickCounts = [10, 15, 20, 25, availableSummary.target].filter(
+    (n, i, arr) => n >= 1 && n <= maxSelectable && arr.indexOf(n) === i
+  );
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-5">
@@ -182,12 +265,11 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
                 : 'Generate Chapter-wise Mock'}
           </h2>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Follows the official CEE unit blueprint
             {scope === 'full'
-              ? ' (200 questions by subject and unit).'
+              ? 'Follows the official CEE unit blueprint (200 questions by subject and unit).'
               : scope === 'subject'
-                ? ` (${subjectQuota(subject)} questions across ${subject} units).`
-                : ' for the selected unit.'}{' '}
+                ? `Choose how many ${subject} questions to practice (CEE default ${subjectQuota(subject) || 25}).`
+                : 'Choose a unit and how many questions to practice from that chapter.'}{' '}
             If a unit has fewer questions than needed, we fill from other questions in that subject.
           </p>
         </div>
@@ -199,7 +281,7 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-bold text-slate-700">Subject</span>
               <span className="text-[10px] font-mono text-slate-400">
-                Select a subject · question count shown
+                Select a subject · bank count shown
               </span>
             </div>
             <div
@@ -237,25 +319,12 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
                         <div className="text-xs font-bold truncate">{s}</div>
                         <div
                           className={`text-[10px] font-mono ${
-                            selected ? 'text-white/85' : 'text-slate-500'
+                            selected ? 'text-white/80' : 'text-slate-500'
                           }`}
                         >
-                          {quota} Qs
+                          {bank} in bank{quota > 0 ? ` · CEE ${quota}` : ''}
                         </div>
                       </div>
-                    </div>
-                    <div
-                      className={`mt-2 text-[10px] font-semibold ${
-                        selected
-                          ? empty
-                            ? 'text-white/90'
-                            : 'text-white/80'
-                          : empty
-                            ? 'text-rose-600'
-                            : 'text-slate-500'
-                      }`}
-                    >
-                      {empty ? 'No questions yet' : `${bank} available`}
                     </div>
                   </button>
                 );
@@ -266,13 +335,13 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
           {scope === 'chapter' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-slate-700">Unit / Chapter</span>
+                <span className="text-xs font-bold text-slate-700">Chapter / unit</span>
                 <span className="text-[10px] font-mono text-slate-400">
                   {blueprintUnits.length} units in {subject}
                 </span>
               </div>
               <div
-                role="listbox"
+                role="radiogroup"
                 aria-label="Select chapter"
                 className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1"
               >
@@ -288,13 +357,13 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
                     <button
                       key={u.chapter}
                       type="button"
-                      role="option"
-                      aria-selected={selected}
+                      role="radio"
+                      aria-checked={selected}
                       onClick={() => setChapter(u.chapter)}
-                      className={`text-left rounded-xl border px-3 py-2.5 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
+                      className={`text-left rounded-xl border px-3 py-2.5 transition-all cursor-pointer ${
                         selected
                           ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                          : 'bg-slate-50 text-slate-800 border-slate-200 hover:border-blue-300 hover:bg-white'
+                          : 'bg-slate-50 text-slate-800 border-slate-200 hover:border-blue-300'
                       }`}
                     >
                       <div className="text-xs font-bold leading-snug">{u.chapter}</div>
@@ -303,7 +372,7 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
                           selected ? 'text-white/85' : 'text-slate-500'
                         }`}
                       >
-                        Target {u.count} · Available {bankCount}
+                        CEE {u.count} · Available {bankCount}
                       </div>
                     </button>
                   );
@@ -311,6 +380,66 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
               </div>
             </div>
           )}
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <label className="space-y-1.5 min-w-[10rem] flex-1">
+                <span className="text-xs font-bold text-slate-700">Number of questions</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={maxSelectable}
+                  value={questionCount}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    if (!Number.isFinite(n)) return;
+                    setQuestionCount(Math.floor(n));
+                  }}
+                  className="w-full max-w-[12rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {quickCounts.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setQuestionCount(n)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                      questionCount === n
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {n}
+                    {n === availableSummary.target ? ' (CEE)' : ''}
+                  </button>
+                ))}
+                {availableSummary.available > 0 &&
+                  availableSummary.available !== availableSummary.target && (
+                    <button
+                      type="button"
+                      onClick={() => setQuestionCount(availableSummary.available)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                        questionCount === availableSummary.available
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      All {availableSummary.available}
+                    </button>
+                  )}
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Will start with{' '}
+              <span className="font-mono font-bold text-slate-800">{resolvedCount}</span> question
+              {resolvedCount === 1 ? '' : 's'}
+              {availableSummary.available > 0 && questionCount > availableSummary.available
+                ? ` (capped to ${availableSummary.available} available)`
+                : ''}
+              .
+            </p>
+          </div>
         </div>
       )}
 
@@ -340,12 +469,26 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
       )}
 
       <div className="text-xs bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-slate-600">
-        Target <span className="font-mono font-bold text-slate-900">{availableSummary.target}</span>
-        {' · '}
-        Available{' '}
-        <span className="font-mono font-bold text-slate-900">{availableSummary.available}</span>
+        {scope === 'full' ? (
+          <>
+            Target <span className="font-mono font-bold text-slate-900">{availableSummary.target}</span>
+            {' · '}
+            Available{' '}
+            <span className="font-mono font-bold text-slate-900">{availableSummary.available}</span>
+          </>
+        ) : (
+          <>
+            Requested <span className="font-mono font-bold text-slate-900">{resolvedCount}</span>
+            {' · '}
+            Available{' '}
+            <span className="font-mono font-bold text-slate-900">{availableSummary.available}</span>
+            {' · '}
+            CEE default{' '}
+            <span className="font-mono font-bold text-slate-900">{availableSummary.target}</span>
+          </>
+        )}
         {availableSummary.available < availableSummary.target && availableSummary.available > 0 && (
-          <span className="text-amber-700"> — will use all available questions</span>
+          <span className="text-amber-700"> — bank may partially fill short units</span>
         )}
         {availableSummary.available === 0 && (
           <span className="text-rose-600">
@@ -357,13 +500,16 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
         <div className="text-[11px] text-slate-500 font-mono">
-          Duration ~{durationSec >= 3600 ? `${durationSec / 3600}h` : `${durationSec / 60}m`} · uses 1
-          attempt when you start
+          Duration ~
+          {durationSec >= 3600
+            ? `${(durationSec / 3600).toFixed(1)}h`
+            : `${Math.round(durationSec / 60)}m`}{' '}
+          · uses 1 attempt when you start
         </div>
         <button
           type="button"
           disabled={busy || !canStart}
-          onClick={handleStart}
+          onClick={() => void handleStart()}
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl disabled:opacity-50 cursor-pointer shadow-xs transition-colors"
         >
           <AppIcon icon={Zap} size="btn" />

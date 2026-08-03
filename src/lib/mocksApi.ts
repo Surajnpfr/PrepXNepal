@@ -99,6 +99,25 @@ export async function startMockAttempt(
   return { ...normalizeMock(data.mock), attemptSessionId: data.attemptSessionId };
 }
 
+/** Browse a fixed paper with answer keys (no timer, no scoring, no quota). */
+export async function studyMockPaper(
+  getToken: () => Promise<string | null>,
+  mockId: string
+): Promise<MockTest> {
+  const headers = await authHeaders(getToken);
+  const res = await fetch(`/api/mocks/${encodeURIComponent(mockId)}/study`, {
+    method: 'POST',
+    headers,
+    body: '{}',
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to open study mode (${res.status})`);
+  }
+  const data = await res.json();
+  return normalizeMock(data.mock);
+}
+
 export async function scoreMockAttempt(
   getToken: () => Promise<string | null>,
   payload: {
@@ -143,7 +162,14 @@ export async function generatePracticeMock(
     allocation?: MockAllocation;
     totalQuestions?: number;
   }
-): Promise<MockTest & { attemptSessionId: string }> {
+): Promise<
+  MockTest & {
+    attemptSessionId: string;
+    partialFill?: boolean;
+    shortages?: { subject: string; chapter?: string; needed: number; available: number }[];
+    requestedQuestions?: number;
+  }
+> {
   const headers = await authHeaders(getToken);
   const res = await fetch('/api/mocks/practice', {
     method: 'POST',
@@ -163,7 +189,18 @@ export async function generatePracticeMock(
   if (!data.attemptSessionId) {
     throw new Error('Server did not return attemptSessionId. Restart the API and try again.');
   }
-  return { ...normalizeMock(data.mock), attemptSessionId: data.attemptSessionId };
+  return {
+    ...normalizeMock(data.mock),
+    attemptSessionId: data.attemptSessionId,
+    partialFill: Boolean(data.partialFill),
+    shortages: Array.isArray(data.shortages) ? data.shortages : [],
+    requestedQuestions:
+      typeof payload.totalQuestions === 'number'
+        ? payload.totalQuestions
+        : typeof data.mock?.totalQuestions === 'number'
+          ? data.mock.totalQuestions
+          : undefined,
+  };
 }
 
 export async function importFixedMocksJson(
@@ -279,5 +316,72 @@ export async function deleteMockBatch(
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Failed to delete mock batch (${res.status})`);
+  }
+}
+
+export async function updateMockBatchMeta(
+  getToken: () => Promise<string | null>,
+  batchId: string,
+  patch: { label?: string; filename?: string | null }
+): Promise<MockImportBatch> {
+  const headers = await authHeaders(getToken);
+  const res = await fetch(`/api/mocks/batches/${encodeURIComponent(batchId)}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to update mock batch (${res.status})`);
+  }
+  const data = await res.json();
+  return data.batch as MockImportBatch;
+}
+
+export interface SetExportFile {
+  filename: string;
+  mockId: string;
+  mockTitle: string;
+  batchId: string | null;
+  questionCount: number;
+  questions: unknown[];
+}
+
+/** Admin-only: export Fixed Sets / mocks as re-importable Set JSON (question arrays). */
+export async function exportMocksAsSetJson(
+  getToken: () => Promise<string | null>,
+  selection: { batchIds?: string[]; mockIds?: string[] }
+): Promise<{ fileCount: number; files: SetExportFile[] }> {
+  const headers = await authHeaders(getToken);
+  const res = await fetch('/api/mocks/export', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      batchIds: selection.batchIds ?? [],
+      mockIds: selection.mockIds ?? [],
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to export Sets (${res.status})`);
+  }
+  return res.json();
+}
+
+/** Trigger browser downloads for one or more Set JSON payloads. */
+export function downloadSetExportFiles(files: SetExportFile[]): void {
+  for (const file of files) {
+    const blob = new Blob([JSON.stringify(file.questions, null, 2)], {
+      type: 'application/json;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 }

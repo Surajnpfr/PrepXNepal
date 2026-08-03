@@ -1,26 +1,6 @@
 import { jsPDF } from 'jspdf';
-import type { AttemptReport, Question } from '../types';
-
-function resolvePaper(report: AttemptReport): {
-  questions: Question[];
-  answers: Record<string, 'A' | 'B' | 'C' | 'D'>;
-} | null {
-  if (report.paperQuestions && report.paperQuestions.length > 0) {
-    return {
-      questions: report.paperQuestions,
-      answers: report.paperAnswers || {},
-    };
-  }
-  try {
-    const raw = localStorage.getItem(`prepx_paper_${report.mockId}`);
-    if (!raw) return null;
-    const questions = JSON.parse(raw) as Question[];
-    if (!Array.isArray(questions) || questions.length === 0) return null;
-    return { questions, answers: report.paperAnswers || {} };
-  } catch {
-    return null;
-  }
-}
+import type { AttemptReport } from '../types';
+import { resolvePaper } from './reportPaper';
 
 function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
   return doc.splitTextToSize(text || '', maxWidth) as string[];

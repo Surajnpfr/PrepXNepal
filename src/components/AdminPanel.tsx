@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   ShieldCheck, 
   CheckCircle2, 
@@ -69,6 +69,10 @@ interface AdminPanelProps {
   onUpdateQuestion: (q: Question) => Promise<void>;
   onDeleteQuestion: (questionId: string) => Promise<void>;
   onDeleteQuestionBatch: (batchId: string) => Promise<void>;
+  onUpdateQuestionBatch?: (
+    batchId: string,
+    patch: { label?: string; filename?: string | null }
+  ) => Promise<void>;
   questionStats: SubjectQuestionCount[];
   questionStatsTotal: number;
   questionStatsLoading?: boolean;
@@ -100,6 +104,14 @@ interface AdminPanelProps {
   onUpdateMock?: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onDeleteMock?: (id: string) => Promise<void>;
   onDeleteMockBatch?: (batchId: string) => Promise<void>;
+  onUpdateMockBatch?: (
+    batchId: string,
+    patch: { label?: string; filename?: string | null }
+  ) => Promise<void>;
+  onExportMockSets?: (selection: {
+    batchIds?: string[];
+    mockIds?: string[];
+  }) => Promise<{ fileCount: number }>;
   formulaSheets?: FormulaSheet[];
   formulaBatches?: FormulaImportBatch[];
   formulasLoading?: boolean;
@@ -144,6 +156,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateQuestion,
   onDeleteQuestion,
   onDeleteQuestionBatch,
+  onUpdateQuestionBatch,
   questionStats,
   questionStatsTotal,
   questionStatsLoading,
@@ -158,6 +171,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateMock,
   onDeleteMock,
   onDeleteMockBatch,
+  onUpdateMockBatch,
+  onExportMockSets,
   formulaSheets = [],
   formulaBatches = [],
   formulasLoading,
@@ -183,7 +198,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const canEditQuestions =
     userProfile.role === 'Admin' ||
     userProfile.role === 'Moderator (Questions)' ||
-    userProfile.email === BOOTSTRAP_ADMIN_EMAIL;
+    isAdmin;
+  /** Import file / batch / Set removal — Admin only (enforced on API too). */
+  const canDeleteImportFiles = isAdmin;
 
   const [activeTab, setActiveTab] = useState<
     | 'payments'
@@ -345,6 +362,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   } | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [undoBusy, setUndoBusy] = useState(false);
+  const [selectedQuestionBatchIds, setSelectedQuestionBatchIds] = useState<string[]>([]);
   const [importFileName, setImportFileName] = useState<string | null>(null);
   const [importFileError, setImportFileError] = useState<string | null>(null);
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
@@ -352,6 +370,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [expandedBatchId, setExpandedBatchId] = useState<string | 'ungrouped' | null>(null);
+
+  useEffect(() => {
+    const alive = new Set(questionBatches.map((b) => b.id));
+    setSelectedQuestionBatchIds((prev) => prev.filter((id) => alive.has(id)));
+  }, [questionBatches]);
 
   const pendingClaims = paymentClaims.filter(c => c.status === 'pending');
   // Server already returns FIFO pending-first; keep client sort as safety net.
@@ -672,7 +695,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleDeleteBatchClick = async (batch: ImportBatch, opts?: { asUndo?: boolean }) => {
-    if (!canEditQuestions) return;
+    if (!canDeleteImportFiles) return;
     const asUndo = Boolean(opts?.asUndo);
     const ok = await feedback.confirm({
       title: asUndo ? 'Undo this import?' : 'Delete entire batch?',
@@ -686,6 +709,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setUndoBusy(true);
     try {
       await onDeleteQuestionBatch(batch.id);
+      setSelectedQuestionBatchIds((prev) => prev.filter((id) => id !== batch.id));
       if (importResult?.batchId === batch.id) {
         setImportResult(null);
       }
@@ -695,6 +719,73 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         variant: 'error',
         title: 'Action failed',
         message: err?.message || 'Failed to undo/delete batch',
+      });
+    } finally {
+      setUndoBusy(false);
+    }
+  };
+
+  const handleDeleteSelectedQuestionBatches = async () => {
+    if (!canDeleteImportFiles || selectedQuestionBatchIds.length === 0) return;
+    const selected = questionBatches.filter((b) => selectedQuestionBatchIds.includes(b.id));
+    if (selected.length === 0) return;
+    const totalQs = selected.reduce((sum, b) => sum + b.questionCount, 0);
+    const ok = await feedback.confirm({
+      title: `Delete ${selected.length} import file(s)?`,
+      message: `This permanently deletes ${selected.length} batch(es) and ${totalQs} question(s):\n${selected
+        .map((b) => `• ${b.label}${b.filename ? ` (${b.filename})` : ''}`)
+        .join('\n')}`,
+      confirmLabel: 'Delete selected',
+      destructive: true,
+    });
+    if (!ok) return;
+    setUndoBusy(true);
+    try {
+      for (const id of selectedQuestionBatchIds) {
+        await onDeleteQuestionBatch(id);
+      }
+      setSelectedQuestionBatchIds([]);
+      if (importResult?.batchId && selectedQuestionBatchIds.includes(importResult.batchId)) {
+        setImportResult(null);
+      }
+      feedback.toast({
+        variant: 'success',
+        message: `Deleted ${selected.length} import file(s).`,
+      });
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Delete failed',
+        message: err?.message || 'Could not delete selected batches',
+      });
+    } finally {
+      setUndoBusy(false);
+    }
+  };
+
+  const handleRenameBatchFile = async (batch: ImportBatch) => {
+    if (!canEditQuestions || !onUpdateQuestionBatch) return;
+    const current = batch.filename || `${batch.label}.json`;
+    const next = await feedback.prompt({
+      title: 'Edit file name',
+      message: `Batch: ${batch.label}`,
+      label: 'File name',
+      defaultValue: current,
+      confirmLabel: 'Save',
+      validate: (v) => (v.trim() ? null : 'File name is required'),
+    });
+    if (next == null) return;
+    const filename = next.trim();
+    if (filename === (batch.filename || '')) return;
+    setUndoBusy(true);
+    try {
+      await onUpdateQuestionBatch(batch.id, { filename });
+      feedback.toast({ variant: 'success', message: `File name updated to “${filename}”.` });
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Rename failed',
+        message: err?.message || 'Could not update file name',
       });
     } finally {
       setUndoBusy(false);
@@ -761,6 +852,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         ]
       : []),
   ];
+
+  const deletableQuestionBatchIds = questionBatches.map((b) => b.id);
+  const allQuestionBatchesSelected =
+    deletableQuestionBatchIds.length > 0 &&
+    deletableQuestionBatchIds.every((id) => selectedQuestionBatchIds.includes(id));
+
+  const toggleQuestionBatchSelected = (id: string) => {
+    setSelectedQuestionBatchIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllQuestionBatches = () => {
+    setSelectedQuestionBatchIds((prev) =>
+      allQuestionBatchesSelected ? [] : [...deletableQuestionBatchIds]
+    );
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
@@ -1069,6 +1177,33 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             error={questionStatsError}
           />
 
+          {canDeleteImportFiles && questionBatches.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allQuestionBatchesSelected}
+                  onChange={toggleSelectAllQuestionBatches}
+                  className="rounded border-slate-300"
+                />
+                Select all files ({questionBatches.length})
+              </label>
+              <button
+                type="button"
+                disabled={undoBusy || selectedQuestionBatchIds.length === 0}
+                onClick={() => void handleDeleteSelectedQuestionBatches()}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-[11px] font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-50 cursor-pointer"
+              >
+                <AppIcon icon={Trash2} size="btn" />
+                Delete selected ({selectedQuestionBatchIds.length})
+              </button>
+            </div>
+          ) : canEditQuestions && !canDeleteImportFiles ? (
+            <p className="text-[11px] text-slate-500">
+              Import file deletion is Admin-only. You can still edit questions and rename files.
+            </p>
+          ) : null}
+
           {orderedBatchSections.length === 0 ? (
             <div className="p-6 text-center text-sm text-slate-500 border border-dashed border-slate-200 rounded-xl">
               No questions yet. Use Bulk Import to create the first batch.
@@ -1077,24 +1212,49 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="space-y-3">
               {orderedBatchSections.map((section) => {
                 const open = expandedBatchId === section.key;
+                const selected =
+                  Boolean(section.batch) &&
+                  selectedQuestionBatchIds.includes(section.batch!.id);
                 return (
                   <div key={section.key} className="border border-slate-200 rounded-xl overflow-hidden">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 bg-slate-50">
-                      <button
-                        type="button"
-                        className="text-left cursor-pointer flex-1"
-                        onClick={() => setExpandedBatchId(open ? null : section.key)}
-                      >
-                        <div className="text-sm font-bold text-slate-900">
-                          {section.title}{' '}
-                          <span className="font-mono text-slate-500 font-semibold">
-                            ({section.questions.length})
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{section.subtitle}</div>
-                      </button>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {canEditQuestions && section.batch && (
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        {canDeleteImportFiles && section.batch ? (
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleQuestionBatchSelected(section.batch!.id)}
+                            className="mt-1 rounded border-slate-300"
+                            aria-label={`Select batch ${section.title}`}
+                          />
+                        ) : null}
+                        <button
+                          type="button"
+                          className="text-left cursor-pointer flex-1 min-w-0"
+                          onClick={() => setExpandedBatchId(open ? null : section.key)}
+                        >
+                          <div className="text-sm font-bold text-slate-900">
+                            {section.title}{' '}
+                            <span className="font-mono text-slate-500 font-semibold">
+                              ({section.questions.length})
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">{section.subtitle}</div>
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                        {canEditQuestions && section.batch && onUpdateQuestionBatch ? (
+                          <button
+                            type="button"
+                            disabled={undoBusy}
+                            onClick={() => void handleRenameBatchFile(section.batch!)}
+                            className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 disabled:opacity-60 cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <AppIcon icon={Edit3} size="btn" />
+                            Edit file name
+                          </button>
+                        ) : null}
+                        {canDeleteImportFiles && section.batch ? (
                           <>
                             <button
                               type="button"
@@ -1114,7 +1274,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               Delete batch
                             </button>
                           </>
-                        )}
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => setExpandedBatchId(open ? null : section.key)}
@@ -1339,7 +1499,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <div className="text-slate-500 font-mono text-[10px]">Batch ID: {importResult.batchId}</div>
                   )}
 
-                  {canEditQuestions && importResult.successCount > 0 && importResult.batchId && (
+                  {canDeleteImportFiles && importResult.successCount > 0 && importResult.batchId && (
                     <button
                       type="button"
                       disabled={undoBusy}
@@ -1377,11 +1537,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           questionStats={questionStats}
           chapterStats={chapterStats}
           canEdit={canEditQuestions}
+          canDeleteFiles={canDeleteImportFiles}
           onImportFixedMocks={onImportFixedMocks}
           onCreateDynamicMock={onCreateDynamicMock}
           onUpdateMock={onUpdateMock}
           onDeleteMock={onDeleteMock}
           onDeleteMockBatch={onDeleteMockBatch}
+          onUpdateMockBatch={onUpdateMockBatch}
+          onExportMockSets={onExportMockSets}
         />
       )}
 

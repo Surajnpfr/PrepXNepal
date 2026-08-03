@@ -239,8 +239,6 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
-      {guideBlock}
-
       <section className="space-y-6" aria-labelledby="your-analytics">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -318,8 +316,7 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
                         {report.mockTitle}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">
-                        {report.completedAt} · {report.accuracyPercentage}% accuracy · Rank #
-                        {report.predictedRank}
+                        {report.completedAt} · {report.accuracyPercentage}% accuracy
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -348,6 +345,8 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
           </div>
         )}
       </section>
+
+      {guideBlock}
     </div>
   );
 };

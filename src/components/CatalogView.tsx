@@ -18,6 +18,7 @@ interface CatalogViewProps {
   userProfile: UserProfile;
   pastReports: AttemptReport[];
   onStartMock: (mock: MockTest) => void;
+  onStudyMock: (mock: MockTest) => void;
   onGeneratePractice: (payload: PracticeGeneratePayload) => void;
   practiceBusy?: boolean;
   questionStats?: SubjectQuestionCount[];
@@ -44,6 +45,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   userProfile,
   pastReports,
   onStartMock,
+  onStudyMock,
   onGeneratePractice,
   practiceBusy,
   questionStats = [],
@@ -99,7 +101,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             Mock tests
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Choose a published mock, or build a full-length, subject, or chapter practice test.
+            Study a paper with answers, or Give Mock test for a timed exam. You can also build Dynamic,
+            Subject, or Chapter practice tests.
           </p>
         </div>
 
@@ -316,15 +319,27 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
                 <div className="pt-2 border-t border-slate-100 space-y-2">
                   {isEntitled ? (
-                    <button
-                      onClick={() => onStartMock(mock)}
-                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <AppIcon icon={Zap} size="btn" />
-                      <span>Start Timed Attempt</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onStudyMock(mock)}
+                        className="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <AppIcon icon={BookOpen} size="btn" />
+                        <span>Study</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onStartMock(mock)}
+                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <AppIcon icon={Zap} size="btn" />
+                        <span>Give Mock test</span>
+                      </button>
+                    </>
                   ) : (
                     <button
+                      type="button"
                       onClick={() => onNavigate('payment')}
                       className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-300"
                     >
@@ -333,8 +348,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     </button>
                   )}
 
-                  <div className="text-center text-[10px] text-slate-400">
-                    {isFreeDemo ? 'Free demo for all aspirants' : 'Uses 1 mock attempt from your plan when you start'}
+                  <div className="text-center text-[10px] text-slate-400 space-y-0.5">
+                    <div>Study = browse with answers · no attempt used</div>
+                    <div>
+                      {isFreeDemo
+                        ? 'Give Mock test = timed exam (free demo)'
+                        : 'Give Mock test = timed exam · uses 1 plan attempt'}
+                    </div>
                   </div>
                 </div>
               </div>

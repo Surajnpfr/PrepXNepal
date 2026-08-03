@@ -9,12 +9,19 @@ import {
   parseAllocation,
   parseDynamicMockCreate,
   parseFixedMockImportBatch,
+  resizeAllocationToTotal,
   sampleFromAllocation,
+  serializeFixedMockAsSetJson,
+  setExportFilename,
+  toSetExportQuestion,
   totalFromAllocation,
+  ceeAllocationForSubject,
+  ceeAllocationForChapter,
 } from '../server/mocksDomain.ts';
 import { createSqliteQuestionsRepo } from '../server/db/sqliteQuestions.ts';
 import { createSqliteMocksRepo } from '../server/db/sqliteMocks.ts';
 import type { QuestionRecord } from '../server/questionsDomain.ts';
+import { parseImportBatch } from '../server/questionsDomain.ts';
 
 function testDefaultAllocationTotal() {
   assert.equal(totalFromAllocation(DEFAULT_CEE_ALLOCATION), 200);
@@ -196,6 +203,17 @@ async function testSampleSuccessAndSqliteRoundTrip() {
   });
   assert.equal(fixed.questionIds?.length, 3);
 
+  const del = await mRepo.deleteOne('mock-fixed-1');
+  assert.equal(del.deleted, true);
+  assert.equal(del.questionIds.length, 3);
+  const stillLinked = await mRepo.filterQuestionIdsLinkedToMocks(del.questionIds);
+  assert.equal(stillLinked.length, 0, 'links cleared after mock delete');
+  assert.equal((await qRepo.getByIds(del.questionIds)).length, 3, 'bank rows remain until purge');
+  for (const qid of del.questionIds) {
+    assert.equal(await qRepo.deleteOne(qid), true, `orphan ${qid} removable from bank`);
+  }
+  assert.equal((await qRepo.getByIds(del.questionIds)).length, 0, 'bank purged');
+
   const dyn = await mRepo.insertDynamic({
     id: 'mock-dyn-1',
     title: 'Dyn Phy',
@@ -216,46 +234,100 @@ async function testSampleSuccessAndSqliteRoundTrip() {
   assert.equal(dyn.allocation?.subjects.Physics, 3);
 
   const listed = await mRepo.list({ publishedOnly: true });
-  assert.equal(listed.length, 2);
+  assert.equal(listed.length, 1);
 
   await qRepo.close();
   await mRepo.close();
 }
 
-function testQuestionBankSetFileWrapsAsOneMock() {
-  const result = parseFixedMockImportBatch(
-    [
-      {
-        subject: 'Physics',
-        chapter: 'Mechanics',
-        question: 'Q1?',
-        options: { A: 'a', B: 'b', C: 'c', D: 'd' },
-        correctAnswer: 'A',
-      },
-      {
-        subject: 'Mixed',
-        chapter: 'GK',
-        question: 'Capital of Nepal?',
-        options: { A: 'Pokhara', B: 'Kathmandu', C: 'Lalitpur', D: 'Biratnagar' },
-        correctAnswer: 'B',
-      },
-      {
-        subject: 'GK',
-        chapter: 'General',
-        question: 'Alias subject maps to Mixed?',
-        options: { A: 'a', B: 'b', C: 'c', D: 'd' },
-        correctAnswer: 'A',
-      },
-    ],
+function makeSampleQuestion(i: number, subject: 'Physics' | 'Mixed' = 'Physics') {
+  return {
+    subject,
+    chapter: subject === 'Mixed' ? 'GK' : 'Mechanics',
+    question: `Sample question ${i + 1}?`,
+    options: { A: 'a', B: 'b', C: 'c', D: 'd' },
+    correctAnswer: 'A' as const,
+  };
+}
+
+function testQuestionBankSetRequiresExactly200() {
+  const tooFew = parseFixedMockImportBatch(
+    [makeSampleQuestion(0), makeSampleQuestion(1, 'Mixed'), makeSampleQuestion(2, 'Mixed')],
     { filename: 'SetA.json' }
   );
-  assert.equal(result.errors.length, 0, result.errors.join('; '));
-  assert.equal(result.mocks.length, 1);
-  assert.equal(result.mocks[0].title, 'SetA');
-  assert.equal(result.mocks[0].id, 'mock-set-seta');
-  assert.equal(result.mocks[0].totalQuestions, 3);
-  assert.equal(result.mocks[0].questions[1].subject, 'Mixed');
-  assert.equal(result.mocks[0].questions[2].subject, 'Mixed');
+  assert.equal(tooFew.mocks.length, 0);
+  assert.ok(tooFew.errors[0]?.includes('exactly 200'), tooFew.errors[0]);
+
+  const exactly = parseFixedMockImportBatch(
+    Array.from({ length: 200 }, (_, i) => makeSampleQuestion(i, i % 5 === 0 ? 'Mixed' : 'Physics')),
+    { filename: 'SetA.json' }
+  );
+  assert.equal(exactly.errors.length, 0, exactly.errors.join('; '));
+  assert.equal(exactly.mocks.length, 1);
+  assert.equal(exactly.mocks[0].title, 'SetA');
+  assert.equal(exactly.mocks[0].id, 'mock-set-seta');
+  assert.equal(exactly.mocks[0].totalQuestions, 200);
+  assert.equal(exactly.mocks[0].questions[0].id, 'q-set-seta-001');
+  assert.equal(exactly.mocks[0].questions[199].id, 'q-set-seta-200');
+  assert.equal(exactly.mocks[0].questions[5].subject, 'Mixed');
+
+  const tooMany = parseFixedMockImportBatch(
+    Array.from({ length: 201 }, (_, i) => makeSampleQuestion(i)),
+    { filename: 'SetB.json' }
+  );
+  assert.equal(tooMany.mocks.length, 0);
+  assert.ok(tooMany.errors[0]?.includes('exactly 200'), tooMany.errors[0]);
+}
+
+function testSetExportShapeAndFilename() {
+  assert.equal(setExportFilename('SetA.json', 'ignored'), 'SetA.json');
+  assert.equal(setExportFilename(null, 'CEE Set 1'), 'CEE Set 1.json');
+  assert.equal(setExportFilename('bad/name?.json', 'x'), 'bad-name-.json');
+
+  const q: QuestionRecord = {
+    id: 'q1',
+    subject: 'Physics',
+    chapter: 'SHM',
+    stem: 'Stem?',
+    options: { A: '1', B: '2', C: '3', D: '4' },
+    correctOptionKey: 'B',
+    explanation: 'Because B',
+    tags: ['CEE'],
+    language: 'en',
+    status: 'published',
+    source: 'SetA',
+    flagCount: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const exported = toSetExportQuestion(q);
+  assert.equal(exported.question, 'Stem?');
+  assert.equal(exported.correctAnswer, 'B');
+  assert.equal(exported.subject, 'Physics');
+
+  const arr = serializeFixedMockAsSetJson([q]);
+  assert.equal(arr.length, 1);
+  const reimport = parseImportBatch(arr);
+  assert.equal(reimport.questions.length, 1, reimport.errors.join('; '));
+  assert.equal(reimport.questions[0].stem, 'Stem?');
+  assert.equal(reimport.questions[0].correctOptionKey, 'B');
+}
+
+function testResizeAllocationToTotal() {
+  const physics = ceeAllocationForSubject('Physics');
+  const full = totalFromAllocation(physics);
+  assert.ok(full > 0);
+  const resized = resizeAllocationToTotal(physics, 20);
+  assert.equal(totalFromAllocation(resized), 20);
+  assert.ok((resized.chapters || []).every((c) => c.count >= 0));
+
+  const chapter = ceeAllocationForChapter('Physics', 'Mechanics');
+  const chapterN = resizeAllocationToTotal(chapter, 7);
+  assert.equal(totalFromAllocation(chapterN), 7);
+
+  const mixed = resizeAllocationToTotal({ subjects: { Mixed: 0 }, chapters: [] }, 12);
+  assert.equal(totalFromAllocation(mixed), 12);
+  assert.equal(mixed.subjects.Mixed, 12);
 }
 
 async function main() {
@@ -264,7 +336,9 @@ async function main() {
   testParseAllocationEmptySubjectsUsesDefaultForFull();
   testFixedImportRejectsMixedSubjects();
   testFixedImportPartialSuccess();
-  testQuestionBankSetFileWrapsAsOneMock();
+  testQuestionBankSetRequiresExactly200();
+  testSetExportShapeAndFilename();
+  testResizeAllocationToTotal();
   testDynamicCreateDefaultFull();
   await testSampleShortage();
   await testSamplePartialFill();

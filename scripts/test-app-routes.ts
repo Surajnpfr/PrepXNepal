@@ -14,6 +14,9 @@ assert.equal(buildAppPath('home'), '/home');
 assert.equal(buildAppPath('policies'), '/help');
 assert.equal(buildAppPath('policies', 'faq'), '/help/faq');
 assert.equal(buildAppPath('mock-engine'), '/exam');
+assert.equal(buildAppPath('mock-study'), '/study-paper');
+assert.equal(resolveAppTab('study-paper'), 'mock-study');
+assert.equal(resolveAppTab('study-mock'), 'mock-study');
 
 assert.deepEqual(parseAppLocation('/'), { surface: 'landing' });
 assert.deepEqual(parseAppLocation('/home'), {

@@ -307,6 +307,7 @@ export function createSqliteMocksRepo(dbFilePath: string): MocksRepository {
     },
 
     async deleteOne(id) {
+      const questionIds = loadQuestionIds(id);
       const tx = db.prepare('BEGIN');
       const commit = db.prepare('COMMIT');
       const rollback = db.prepare('ROLLBACK');
@@ -315,7 +316,7 @@ export function createSqliteMocksRepo(dbFilePath: string): MocksRepository {
         db.prepare('DELETE FROM mock_questions WHERE mock_id = ?').run(id);
         const result = db.prepare('DELETE FROM mock_tests WHERE id = ?').run(id);
         commit.run();
-        return Number(result.changes) > 0;
+        return { deleted: Number(result.changes) > 0, questionIds };
       } catch (err) {
         rollback.run();
         throw err;
@@ -357,10 +358,40 @@ export function createSqliteMocksRepo(dbFilePath: string): MocksRepository {
       return rows.map(mapBatch);
     },
 
+    async updateImportBatchMeta(id, patch) {
+      const row = db
+        .prepare('SELECT * FROM mock_import_batches WHERE id = ?')
+        .get(id) as BatchRow | undefined;
+      if (!row) return null;
+      const current = mapBatch(row);
+      const label =
+        typeof patch.label === 'string' && patch.label.trim()
+          ? patch.label.trim()
+          : current.label;
+      const filename =
+        patch.filename === undefined
+          ? current.filename
+          : typeof patch.filename === 'string' && patch.filename.trim()
+            ? patch.filename.trim()
+            : null;
+      db.prepare('UPDATE mock_import_batches SET label = ?, filename = ? WHERE id = ?').run(
+        label,
+        filename,
+        id
+      );
+      const next = db
+        .prepare('SELECT * FROM mock_import_batches WHERE id = ?')
+        .get(id) as BatchRow | undefined;
+      return next ? mapBatch(next) : null;
+    },
+
     async deleteImportBatch(id) {
       const mocks = db
         .prepare('SELECT id FROM mock_tests WHERE import_batch_id = ?')
         .all(id) as { id: string }[];
+      const questionIds = [
+        ...new Set(mocks.flatMap((m) => loadQuestionIds(m.id))),
+      ];
       const tx = db.prepare('BEGIN');
       const commit = db.prepare('COMMIT');
       const rollback = db.prepare('ROLLBACK');
@@ -372,11 +403,24 @@ export function createSqliteMocksRepo(dbFilePath: string): MocksRepository {
         }
         db.prepare('DELETE FROM mock_import_batches WHERE id = ?').run(id);
         commit.run();
-        return { deletedMocks: mocks.length };
+        return { deletedMocks: mocks.length, questionIds };
       } catch (err) {
         rollback.run();
         throw err;
       }
+    },
+
+    async filterQuestionIdsLinkedToMocks(questionIds) {
+      if (questionIds.length === 0) return [];
+      const linked = new Set<string>();
+      const stmt = db.prepare(
+        'SELECT 1 AS ok FROM mock_questions WHERE question_id = ? LIMIT 1'
+      );
+      for (const qid of questionIds) {
+        const row = stmt.get(qid) as { ok: number } | undefined;
+        if (row) linked.add(qid);
+      }
+      return [...linked];
     },
 
     async close() {

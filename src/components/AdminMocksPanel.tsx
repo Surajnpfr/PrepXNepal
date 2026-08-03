@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { FileCode, Plus, Trash2, Upload, RotateCcw } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Download, FileCode, Pencil, Plus, Trash2, Upload, RotateCcw } from 'lucide-react';
 import type { MockAllocation, MockScope, MockTest, SubjectName } from '../types';
 import type { ChapterQuestionCount, SubjectQuestionCount } from '../lib/questionsApi';
 import type { MockImportBatch } from '../lib/mocksApi';
@@ -35,6 +35,8 @@ interface AdminMocksPanelProps {
   questionStats: SubjectQuestionCount[];
   chapterStats: ChapterQuestionCount[];
   canEdit: boolean;
+  /** Import file / Set deletion — Admin only. */
+  canDeleteFiles?: boolean;
   onImportFixedMocks: (
     jsonStr: string,
     meta?: { filename?: string | null; label?: string | null }
@@ -57,6 +59,14 @@ interface AdminMocksPanelProps {
   onUpdateMock: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onDeleteMock: (id: string) => Promise<void>;
   onDeleteMockBatch: (batchId: string) => Promise<void>;
+  onUpdateMockBatch?: (
+    batchId: string,
+    patch: { label?: string; filename?: string | null }
+  ) => Promise<void>;
+  onExportMockSets?: (selection: {
+    batchIds?: string[];
+    mockIds?: string[];
+  }) => Promise<{ fileCount: number }>;
 }
 
 export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
@@ -67,11 +77,14 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
   questionStats,
   chapterStats,
   canEdit,
+  canDeleteFiles = false,
   onImportFixedMocks,
   onCreateDynamicMock,
   onUpdateMock,
   onDeleteMock,
   onDeleteMockBatch,
+  onUpdateMockBatch,
+  onExportMockSets,
 }) => {
   const feedback = useFeedback();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -113,11 +126,226 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
   >([]);
   const [createBusy, setCreateBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+  const [batchUndoBusy, setBatchUndoBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [renameBusyId, setRenameBusyId] = useState<string | null>(null);
+  const [selectedMockIds, setSelectedMockIds] = useState<string[]>([]);
 
   const inventoryBySubject = useMemo(() => {
     const map = new Map(questionStats.map((s) => [s.subject, s.count]));
     return SUBJECTS.map((s) => ({ subject: s, count: map.get(s) || 0 }));
   }, [questionStats]);
+
+  const sortedBatches = useMemo(
+    () =>
+      [...mockBatches].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      ),
+    [mockBatches]
+  );
+
+  const fixedMocks = useMemo(
+    () => mockTests.filter((m) => (m.mode || 'fixed') === 'fixed'),
+    [mockTests]
+  );
+
+  useEffect(() => {
+    const alive = new Set(mockBatches.map((b) => b.id));
+    setSelectedBatchIds((prev) => prev.filter((id) => alive.has(id)));
+  }, [mockBatches]);
+
+  useEffect(() => {
+    const alive = new Set(fixedMocks.map((m) => m.id));
+    setSelectedMockIds((prev) => prev.filter((id) => alive.has(id)));
+  }, [fixedMocks]);
+
+  const allBatchIds = useMemo(() => sortedBatches.map((b) => b.id), [sortedBatches]);
+  const allBatchesSelected =
+    allBatchIds.length > 0 && allBatchIds.every((id) => selectedBatchIds.includes(id));
+
+  const allFixedMockIds = useMemo(() => fixedMocks.map((m) => m.id), [fixedMocks]);
+  const allFixedMocksSelected =
+    allFixedMockIds.length > 0 && allFixedMockIds.every((id) => selectedMockIds.includes(id));
+
+  const toggleBatchSelected = (id: string) => {
+    setSelectedBatchIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllBatches = () => {
+    setSelectedBatchIds((prev) =>
+      allBatchIds.length > 0 && allBatchIds.every((id) => prev.includes(id)) ? [] : [...allBatchIds]
+    );
+  };
+
+  const toggleMockSelected = (id: string) => {
+    setSelectedMockIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllFixedMocks = () => {
+    setSelectedMockIds((prev) =>
+      allFixedMockIds.length > 0 && allFixedMockIds.every((id) => prev.includes(id))
+        ? []
+        : [...allFixedMockIds]
+    );
+  };
+
+  const handleExportSelected = async () => {
+    if (!onExportMockSets || !canDeleteFiles) return;
+    const batchIds = selectedBatchIds;
+    const mockIds = selectedMockIds;
+    if (batchIds.length === 0 && mockIds.length === 0) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Nothing selected',
+        message: 'Select one or more Fixed import batches and/or Fixed mocks to export.',
+      });
+      return;
+    }
+    setExportBusy(true);
+    try {
+      const result = await onExportMockSets({ batchIds, mockIds });
+      feedback.toast({
+        variant: 'success',
+        message: `Downloaded ${result.fileCount} Set JSON file(s).`,
+      });
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Export failed',
+        message: err?.message || 'Could not export Set JSON',
+      });
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  const handleUndoSelectedBatches = async () => {
+    if (!canDeleteFiles || selectedBatchIds.length === 0) return;
+    const labels = sortedBatches
+      .filter((b) => selectedBatchIds.includes(b.id))
+      .map((b) => b.label);
+    const ok = await feedback.confirm({
+      title: `Delete ${selectedBatchIds.length} import file(s)?`,
+      message: `Permanently delete these Fixed Set import(s). Orphan Question Bank rows from those papers are removed too:\n${labels
+        .slice(0, 8)
+        .map((l) => `• ${l}`)
+        .join('\n')}${labels.length > 8 ? `\n(+${labels.length - 8} more)` : ''}`,
+      confirmLabel: 'Delete selected',
+      destructive: true,
+    });
+    if (!ok) return;
+    setBatchUndoBusy(true);
+    try {
+      for (const id of selectedBatchIds) {
+        await onDeleteMockBatch(id);
+      }
+      const n = selectedBatchIds.length;
+      setSelectedBatchIds([]);
+      feedback.toast({
+        variant: 'success',
+        message: `Deleted ${n} import file(s).`,
+      });
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Delete failed',
+        message: err?.message || 'Could not delete one or more batches',
+      });
+    } finally {
+      setBatchUndoBusy(false);
+    }
+  };
+
+  const handleUndoMostRecentBatch = async () => {
+    const recent = sortedBatches[0];
+    if (!recent || !canDeleteFiles) return;
+    const ok = await feedback.confirm({
+      title: 'Delete most recent import?',
+      message: `Delete “${recent.label}” and its Fixed mock(s)? Orphan bank questions from that paper are removed too.`,
+      confirmLabel: 'Delete recent',
+      destructive: true,
+    });
+    if (!ok) return;
+    setBatchUndoBusy(true);
+    try {
+      await onDeleteMockBatch(recent.id);
+      setSelectedBatchIds((prev) => prev.filter((id) => id !== recent.id));
+      feedback.toast({ variant: 'success', message: `Deleted “${recent.label}”.` });
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Delete failed',
+        message: err?.message || 'Could not delete batch',
+      });
+    } finally {
+      setBatchUndoBusy(false);
+    }
+  };
+
+  const handleRenameMock = async (m: MockTest) => {
+    if (!canEdit) return;
+    const next = await feedback.prompt({
+      title: 'Rename Set / mock',
+      message: `Current title: ${m.title}`,
+      label: 'New title',
+      defaultValue: m.title,
+      confirmLabel: 'Save name',
+      validate: (v) => (v.trim() ? null : 'Title is required'),
+    });
+    if (next == null) return;
+    const title = next.trim();
+    if (title === m.title) return;
+    setRenameBusyId(m.id);
+    try {
+      await onUpdateMock(m.id, { title });
+      feedback.toast({ variant: 'success', message: `Renamed to “${title}”.` });
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Rename failed',
+        message: err?.message || 'Could not rename mock',
+      });
+    } finally {
+      setRenameBusyId(null);
+    }
+  };
+
+  const handleRenameBatchFile = async (b: MockImportBatch) => {
+    if (!canEdit || !onUpdateMockBatch) return;
+    const current = b.filename || `${b.label}.json`;
+    const next = await feedback.prompt({
+      title: 'Edit file name',
+      message: `Import batch: ${b.label}`,
+      label: 'File name',
+      defaultValue: current,
+      confirmLabel: 'Save',
+      validate: (v) => (v.trim() ? null : 'File name is required'),
+    });
+    if (next == null) return;
+    const filename = next.trim();
+    if (filename === (b.filename || '')) return;
+    setRenameBusyId(b.id);
+    try {
+      await onUpdateMockBatch(b.id, { filename });
+      feedback.toast({
+        variant: 'success',
+        message: `File name updated to “${filename}”. Linked Set title and Question Bank batch are synced when they match.`,
+      });
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Rename failed',
+        message: err?.message || 'Could not update file name',
+      });
+    } finally {
+      setRenameBusyId(null);
+    }
+  };
 
   const runImport = async (text: string, filename?: string | null) => {
     setImportBusy(true);
@@ -292,17 +520,45 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
 
       {/* List */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100 flex items-center justify-between">
+        <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
           <span>Published & draft mocks ({mockTests.length})</span>
-          {mocksLoading && <span className="text-[10px] text-slate-400 font-mono">Loading…</span>}
+          <div className="flex items-center gap-2">
+            {mocksLoading && <span className="text-[10px] text-slate-400 font-mono">Loading…</span>}
+            {canDeleteFiles && onExportMockSets && fixedMocks.length > 0 ? (
+              <button
+                type="button"
+                disabled={exportBusy || (selectedMockIds.length === 0 && selectedBatchIds.length === 0)}
+                onClick={() => void handleExportSelected()}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-[11px] font-bold text-blue-800 hover:bg-blue-100 disabled:opacity-50 cursor-pointer"
+              >
+                <AppIcon icon={Download} size="btn" />
+                {exportBusy
+                  ? 'Exporting…'
+                  : `Export JSON (${selectedMockIds.length + selectedBatchIds.length})`}
+              </button>
+            ) : null}
+          </div>
         </h3>
         {mockTests.length === 0 ? (
           <p className="text-xs text-slate-500">No mocks yet. Import a Fixed batch or create a Dynamic blueprint below.</p>
         ) : (
+          <div className="space-y-3">
+            {canDeleteFiles && fixedMocks.length > 0 ? (
+              <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allFixedMocksSelected}
+                  onChange={toggleSelectAllFixedMocks}
+                  className="rounded border-slate-300"
+                />
+                Select all Fixed Sets ({fixedMocks.length})
+              </label>
+            ) : null}
           <div className="overflow-x-auto scroll-x-safe">
             <table className="w-full text-left text-xs border-collapse min-w-[640px]">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
+                  {canDeleteFiles ? <th className="p-3 w-8"></th> : null}
                   <th className="p-3">Title</th>
                   <th className="p-3">Mode</th>
                   <th className="p-3">Scope</th>
@@ -312,8 +568,26 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {mockTests.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50">
+                {mockTests.map((m) => {
+                  const isFixed = (m.mode || 'fixed') === 'fixed';
+                  const selected = selectedMockIds.includes(m.id);
+                  return (
+                  <tr key={m.id} className={`hover:bg-slate-50 ${selected ? 'bg-blue-50/60' : ''}`}>
+                    {canDeleteFiles ? (
+                      <td className="p-3">
+                        {isFixed ? (
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleMockSelected(m.id)}
+                            className="rounded border-slate-300"
+                            aria-label={`Select ${m.title}`}
+                          />
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    ) : null}
                     <td className="p-3 font-semibold text-slate-800">{m.title}</td>
                     <td className="p-3 font-mono uppercase">{m.mode || 'fixed'}</td>
                     <td className="p-3">
@@ -327,6 +601,15 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
                         <>
                           <button
                             type="button"
+                            disabled={renameBusyId === m.id}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer disabled:opacity-50"
+                            onClick={() => void handleRenameMock(m)}
+                          >
+                            <AppIcon icon={Pencil} size="btn" />
+                            {renameBusyId === m.id ? 'Saving…' : 'Rename'}
+                          </button>
+                          <button
+                            type="button"
                             className="text-[11px] font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
                             onClick={() =>
                               void onUpdateMock(m.id, { isPublished: !m.isPublished })
@@ -334,65 +617,209 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
                           >
                             {m.isPublished ? 'Unpublish' : 'Publish'}
                           </button>
-                          <button
-                            type="button"
-                            className="text-[11px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
-                            onClick={async () => {
-                              const ok = await feedback.confirm({
-                                title: 'Delete mock?',
-                                message: `Delete “${m.title}”? This cannot be undone.`,
-                                confirmLabel: 'Delete',
-                                destructive: true,
-                              });
-                              if (ok) void onDeleteMock(m.id);
-                            }}
-                          >
-                            Delete
-                          </button>
+                          {canDeleteFiles && isFixed && onExportMockSets ? (
+                            <button
+                              type="button"
+                              disabled={exportBusy}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-cyan-700 hover:text-cyan-900 cursor-pointer disabled:opacity-50"
+                              onClick={() => {
+                                void (async () => {
+                                  setExportBusy(true);
+                                  try {
+                                    const result = await onExportMockSets({ mockIds: [m.id] });
+                                    feedback.toast({
+                                      variant: 'success',
+                                      message: `Downloaded ${result.fileCount} Set JSON file(s).`,
+                                    });
+                                  } catch (err: any) {
+                                    await feedback.alert({
+                                      variant: 'error',
+                                      title: 'Export failed',
+                                      message: err?.message || 'Could not export Set JSON',
+                                    });
+                                  } finally {
+                                    setExportBusy(false);
+                                  }
+                                })();
+                              }}
+                            >
+                              <AppIcon icon={Download} size="btn" />
+                              Export
+                            </button>
+                          ) : null}
+                          {canDeleteFiles ? (
+                            <button
+                              type="button"
+                              className="text-[11px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
+                              onClick={async () => {
+                                const ok = await feedback.confirm({
+                                  title: 'Delete mock?',
+                                  message: `Delete “${m.title}”? Orphan Question Bank rows from this paper are removed too.`,
+                                  confirmLabel: 'Delete',
+                                  destructive: true,
+                                });
+                                if (ok) void onDeleteMock(m.id);
+                              }}
+                            >
+                              Delete
+                            </button>
+                          ) : null}
                         </>
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          </div>
         )}
 
-        {mockBatches.length > 0 && (
-          <div className="pt-4 border-t border-slate-100 space-y-2">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Fixed import batches</h4>
-            {mockBatches.map((b) => (
-              <div
-                key={b.id}
-                className="flex items-center justify-between gap-3 text-xs bg-slate-50 border border-slate-100 rounded-xl px-3 py-2"
-              >
-                <div>
-                  <div className="font-semibold text-slate-800">{b.label}</div>
-                  <div className="text-slate-500 font-mono text-[10px]">
-                    {b.mockCount} mocks · {b.importedByName} · {new Date(b.createdAt).toLocaleString()}
-                  </div>
-                </div>
-                {canEdit && (
+        {sortedBatches.length > 0 && (
+          <div className="pt-4 border-t border-slate-100 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Fixed import batches
+              </h4>
+              {canDeleteFiles ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {onExportMockSets ? (
+                    <button
+                      type="button"
+                      disabled={
+                        exportBusy ||
+                        (selectedBatchIds.length === 0 && selectedMockIds.length === 0)
+                      }
+                      onClick={() => void handleExportSelected()}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-[11px] font-bold text-blue-800 hover:bg-blue-100 disabled:opacity-50 cursor-pointer"
+                    >
+                      <AppIcon icon={Download} size="btn" />
+                      Export selected JSON ({selectedBatchIds.length})
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 text-rose-600 font-bold cursor-pointer"
-                    onClick={async () => {
-                      const ok = await feedback.confirm({
-                        title: 'Undo import batch?',
-                        message: `Undo “${b.label}” and delete its mocks?`,
-                        confirmLabel: 'Undo import',
-                        destructive: true,
-                      });
-                      if (ok) void onDeleteMockBatch(b.id);
-                    }}
+                    disabled={batchUndoBusy || sortedBatches.length === 0}
+                    onClick={() => void handleUndoMostRecentBatch()}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
                   >
                     <AppIcon icon={RotateCcw} size="btn" />
-                    Undo
+                    Delete most recent
                   </button>
-                )}
-              </div>
-            ))}
+                  <button
+                    type="button"
+                    disabled={batchUndoBusy || selectedBatchIds.length === 0}
+                    onClick={() => void handleUndoSelectedBatches()}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-[11px] font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-50 cursor-pointer"
+                  >
+                    <AppIcon icon={Trash2} size="btn" />
+                    Delete selected ({selectedBatchIds.length})
+                  </button>
+                </div>
+              ) : canEdit ? (
+                <p className="text-[11px] text-slate-500">
+                  Set file deletion is Admin-only.
+                </p>
+              ) : null}
+            </div>
+
+            {canDeleteFiles ? (
+              <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allBatchesSelected}
+                  onChange={toggleSelectAllBatches}
+                  className="rounded border-slate-300"
+                />
+                Select all batches ({sortedBatches.length})
+              </label>
+            ) : null}
+
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {sortedBatches.map((b, idx) => {
+                const selected = selectedBatchIds.includes(b.id);
+                const isRecent = idx === 0;
+                return (
+                  <div
+                    key={b.id}
+                    className={`flex items-center justify-between gap-3 text-xs border rounded-xl px-3 py-2 ${
+                      selected
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'bg-slate-50 border-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2 min-w-0">
+                      {canDeleteFiles ? (
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleBatchSelected(b.id)}
+                          className="mt-0.5 rounded border-slate-300"
+                          aria-label={`Select batch ${b.label}`}
+                        />
+                      ) : null}
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-800 flex flex-wrap items-center gap-2">
+                          <span className="truncate">{b.label}</span>
+                          {isRecent ? (
+                            <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                              Recent
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="text-slate-500 font-mono text-[10px]">
+                          {b.mockCount} mocks · {b.importedByName} ·{' '}
+                          {new Date(b.createdAt).toLocaleString()}
+                          {b.filename ? ` · ${b.filename}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    {(canEdit || canDeleteFiles) && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {canEdit && onUpdateMockBatch ? (
+                          <button
+                            type="button"
+                            disabled={batchUndoBusy || renameBusyId === b.id}
+                            className="inline-flex items-center gap-1 text-slate-700 font-bold cursor-pointer disabled:opacity-50"
+                            onClick={() => void handleRenameBatchFile(b)}
+                          >
+                            <AppIcon icon={Pencil} size="btn" />
+                            {renameBusyId === b.id ? 'Saving…' : 'Edit file name'}
+                          </button>
+                        ) : null}
+                        {canDeleteFiles ? (
+                          <button
+                            type="button"
+                            disabled={batchUndoBusy}
+                            className="inline-flex items-center gap-1 text-rose-600 font-bold cursor-pointer disabled:opacity-50"
+                            onClick={async () => {
+                              const ok = await feedback.confirm({
+                                title: 'Delete import file?',
+                                message: `Delete “${b.label}” and its mocks? Orphan bank questions from that paper are removed too.`,
+                                confirmLabel: 'Delete',
+                                destructive: true,
+                              });
+                              if (!ok) return;
+                              setBatchUndoBusy(true);
+                              try {
+                                await onDeleteMockBatch(b.id);
+                                setSelectedBatchIds((prev) => prev.filter((id) => id !== b.id));
+                              } finally {
+                                setBatchUndoBusy(false);
+                              }
+                            }}
+                          >
+                            <AppIcon icon={Trash2} size="btn" />
+                            Delete
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -405,10 +832,11 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
             Import Fixed Mock Tests (batch JSON)
           </h3>
           <p className="text-xs text-slate-500">
-            Each file becomes one Fixed Mock. Accepts either (1) an array of mock objects with nested{' '}
-            <code className="font-mono">questions</code>, or (2) a plain question array like{' '}
-            <code className="font-mono">SetA.json</code> — auto-wrapped as mock “SetA” (id{' '}
-            <code className="font-mono">mock-set-seta</code>).
+            Each file becomes one Fixed Mock. Set files (plain question arrays like{' '}
+            <code className="font-mono">SetA.json</code>) require <strong>exactly 200 valid questions</strong>
+            — no less, no more. Valid questions are upserted into the Question Bank and the paper is frozen
+            as mock “SetA” (<code className="font-mono">mock-set-seta</code>). Explicit mock wrappers with a
+            nested <code className="font-mono">questions</code> array are also supported.
           </p>
           <div
             className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-500 cursor-pointer hover:border-blue-300"

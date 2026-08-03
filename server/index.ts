@@ -15,7 +15,10 @@ import {
   parseAllocation,
   parseDynamicMockCreate,
   parseFixedMockImportBatch,
+  resizeAllocationToTotal,
   sampleFromAllocation,
+  serializeFixedMockAsSetJson,
+  setExportFilename,
   testCategoryFromScope,
   totalFromAllocation,
   type MockRecord,
@@ -217,6 +220,11 @@ function canManageQuestions(role: string | undefined, email: string): boolean {
   );
 }
 
+/** Destructive import-file / batch / Set removal — Admin only. */
+function canDeleteImportFiles(role: string | undefined, email: string): boolean {
+  return isBootstrapAdminEmail(email) || role === 'Admin';
+}
+
 function toClientQuestion(
   q: Awaited<ReturnType<QuestionsRepository['list']>>[number],
   includeAnswers = false
@@ -338,6 +346,34 @@ async function authorizeStartedMock(
   return { profile, coinPriceCharged: 0 };
 }
 
+/**
+ * Study mode: browse paper with keys. Does not consume quota or charge coins.
+ * Free papers (coinPrice ≤ 0) are open to any signed-in user; otherwise requires
+ * Unlimited / remaining mock quota (same entitlement gate as catalog, without spend).
+ */
+async function assertStudyAccess(
+  clerkUserId: string,
+  coinPrice: number | null | undefined,
+  opts?: { staffBypass?: boolean }
+): Promise<void> {
+  if (opts?.staffBypass) return;
+  const price = typeof coinPrice === 'number' && coinPrice > 0 ? Math.floor(coinPrice) : 0;
+  if (price === 0) return;
+  const user = await clerk.users.getUser(clerkUserId);
+  const profile = mapUser(user);
+  const { plan, mocksRemaining } = resolvePlanQuota({
+    plan: profile.plan,
+    mocksRemaining: profile.mocksRemaining,
+  } as PublicMeta);
+  if (plan === 'Unlimited' || mocksRemaining === null) return;
+  if ((mocksRemaining ?? 0) > 0) return;
+  const err: any = new Error(
+    'No mock access remaining. Upgrade your plan to study this paper, or use a free demo.'
+  );
+  err.status = 402;
+  throw err;
+}
+
 function sessionMarksFromMock(mock: { correctMarks?: number; wrongMarks?: number }) {
   return {
     correctMarks: typeof mock.correctMarks === 'number' ? mock.correctMarks : 1,
@@ -421,6 +457,43 @@ function toClientMockBatch(b: Awaited<ReturnType<MocksRepository['listImportBatc
     errorCount: b.errorCount,
     createdAt: b.createdAt,
   };
+}
+
+/**
+ * After Fixed mock/batch delete: remove Question Bank rows that are no longer
+ * linked to any mock paper, then drop empty question import batches.
+ */
+async function purgeOrphanBankQuestions(questionIds: string[]): Promise<{
+  deletedQuestions: number;
+  deletedQuestionBatches: number;
+}> {
+  const unique = [...new Set(questionIds.filter(Boolean))];
+  if (unique.length === 0) return { deletedQuestions: 0, deletedQuestionBatches: 0 };
+
+  const stillLinked = new Set(await mocksRepo.filterQuestionIdsLinkedToMocks(unique));
+  const orphans = unique.filter((id) => !stillLinked.has(id));
+  if (orphans.length === 0) return { deletedQuestions: 0, deletedQuestionBatches: 0 };
+
+  const rows = await questionsRepo.getByIds(orphans);
+  const batchIds = [
+    ...new Set(rows.map((q) => q.batchId).filter((id): id is string => Boolean(id))),
+  ];
+
+  let deletedQuestions = 0;
+  for (const id of orphans) {
+    if (await questionsRepo.deleteOne(id)) deletedQuestions += 1;
+  }
+
+  let deletedQuestionBatches = 0;
+  for (const batchId of batchIds) {
+    const remaining = await questionsRepo.list({ batchId });
+    if (remaining.length === 0) {
+      await questionsRepo.deleteBatch(batchId);
+      deletedQuestionBatches += 1;
+    }
+  }
+
+  return { deletedQuestions, deletedQuestionBatches };
 }
 
 async function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -561,6 +634,53 @@ app.post('/api/questions', requireAuth, async (req, res) => {
   }
 });
 
+/** Rename import batch file name / display label (Question Bank). Must be before /:id. */
+app.patch('/api/questions/batches/:batchId', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Questions moderator or Admin required' });
+    }
+    const body = req.body || {};
+    const patch: { label?: string; filename?: string | null } = {};
+    if (body.label !== undefined) {
+      if (typeof body.label !== 'string' || !body.label.trim()) {
+        return res.status(400).json({ error: 'label must be a non-empty string' });
+      }
+      patch.label = body.label.trim();
+    }
+    if (body.filename !== undefined) {
+      if (body.filename === null) {
+        patch.filename = null;
+      } else if (typeof body.filename === 'string') {
+        patch.filename = body.filename.trim() || null;
+      } else {
+        return res.status(400).json({ error: 'filename must be a string or null' });
+      }
+    }
+    if (patch.label === undefined && patch.filename === undefined) {
+      return res.status(400).json({ error: 'Provide label and/or filename' });
+    }
+    const existing = await questionsRepo.getBatch(req.params.batchId);
+    if (!existing) return res.status(404).json({ error: 'Batch not found' });
+    // Editing the file name also refreshes the batch display label from the stem.
+    if (patch.filename && patch.label === undefined) {
+      const stem = patch.filename.replace(/\.[^.]+$/i, '').trim() || patch.filename;
+      patch.label = existing.label.endsWith(' (questions)') ? `${stem} (questions)` : stem;
+    }
+    const updated = await questionsRepo.updateBatchMeta(req.params.batchId, patch);
+    if (!updated) return res.status(404).json({ error: 'Batch not found' });
+    res.json({
+      batch: updated,
+      syncedAt: new Date().toISOString(),
+      source: questionsRepo.driver,
+    });
+  } catch (err: any) {
+    console.error('PATCH /api/questions/batches/:batchId failed:', err);
+    res.status(500).json({ error: err?.message || 'Failed to update batch' });
+  }
+});
+
 /** Update one question (Admin / Questions Moderator). */
 app.patch('/api/questions/:id', requireAuth, async (req, res) => {
   try {
@@ -585,12 +705,12 @@ app.patch('/api/questions/:id', requireAuth, async (req, res) => {
   }
 });
 
-/** Delete an entire import batch and its questions. */
+/** Delete an entire import batch and its questions. Admin only. */
 app.delete('/api/questions/batches/:batchId', requireAuth, async (req, res) => {
   try {
     const { profile } = (req as any).auth;
-    if (!canManageQuestions(profile.role, profile.email)) {
-      return res.status(403).json({ error: 'Questions moderator or Admin required' });
+    if (!canDeleteImportFiles(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Admin required to delete import files' });
     }
     const existing = await questionsRepo.getBatch(req.params.batchId);
     if (!existing) return res.status(404).json({ error: 'Batch not found' });
@@ -801,6 +921,11 @@ app.post('/api/mocks/import', requireAuth, async (req, res) => {
       });
 
       for (const m of parsed.mocks) {
+        // Re-import SetA etc.: replace existing fixed mock with same stable id.
+        const existing = await mocksRepo.getById(m.id);
+        if (existing) {
+          await mocksRepo.deleteOne(m.id);
+        }
         const saved = await mocksRepo.insertFixed({
           id: m.id,
           title: m.title,
@@ -863,17 +988,46 @@ app.post('/api/mocks/practice', requireAuth, async (req, res) => {
         ? body.chapterName.trim()
         : undefined;
 
+    const requestedTotal =
+      typeof body.totalQuestions === 'number' && Number.isFinite(body.totalQuestions)
+        ? Math.floor(body.totalQuestions)
+        : typeof body.questionCount === 'number' && Number.isFinite(body.questionCount)
+          ? Math.floor(body.questionCount)
+          : null;
+    if (requestedTotal != null && requestedTotal < 1) {
+      return res.status(400).json({ error: 'totalQuestions must be at least 1' });
+    }
+    if (requestedTotal != null && requestedTotal > 500) {
+      return res.status(400).json({ error: 'totalQuestions cannot exceed 500' });
+    }
+
     if (scope === 'subject') {
       if (!subject || subject === 'Combined') {
         return res.status(400).json({ error: 'subject is required for subject-wise practice' });
       }
       allocation = ceeAllocationForSubject(subject);
+      const blueprintTotal = totalFromAllocation(allocation);
+      if (requestedTotal != null) {
+        allocation =
+          blueprintTotal < 1
+            ? { subjects: { [subject]: requestedTotal }, chapters: [] }
+            : resizeAllocationToTotal(allocation, requestedTotal);
+      } else if (blueprintTotal < 1) {
+        // e.g. Mixed — default to a modest subject-level paper
+        allocation = { subjects: { [subject]: 25 }, chapters: [] };
+      }
     } else if (scope === 'chapter') {
       if (!subject || subject === 'Combined' || !chapterName) {
         return res.status(400).json({ error: 'subject and chapterName are required for chapter practice' });
       }
       allocation = ceeAllocationForChapter(subject, chapterName);
       chapterName = allocation.chapters?.[0]?.chapter || chapterName;
+      if (requestedTotal != null) {
+        allocation = {
+          subjects: { [subject]: requestedTotal },
+          chapters: [{ subject, chapter: chapterName, count: requestedTotal }],
+        };
+      }
     } else {
       subject = 'Combined';
     }
@@ -967,6 +1121,196 @@ app.post('/api/mocks/practice', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * Admin-only: export one or more Fixed Sets / mocks as re-importable Set JSON files
+ * (plain question arrays with answers).
+ */
+app.post('/api/mocks/export', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canDeleteImportFiles(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Admin required to export Set JSON files' });
+    }
+
+    const body = req.body || {};
+    const batchIds = Array.isArray(body.batchIds)
+      ? body.batchIds.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
+    const mockIds = Array.isArray(body.mockIds)
+      ? body.mockIds.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)
+      : [];
+
+    if (batchIds.length === 0 && mockIds.length === 0) {
+      return res.status(400).json({ error: 'Provide batchIds and/or mockIds' });
+    }
+
+    const allMocks = await mocksRepo.list();
+    const selected: MockRecord[] = [];
+    const seen = new Set<string>();
+
+    for (const id of mockIds) {
+      const m = allMocks.find((x) => x.id === id) || (await mocksRepo.getById(id));
+      if (!m) continue;
+      if (m.mode !== 'fixed') continue;
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      selected.push(m);
+    }
+
+    if (batchIds.length > 0) {
+      const batchSet = new Set(batchIds);
+      for (const m of allMocks) {
+        if (m.mode !== 'fixed' || !m.importBatchId || !batchSet.has(m.importBatchId)) continue;
+        if (seen.has(m.id)) continue;
+        seen.add(m.id);
+        selected.push(m);
+      }
+    }
+
+    if (selected.length === 0) {
+      return res.status(404).json({ error: 'No Fixed mocks found for the given selection' });
+    }
+
+    const batches = await mocksRepo.listImportBatches();
+    const batchById = new Map(batches.map((b) => [b.id, b]));
+    const usedNames = new Set<string>();
+
+    const files: {
+      filename: string;
+      mockId: string;
+      mockTitle: string;
+      batchId: string | null;
+      questionCount: number;
+      questions: ReturnType<typeof serializeFixedMockAsSetJson>;
+    }[] = [];
+
+    for (const m of selected) {
+      const ids = m.questionIds || [];
+      if (ids.length === 0) {
+        return res.status(400).json({
+          error: `Fixed mock “${m.title}” (${m.id}) has no linked questions to export`,
+        });
+      }
+      const records = await questionsRepo.getByIds(ids);
+      const byId = new Map(records.map((q) => [q.id, q]));
+      const ordered = ids.map((id) => byId.get(id)).filter(Boolean) as typeof records;
+      if (ordered.length !== ids.length) {
+        return res.status(400).json({
+          error: `Fixed mock “${m.title}” is missing ${ids.length - ordered.length} question(s) in the bank`,
+        });
+      }
+
+      const batch = m.importBatchId ? batchById.get(m.importBatchId) : undefined;
+      let filename = setExportFilename(batch?.filename || null, batch?.label || m.title);
+      if (usedNames.has(filename.toLowerCase())) {
+        const stem = filename.replace(/\.json$/i, '');
+        filename = setExportFilename(null, `${stem}-${m.id.slice(-6)}`);
+      }
+      usedNames.add(filename.toLowerCase());
+
+      files.push({
+        filename,
+        mockId: m.id,
+        mockTitle: m.title,
+        batchId: m.importBatchId || null,
+        questionCount: ordered.length,
+        questions: serializeFixedMockAsSetJson(ordered),
+      });
+    }
+
+    res.json({
+      fileCount: files.length,
+      files,
+      syncedAt: new Date().toISOString(),
+      source: mocksRepo.driver,
+    });
+  } catch (err: any) {
+    console.error('POST /api/mocks/export failed:', err);
+    res.status(500).json({ error: err?.message || 'Failed to export Set JSON' });
+  }
+});
+
+app.patch('/api/mocks/batches/:batchId', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Questions moderator or Admin required' });
+    }
+    const existing =
+      (await mocksRepo.listImportBatches()).find((b) => b.id === req.params.batchId) || null;
+    if (!existing) return res.status(404).json({ error: 'Batch not found' });
+
+    const body = req.body || {};
+    const patch: { label?: string; filename?: string | null } = {};
+    if (body.label !== undefined) {
+      if (typeof body.label !== 'string' || !body.label.trim()) {
+        return res.status(400).json({ error: 'label must be a non-empty string' });
+      }
+      patch.label = body.label.trim();
+    }
+    if (body.filename !== undefined) {
+      if (body.filename === null) {
+        patch.filename = null;
+      } else if (typeof body.filename === 'string') {
+        patch.filename = body.filename.trim() || null;
+      } else {
+        return res.status(400).json({ error: 'filename must be a string or null' });
+      }
+    }
+    if (patch.label === undefined && patch.filename === undefined) {
+      return res.status(400).json({ error: 'Provide label and/or filename' });
+    }
+    if (patch.filename && patch.label === undefined) {
+      patch.label = patch.filename.replace(/\.[^.]+$/i, '').trim() || patch.filename;
+    }
+
+    const updated = await mocksRepo.updateImportBatchMeta(req.params.batchId, patch);
+    if (!updated) return res.status(404).json({ error: 'Batch not found' });
+
+    const oldLabel = existing.label;
+    const newLabel = updated.label;
+    const oldFilename = existing.filename;
+    let renamedMocks = 0;
+    if (newLabel !== oldLabel) {
+      const linked = (await mocksRepo.list()).filter((m) => m.importBatchId === existing.id);
+      const oldStem = oldFilename
+        ? oldFilename.replace(/\.[^.]+$/i, '').trim()
+        : '';
+      for (const m of linked) {
+        if (m.title === oldLabel || (oldStem && m.title === oldStem)) {
+          await mocksRepo.updateMeta(m.id, { title: newLabel });
+          renamedMocks += 1;
+        }
+      }
+    }
+
+    let renamedQuestionBatches = 0;
+    const qBatches = await questionsRepo.listBatches();
+    for (const qb of qBatches) {
+      const sameFile = Boolean(oldFilename && qb.filename === oldFilename);
+      const sameCompanionLabel = qb.label === `${oldLabel} (questions)`;
+      if (!sameFile && !sameCompanionLabel) continue;
+      const qLabel = sameCompanionLabel ? `${newLabel} (questions)` : qb.label;
+      await questionsRepo.updateBatchMeta(qb.id, {
+        filename: updated.filename,
+        label: qLabel,
+      });
+      renamedQuestionBatches += 1;
+    }
+
+    res.json({
+      batch: updated,
+      renamedMocks,
+      renamedQuestionBatches,
+      syncedAt: new Date().toISOString(),
+      source: mocksRepo.driver,
+    });
+  } catch (err: any) {
+    console.error('PATCH /api/mocks/batches/:batchId failed:', err);
+    res.status(500).json({ error: err?.message || 'Failed to update mock batch' });
+  }
+});
+
 app.patch('/api/mocks/:id', requireAuth, async (req, res) => {
   try {
     const { profile } = (req as any).auth;
@@ -1016,14 +1360,17 @@ app.patch('/api/mocks/:id', requireAuth, async (req, res) => {
 app.delete('/api/mocks/batches/:batchId', requireAuth, async (req, res) => {
   try {
     const { profile } = (req as any).auth;
-    if (!canManageQuestions(profile.role, profile.email)) {
-      return res.status(403).json({ error: 'Questions moderator or Admin required' });
+    if (!canDeleteImportFiles(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Admin required to delete import files' });
     }
     const result = await mocksRepo.deleteImportBatch(req.params.batchId);
+    const purged = await purgeOrphanBankQuestions(result.questionIds);
     res.json({
       deleted: true,
       batchId: req.params.batchId,
       deletedMocks: result.deletedMocks,
+      deletedQuestions: purged.deletedQuestions,
+      deletedQuestionBatches: purged.deletedQuestionBatches,
       syncedAt: new Date().toISOString(),
     });
   } catch (err: any) {
@@ -1035,12 +1382,19 @@ app.delete('/api/mocks/batches/:batchId', requireAuth, async (req, res) => {
 app.delete('/api/mocks/:id', requireAuth, async (req, res) => {
   try {
     const { profile } = (req as any).auth;
-    if (!canManageQuestions(profile.role, profile.email)) {
-      return res.status(403).json({ error: 'Questions moderator or Admin required' });
+    if (!canDeleteImportFiles(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Admin required to delete Sets / mocks' });
     }
-    const ok = await mocksRepo.deleteOne(req.params.id);
-    if (!ok) return res.status(404).json({ error: 'Mock not found' });
-    res.json({ deleted: true, id: req.params.id, syncedAt: new Date().toISOString() });
+    const result = await mocksRepo.deleteOne(req.params.id);
+    if (!result.deleted) return res.status(404).json({ error: 'Mock not found' });
+    const purged = await purgeOrphanBankQuestions(result.questionIds);
+    res.json({
+      deleted: true,
+      id: req.params.id,
+      deletedQuestions: purged.deletedQuestions,
+      deletedQuestionBatches: purged.deletedQuestionBatches,
+      syncedAt: new Date().toISOString(),
+    });
   } catch (err: any) {
     console.error('DELETE /api/mocks/:id failed:', err);
     res.status(500).json({ error: err?.message || 'Failed to delete mock' });
@@ -1148,6 +1502,59 @@ app.post('/api/mocks/:id/start', requireAuth, async (req, res) => {
   } catch (err: any) {
     console.error('POST /api/mocks/:id/start failed:', err);
     res.status(500).json({ error: publicErrorMessage(err, 'Failed to start mock') });
+  }
+});
+
+/**
+ * Study mode: return fixed paper WITH answer keys for browse/read.
+ * No attempt session, no scoring, no quota/coin charge.
+ */
+app.post('/api/mocks/:id/study', requireAuth, async (req, res) => {
+  try {
+    const { profile, userId } = (req as any).auth;
+    const mock = await mocksRepo.getById(req.params.id);
+    if (!mock) return res.status(404).json({ error: 'Mock not found' });
+    if (!mock.isPublished) {
+      if (!canManageQuestions(profile.role, profile.email)) {
+        return res.status(403).json({ error: 'Mock is not published' });
+      }
+    }
+    if (mock.mode === 'dynamic') {
+      return res.status(400).json({
+        error: 'Study mode is available for fixed papers only. Generate a practice mock to attempt instead.',
+      });
+    }
+
+    const ids = mock.questionIds || [];
+    const records = await questionsRepo.getByIds(ids);
+    if (records.length !== ids.length) {
+      return res.status(409).json({
+        error: `Fixed mock is missing questions in the bank (${records.length}/${ids.length} found)`,
+      });
+    }
+
+    try {
+      await assertStudyAccess(userId, mock.coinPrice, {
+        staffBypass: canManageQuestions(profile.role, profile.email),
+      });
+    } catch (accessErr: any) {
+      return res
+        .status(accessErr?.status || 402)
+        .json({ error: accessErr?.message || 'Study access denied' });
+    }
+
+    res.json({
+      mock: toClientMock(
+        mock,
+        records.map((q) => toClientQuestion(q, true))
+      ),
+      mode: 'study',
+      syncedAt: new Date().toISOString(),
+      source: mocksRepo.driver,
+    });
+  } catch (err: any) {
+    console.error('POST /api/mocks/:id/study failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to open study mode') });
   }
 });
 

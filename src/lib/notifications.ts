@@ -99,7 +99,7 @@ export function bootstrapFromActivity(input: {
         userId: input.userId,
         kind: 'mock_complete',
         title: `Scored ${r.overallScore}/${r.maxScore} on ${r.mockTitle}`,
-        desc: `Accuracy ${r.accuracyPercentage}% · Predicted rank #${r.predictedRank}`,
+        desc: `Accuracy ${r.accuracyPercentage}%`,
         hrefTab: 'reports',
         refId: r.id,
         createdAt: toIsoGuess(r.completedAt),

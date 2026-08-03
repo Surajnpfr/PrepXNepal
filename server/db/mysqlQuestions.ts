@@ -387,6 +387,27 @@ export function createMysqlQuestionsRepo(pool: Pool): QuestionsRepository {
       return rows[0] ? mapBatch(rows[0]) : null;
     },
 
+    async updateBatchMeta(id, patch) {
+      const existing = await this.getBatch(id);
+      if (!existing) return null;
+      const label =
+        typeof patch.label === 'string' && patch.label.trim()
+          ? patch.label.trim()
+          : existing.label;
+      const filename =
+        patch.filename === undefined
+          ? existing.filename
+          : typeof patch.filename === 'string' && patch.filename.trim()
+            ? patch.filename.trim()
+            : null;
+      await pool.query('UPDATE import_batches SET label = ?, filename = ? WHERE id = ?', [
+        label,
+        filename,
+        id,
+      ]);
+      return this.getBatch(id);
+    },
+
     async deleteBatch(id) {
       const conn = await pool.getConnection();
       try {

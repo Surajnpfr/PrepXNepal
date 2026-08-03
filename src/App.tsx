@@ -16,6 +16,7 @@ import { LandingSignInButton, LandingSignUpButton } from './components/ClerkAuth
 import { HomeView } from './components/HomeView';
 import { CatalogView } from './components/CatalogView';
 import { MockEngineView } from './components/MockEngineView';
+import { MockStudyView } from './components/MockStudyView';
 import { ProgressReportsView } from './components/ProgressReportsView';
 import { CoinsWalletView } from './components/CoinsWalletView';
 import { PaymentSubmissionView } from './components/PaymentSubmissionView';
@@ -110,6 +111,7 @@ import {
   fetchQuestions,
   importQuestionsJson,
   updateQuestion,
+  updateQuestionBatchMeta,
   type ChapterQuestionCount,
   type ImportBatch,
   type SubjectQuestionCount,
@@ -118,12 +120,16 @@ import {
   createDynamicMock,
   deleteMock,
   deleteMockBatch,
+  downloadSetExportFiles,
+  exportMocksAsSetJson,
   fetchMockBatches,
   fetchMocks,
   generatePracticeMock,
   importFixedMocksJson,
   scoreMockAttempt,
   startMockAttempt,
+  studyMockPaper,
+  updateMockBatchMeta,
   updateMockMeta,
   type MockImportBatch,
 } from './lib/mocksApi';
@@ -551,6 +557,8 @@ export function App() {
   const [mocksError, setMocksError] = useState<string | null>(null);
   const [practiceBusy, setPracticeBusy] = useState(false);
   const [activeMock, setActiveMock] = useState<MockTest | null>(null);
+  const [studyMock, setStudyMock] = useState<MockTest | null>(null);
+  const isImmersivePaper = activeTab === 'mock-engine' || activeTab === 'mock-study';
 
   const [pastReports, setPastReports] = useState<AttemptReport[]>(() => {
     const saved = localStorage.getItem('prepx_reports');
@@ -870,6 +878,7 @@ export function App() {
       return;
     }
     try {
+      setStudyMock(null);
       const resolved = await startMockAttempt(getToken, mock.id);
       if (!resolved.questions.length) {
         await feedback.alert({
@@ -889,6 +898,37 @@ export function App() {
         variant: 'error',
         title: 'Could not start mock',
         message: err?.message || 'Failed to start mock test',
+      });
+    }
+  };
+
+  const handleStudyMock = async (mock: MockTest) => {
+    if (!isSignedIn) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Sign in required',
+        message: 'Sign in to study this paper with answers.',
+      });
+      return;
+    }
+    try {
+      setActiveMock(null);
+      const resolved = await studyMockPaper(getToken, mock.id);
+      if (!resolved.questions.length) {
+        await feedback.alert({
+          variant: 'warning',
+          title: 'Paper unavailable',
+          message: 'This mock has no questions available yet.',
+        });
+        return;
+      }
+      setStudyMock(resolved);
+      setActiveTab('mock-study');
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Could not open Study',
+        message: err?.message || 'Failed to open study mode',
       });
     }
   };
@@ -922,6 +962,19 @@ export function App() {
           message: 'There are not enough questions available for this practice test yet.',
         });
         return;
+      }
+      const got = resolved.questions.length;
+      const wanted =
+        typeof payload.totalQuestions === 'number'
+          ? payload.totalQuestions
+          : payload.scope === 'full'
+            ? 200
+            : got;
+      if (got < wanted || resolved.partialFill) {
+        feedback.toast({
+          variant: 'warning',
+          message: `Started with ${got} of ${wanted} requested questions (some units were short in the bank).`,
+        });
       }
       localStorage.setItem(`prepx_paper_${resolved.id}`, JSON.stringify(resolved.questions));
       if (user?.id) await user.reload();
@@ -1024,7 +1077,7 @@ export function App() {
         userId: userProfile.id,
         kind: 'mock_complete',
         title: `Scored ${newReport.overallScore}/${newReport.maxScore} on ${mock.title}`,
-        desc: `Accuracy ${newReport.accuracyPercentage}% · Predicted rank #${newReport.predictedRank} · +${scored.coinReward} coins`,
+        desc: `Accuracy ${newReport.accuracyPercentage}% · +${scored.coinReward} coins`,
         hrefTab: 'reports',
         refId: newReport.id,
       });
@@ -1339,6 +1392,14 @@ export function App() {
     await refreshQuestionsBank();
   };
 
+  const handleUpdateQuestionBatch = async (
+    batchId: string,
+    patch: { label?: string; filename?: string | null }
+  ) => {
+    await updateQuestionBatchMeta(getToken, batchId, patch);
+    await refreshQuestionsBank();
+  };
+
   const handleImportFormulaSheets = async (
     jsonStr: string,
     meta?: { filename?: string | null; label?: string | null }
@@ -1414,11 +1475,31 @@ export function App() {
   const handleDeleteMock = async (id: string) => {
     await deleteMock(getToken, id);
     await refreshMocksCatalog();
+    await refreshQuestionsBank();
   };
 
   const handleDeleteMockBatch = async (batchId: string) => {
     await deleteMockBatch(getToken, batchId);
     await refreshMocksCatalog();
+    await refreshQuestionsBank();
+  };
+
+  const handleUpdateMockBatch = async (
+    batchId: string,
+    patch: { label?: string; filename?: string | null }
+  ) => {
+    await updateMockBatchMeta(getToken, batchId, patch);
+    await refreshMocksCatalog();
+    await refreshQuestionsBank();
+  };
+
+  const handleExportMockSets = async (selection: {
+    batchIds?: string[];
+    mockIds?: string[];
+  }) => {
+    const result = await exportMocksAsSetJson(getToken, selection);
+    downloadSetExportFiles(result.files);
+    return { fileCount: result.fileCount };
   };
 
   const pendingClaimsCount = paymentClaims.filter(c => c.status === 'pending').length;
@@ -1520,7 +1601,7 @@ export function App() {
 
       {showAppShell && (
       <>
-        {activeTab !== 'mock-engine' && (
+        {!isImmersivePaper && (
           <AnnouncementBar
             message={
               announcementNotification
@@ -1555,7 +1636,7 @@ export function App() {
         )}
 
           <div className="flex flex-1 relative">
-            {activeTab !== 'mock-engine' && (
+            {!isImmersivePaper && (
               <Sidebar
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
@@ -1570,7 +1651,7 @@ export function App() {
             )}
 
             <div className="flex-1 flex flex-col min-w-0 min-h-0 md:min-h-screen overflow-x-hidden">
-              {activeTab !== 'mock-engine' && (
+              {!isImmersivePaper && (
                 <Topbar
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
@@ -1595,6 +1676,7 @@ export function App() {
                     studyPlanTasks={currentUserPlanTasks}
                     onToggleStudyTask={handleToggleStudyTask}
                     onStartMock={handleStartMock}
+                    onStudyMock={handleStudyMock}
                     onViewReport={(rep) => {
                       setActiveReport(rep);
                       setActiveTab('reports');
@@ -1609,6 +1691,7 @@ export function App() {
                     userProfile={userProfile}
                     pastReports={currentUserReports}
                     onStartMock={handleStartMock}
+                    onStudyMock={handleStudyMock}
                     onGeneratePractice={handleGeneratePractice}
                     practiceBusy={practiceBusy}
                     questionStats={questionStats}
@@ -1635,6 +1718,31 @@ export function App() {
                     icon="error"
                     title="No exam in progress"
                     message="Start a mock from the catalog to open the timed exam screen."
+                    primaryLabel="Open mock catalog"
+                    onPrimary={() => goToTab('catalog', { replace: true })}
+                  />
+                )}
+
+                {activeTab === 'mock-study' && studyMock && (
+                  <MockStudyView
+                    mockTest={studyMock}
+                    onExit={() => {
+                      setStudyMock(null);
+                      goToTab('catalog', { replace: true });
+                    }}
+                    onGiveMockTest={() => {
+                      const target = studyMock;
+                      setStudyMock(null);
+                      void handleStartMock(target);
+                    }}
+                  />
+                )}
+
+                {activeTab === 'mock-study' && !studyMock && (
+                  <RouteStatePanel
+                    icon="error"
+                    title="No study paper open"
+                    message="Choose Study on a fixed mock in the catalog to browse questions with answers."
                     primaryLabel="Open mock catalog"
                     onPrimary={() => goToTab('catalog', { replace: true })}
                   />
@@ -1731,6 +1839,7 @@ export function App() {
                     onUpdateQuestion={handleUpdateQuestion}
                     onDeleteQuestion={handleDeleteQuestion}
                     onDeleteQuestionBatch={handleDeleteQuestionBatch}
+                    onUpdateQuestionBatch={handleUpdateQuestionBatch}
                     questionStats={questionStats}
                     questionStatsTotal={questionStatsTotal}
                     questionStatsLoading={questionsLoading}
@@ -1745,6 +1854,8 @@ export function App() {
                     onUpdateMock={handleUpdateMock}
                     onDeleteMock={handleDeleteMock}
                     onDeleteMockBatch={handleDeleteMockBatch}
+                    onUpdateMockBatch={handleUpdateMockBatch}
+                    onExportMockSets={handleExportMockSets}
                     formulaSheets={formulaSheets}
                     formulaBatches={formulaBatches}
                     formulasLoading={formulasLoading}
@@ -1781,7 +1892,7 @@ export function App() {
                 )}
               </main>
 
-              {activeTab !== 'mock-engine' && (
+              {!isImmersivePaper && (
                 <div className="md:hidden sticky bottom-0 z-40 bg-[var(--px-surface)] border-t border-[var(--px-border)] px-2 py-1.5 flex items-center justify-around shadow-[var(--px-shadow)]">
                   <button
                     type="button"
@@ -1840,7 +1951,7 @@ export function App() {
                 </div>
               )}
 
-              {activeTab !== 'mock-engine' && <Footer onNavigate={handleNavigate} />}
+              {!isImmersivePaper && <Footer onNavigate={handleNavigate} />}
             </div>
           </div>
         </>

@@ -102,6 +102,18 @@ async function testSqliteBatchEditDelete() {
   assert.equal(await repo.deleteOne(listed[1].id), true);
   assert.equal(await repo.countAll(), 1);
 
+  const renamed = await repo.updateBatchMeta('batch-1', { filename: 'cee-physics-v2.json' });
+  assert.ok(renamed);
+  assert.equal(renamed?.filename, 'cee-physics-v2.json');
+  assert.equal(renamed?.label, 'CEE Physics Pack');
+
+  const renamedLabel = await repo.updateBatchMeta('batch-1', {
+    filename: 'new-pack.json',
+    label: 'New Pack',
+  });
+  assert.equal(renamedLabel?.filename, 'new-pack.json');
+  assert.equal(renamedLabel?.label, 'New Pack');
+
   const delBatch = await repo.deleteBatch('batch-1');
   assert.equal(delBatch.deletedQuestions, 1);
   assert.equal(await repo.countAll(), 0);

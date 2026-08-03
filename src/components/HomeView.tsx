@@ -21,6 +21,7 @@ interface HomeViewProps {
   studyPlanTasks: StudyPlanTask[];
   onToggleStudyTask: (taskId: string) => void;
   onStartMock: (mock: MockTest) => void;
+  onStudyMock: (mock: MockTest) => void;
   onViewReport: (report: AttemptReport) => void;
   onNavigate: (tab: string) => void;
 }
@@ -33,6 +34,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   studyPlanTasks,
   onToggleStudyTask,
   onStartMock,
+  onStudyMock,
   onViewReport,
   onNavigate,
 }) => {
@@ -281,9 +283,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </div>
               </div>
 
-              <Button type="button" fullWidth onClick={() => onStartMock(nextMock)}>
-                Start this mock
-              </Button>
+              <div className="space-y-2">
+                <Button type="button" fullWidth onClick={() => onStudyMock(nextMock)}>
+                  Study this paper
+                </Button>
+                <Button type="button" fullWidth onClick={() => onStartMock(nextMock)}>
+                  Give Mock test
+                </Button>
+              </div>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center text-center h-full space-y-3 py-6">

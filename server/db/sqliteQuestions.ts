@@ -347,6 +347,27 @@ export function createSqliteQuestionsRepo(dbFilePath: string): QuestionsReposito
       return row ? mapBatch(row) : null;
     },
 
+    async updateBatchMeta(id, patch) {
+      const existing = await this.getBatch(id);
+      if (!existing) return null;
+      const label =
+        typeof patch.label === 'string' && patch.label.trim()
+          ? patch.label.trim()
+          : existing.label;
+      const filename =
+        patch.filename === undefined
+          ? existing.filename
+          : typeof patch.filename === 'string' && patch.filename.trim()
+            ? patch.filename.trim()
+            : null;
+      db.prepare('UPDATE import_batches SET label = ?, filename = ? WHERE id = ?').run(
+        label,
+        filename,
+        id
+      );
+      return this.getBatch(id);
+    },
+
     async deleteBatch(id) {
       const tx = db.prepare('BEGIN');
       const commit = db.prepare('COMMIT');

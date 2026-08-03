@@ -94,6 +94,16 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
     }
   }, [attempt, mockTest.id, hasConfirmedInstructions]);
 
+  // Lock page scroll behind the fixed exam shell
+  useEffect(() => {
+    if (!hasConfirmedInstructions) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [hasConfirmedInstructions]);
+
   // Timer Countdown loop
   useEffect(() => {
     if (!hasConfirmedInstructions) return;
@@ -282,9 +292,9 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans flex flex-col">
-      {/* Top Fixed Exam Navigation & Timer Header */}
-      <header className="bg-slate-900 text-white sticky top-0 z-40 border-b border-slate-800 shadow-md py-3 px-3 sm:px-6">
+    <div className="fixed inset-0 z-[60] bg-slate-100 font-sans flex flex-col">
+      {/* Exam chrome — outside scroll so timer stays visible */}
+      <header className="bg-slate-900 text-white shrink-0 z-40 border-b border-slate-800 shadow-md py-3 px-3 sm:px-6">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Left Title & Exit */}
           <div className="flex items-center gap-3 min-w-0">
@@ -343,8 +353,10 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
         </div>
       </header>
 
+      {/* Scrollable questions + desktop palette */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
       {/* Main Taking Container */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Main Questions Column */}
         <main className="lg:col-span-8 space-y-6">
           {/* Top Page Progress Indicator & Controls Bar */}
@@ -592,7 +604,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
 
         {/* Desktop Persistent Question Palette Sidebar */}
         <aside className="hidden lg:block lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs sticky top-20 space-y-4">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs sticky top-4 space-y-4">
             <h3 className="font-bold text-slate-900 text-sm pb-2 border-b border-slate-100 flex items-center justify-between">
               <span>Question Palette</span>
               <span className="text-xs text-slate-400 font-mono">{mockTest.totalQuestions} Qs</span>
@@ -630,7 +642,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                         setAttempt(p => ({ ...p, currentPage: pageTarget }));
                       }
                       setTimeout(() => {
-                        document.getElementById(`q-card-${q.id}`)?.scrollIntoView({ behavior: 'smooth' });
+                        document.getElementById(`q-card-${q.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }, 100);
                     }}
                     className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
@@ -661,10 +673,11 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
           </div>
         </aside>
       </div>
+      </div>
 
       {/* Question Palette Drawer Modal for Mobile / Small Screens */}
       {showPaletteDrawer && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-6 border border-slate-200 shadow-2xl space-y-4 animate-in slide-in-from-bottom duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
@@ -713,7 +726,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                       }
                       setShowPaletteDrawer(false);
                       setTimeout(() => {
-                        document.getElementById(`q-card-${q.id}`)?.scrollIntoView({ behavior: 'smooth' });
+                        document.getElementById(`q-card-${q.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }, 100);
                     }}
                     className={`py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
@@ -744,7 +757,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
 
       {/* Confirmation Submit Modal */}
       {showSubmitModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-slate-200 shadow-2xl space-y-5">
             <div className="flex items-center space-x-3 text-emerald-600">
               <div className="p-2 bg-emerald-100 rounded-xl">
