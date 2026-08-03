@@ -2055,7 +2055,7 @@ app.post('/api/payment-claims/:id/reject', requireAuth, async (req, res) => {
   }
 });
 
-/** Billing staff: edit a pending claim (plan, amount, ref, method, notes). */
+/** Billing staff: edit pending claim fields; user remarks editable on any status. */
 app.patch('/api/payment-claims/:id', requireAuth, async (req, res) => {
   try {
     const { profile } = (req as any).auth;
@@ -2067,14 +2067,40 @@ app.patch('/api/payment-claims/:id', requireAuth, async (req, res) => {
 
     const existing = await paymentClaimsRepo.getById(id);
     if (!existing) return res.status(404).json({ error: 'Claim not found' });
-    if (existing.status !== 'pending') {
-      return res.status(409).json({
-        error: `Only pending claims can be edited (currently ${existing.status})`,
-        claim: toClientPaymentClaim(existing),
-      });
-    }
 
     const body = req.body || {};
+    const hasUserNotes = body.userNotes !== undefined;
+    const userNotesValue =
+      typeof body.userNotes === 'string' && body.userNotes.trim()
+        ? body.userNotes.trim()
+        : null;
+
+    // Resolved claims: only User Remarks may change (not plan/amount/ref).
+    if (existing.status !== 'pending') {
+      const otherKeys = [
+        'planCode',
+        'amountNpr',
+        'listAmountNpr',
+        'promoCode',
+        'promoDiscountNpr',
+        'paymentMethod',
+        'transactionRef',
+        'screenshotUrl',
+      ].filter((k) => body[k] !== undefined);
+      if (otherKeys.length > 0) {
+        return res.status(409).json({
+          error: `Only user remarks can be edited on ${existing.status} claims`,
+          claim: toClientPaymentClaim(existing),
+        });
+      }
+      if (!hasUserNotes) {
+        return res.status(400).json({ error: 'userNotes is required when editing a resolved claim' });
+      }
+      const claim = await paymentClaimsRepo.updateUserNotes(id, userNotesValue);
+      if (!claim) return res.status(404).json({ error: 'Claim not found' });
+      return res.json({ claim: toClientPaymentClaim(claim) });
+    }
+
     const patch: Parameters<PaymentClaimsRepository['updatePending']>[1] = {};
 
     if (typeof body.planCode === 'string' && body.planCode.trim()) {
@@ -2133,11 +2159,8 @@ app.patch('/api/payment-claims/:id', requireAuth, async (req, res) => {
       }
       patch.screenshotUrl = url;
     }
-    if (body.userNotes !== undefined) {
-      patch.userNotes =
-        typeof body.userNotes === 'string' && body.userNotes.trim()
-          ? body.userNotes.trim()
-          : null;
+    if (hasUserNotes) {
+      patch.userNotes = userNotesValue;
     }
 
     if (Object.keys(patch).length === 0) {

@@ -201,6 +201,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return 'payments';
   });
   const [inspectingClaim, setInspectingClaim] = useState<PaymentClaim | null>(null);
+  const [inspectRemarksDraft, setInspectRemarksDraft] = useState('');
+  const [inspectRemarksBusy, setInspectRemarksBusy] = useState(false);
+  const [inspectRemarksError, setInspectRemarksError] = useState<string | null>(null);
   const [editingClaim, setEditingClaim] = useState<PaymentClaim | null>(null);
   const [editClaimBusy, setEditClaimBusy] = useState(false);
   const [editClaimError, setEditClaimError] = useState<string | null>(null);
@@ -378,6 +381,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
     await onRejectClaim(claimId, finalReason);
     setInspectingClaim(null);
+  };
+
+  const openInspectClaim = (claim: PaymentClaim) => {
+    setInspectRemarksError(null);
+    setInspectRemarksDraft(claim.userNotes ?? '');
+    setInspectingClaim(claim);
+  };
+
+  const handleSaveInspectRemarks = async () => {
+    if (!inspectingClaim || !onUpdateClaim) return;
+    const nextNotes = inspectRemarksDraft.trim() || null;
+    const prevNotes = inspectingClaim.userNotes?.trim() || null;
+    if (nextNotes === prevNotes) {
+      feedback.toast({ variant: 'info', message: 'No remark changes to save.' });
+      return;
+    }
+    setInspectRemarksBusy(true);
+    setInspectRemarksError(null);
+    try {
+      const updated = await onUpdateClaim(inspectingClaim.id, { userNotes: nextNotes });
+      if (updated && typeof updated === 'object' && 'id' in updated) {
+        setInspectingClaim(updated as PaymentClaim);
+        setInspectRemarksDraft((updated as PaymentClaim).userNotes ?? '');
+      } else {
+        setInspectingClaim((c) =>
+          c ? { ...c, userNotes: nextNotes ?? undefined } : c
+        );
+      }
+    } catch (err: any) {
+      setInspectRemarksError(err?.message || 'Could not save remarks');
+    } finally {
+      setInspectRemarksBusy(false);
+    }
   };
 
   const openEditClaim = (claim: PaymentClaim) => {
@@ -905,7 +941,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           <button
                             type="button"
-                            onClick={() => setInspectingClaim(claim)}
+                            onClick={() => openInspectClaim(claim)}
                             className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] rounded-lg cursor-pointer inline-flex items-center gap-1"
                           >
                             <AppIcon icon={Eye} size="btn" />
@@ -933,11 +969,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           ) : null}
                         </div>
                       ) : (
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono ${
-                          claim.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                        }`}>
-                          {claim.status.toUpperCase()}
-                        </span>
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                            claim.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {claim.status.toUpperCase()}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => openInspectClaim(claim)}
+                            className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-[11px] rounded-lg cursor-pointer inline-flex items-center gap-1"
+                            title="View claim and edit User Remarks"
+                          >
+                            <AppIcon icon={Eye} size="btn" />
+                            <span>Remarks</span>
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1457,7 +1504,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-4xl w-full p-6 border border-slate-200 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-lg font-black text-slate-900">Claim Inspection Modal (Split View)</h3>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Claim Inspection Modal (Split View)</h3>
+                {inspectingClaim.status !== 'pending' ? (
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Status: <span className="font-bold uppercase">{inspectingClaim.status}</span>
+                    {' · '}User Remarks can still be edited
+                  </p>
+                ) : null}
+              </div>
               <button 
                 onClick={() => setInspectingClaim(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold"
@@ -1507,18 +1562,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="text-slate-500">Method: {inspectingClaim.paymentMethod}</div>
                 </div>
 
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1">
-                  <div className="text-amber-800/70 text-[10px] uppercase font-bold">User Remarks</div>
-                  {inspectingClaim.userNotes?.trim() ? (
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-amber-800/70 text-[10px] uppercase font-bold">User Remarks</div>
+                    {onUpdateClaim ? (
+                      <button
+                        type="button"
+                        disabled={inspectRemarksBusy}
+                        onClick={() => void handleSaveInspectRemarks()}
+                        className="text-[10px] font-bold text-amber-900 hover:underline disabled:opacity-50"
+                      >
+                        {inspectRemarksBusy ? 'Saving…' : 'Save remarks'}
+                      </button>
+                    ) : null}
+                  </div>
+                  {onUpdateClaim ? (
+                    <textarea
+                      rows={4}
+                      value={inspectRemarksDraft}
+                      onChange={(e) => setInspectRemarksDraft(e.target.value)}
+                      placeholder="No remarks — staff can add or correct notes here."
+                      className="w-full p-2 bg-white border border-amber-200 rounded-lg text-xs font-sans text-slate-800 resize-y"
+                    />
+                  ) : inspectingClaim.userNotes?.trim() ? (
                     <p className="text-slate-800 text-xs font-sans font-medium leading-relaxed whitespace-pre-wrap">
                       {inspectingClaim.userNotes}
                     </p>
                   ) : (
                     <p className="text-slate-500 text-xs font-sans italic">No remarks provided by user.</p>
                   )}
+                  {inspectRemarksError ? (
+                    <p className="text-[11px] text-rose-700 font-sans">{inspectRemarksError}</p>
+                  ) : null}
                 </div>
 
-                {/* Rejection Reason Selector */}
+                {/* Rejection Reason Selector — pending only */}
+                {inspectingClaim.status === 'pending' ? (
                 <div className="space-y-2 pt-2 border-t border-slate-200">
                   <label className="block font-bold text-slate-800">In Case of Rejection, Select Reason:</label>
                   <select
@@ -1542,6 +1621,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     />
                   )}
                 </div>
+                ) : inspectingClaim.moderatorNotes?.trim() ? (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                    <div className="text-slate-400 text-[10px] uppercase">Moderator notes</div>
+                    <p className="text-slate-800 text-xs font-sans whitespace-pre-wrap">
+                      {inspectingClaim.moderatorNotes}
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               {/* Right Column: Screenshot Image Preview */}
@@ -1565,41 +1652,65 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t border-slate-100">
-              {onUpdateClaim ? (
-                <button
-                  type="button"
-                  onClick={() => openEditClaim(inspectingClaim)}
-                  className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-xs rounded-xl cursor-pointer inline-flex items-center gap-1"
-                >
-                  <AppIcon icon={Edit3} size="btn" />
-                  Edit claim
-                </button>
-              ) : null}
-              {onDeleteClaim ? (
-                <button
-                  type="button"
-                  onClick={() => void handleDeletePendingClaim(inspectingClaim)}
-                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl cursor-pointer inline-flex items-center gap-1"
-                >
-                  <AppIcon icon={Trash2} size="btn" />
-                  Delete
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => handleReject(inspectingClaim.id)}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl cursor-pointer"
-              >
-                Reject (Flag Claim)
-              </button>
+              {inspectingClaim.status === 'pending' ? (
+                <>
+                  {onUpdateClaim ? (
+                    <button
+                      type="button"
+                      onClick={() => openEditClaim(inspectingClaim)}
+                      className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-xs rounded-xl cursor-pointer inline-flex items-center gap-1"
+                    >
+                      <AppIcon icon={Edit3} size="btn" />
+                      Edit claim
+                    </button>
+                  ) : null}
+                  {onDeleteClaim ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleDeletePendingClaim(inspectingClaim)}
+                      className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl cursor-pointer inline-flex items-center gap-1"
+                    >
+                      <AppIcon icon={Trash2} size="btn" />
+                      Delete
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => handleReject(inspectingClaim.id)}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl cursor-pointer"
+                  >
+                    Reject (Flag Claim)
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => handleApprove(inspectingClaim.id)}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md cursor-pointer"
-              >
-                Approve & Grant Entitlement
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApprove(inspectingClaim.id)}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md cursor-pointer"
+                  >
+                    Approve & Grant Entitlement
+                  </button>
+                </>
+              ) : (
+                <>
+                  {onUpdateClaim ? (
+                    <button
+                      type="button"
+                      disabled={inspectRemarksBusy}
+                      onClick={() => void handleSaveInspectRemarks()}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl cursor-pointer"
+                    >
+                      {inspectRemarksBusy ? 'Saving…' : 'Save User Remarks'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setInspectingClaim(null)}
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+                  >
+                    Close
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1724,13 +1835,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 />
               </label>
               <label className="space-y-1 sm:col-span-2">
-                <span className="font-bold text-slate-700">User notes</span>
+                <span className="font-bold text-slate-700">User Remarks</span>
                 <textarea
                   rows={3}
                   value={editClaimForm.userNotes}
                   onChange={(e) =>
                     setEditClaimForm((f) => ({ ...f, userNotes: e.target.value }))
                   }
+                  placeholder="Student notes — editable by billing staff"
                   className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg resize-y"
                 />
               </label>

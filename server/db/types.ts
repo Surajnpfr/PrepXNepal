@@ -210,6 +210,8 @@ export interface PaymentClaimsRepository {
       userNotes?: string | null;
     }
   ): Promise<PaymentClaimRecord | null>;
+  /** Update user remarks on any claim status (pending / approved / rejected). */
+  updateUserNotes(id: string, userNotes: string | null): Promise<PaymentClaimRecord | null>;
   /** Delete a pending claim. Returns false if missing or not pending. */
   deletePending(id: string): Promise<boolean>;
   /** Atomically transition pending → approved|rejected. Returns null if not pending. */

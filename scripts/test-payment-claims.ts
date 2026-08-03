@@ -147,6 +147,19 @@ assert((await repo.getById('pay-2')) === null, 'gone after delete');
 const noDeleteResolved = await repo.deletePending('pay-1');
 assert(noDeleteResolved === false, 'cannot delete resolved claim');
 
+const notesOnApproved = await repo.updateUserNotes(
+  'pay-1',
+  'Staff follow-up note after approval'
+);
+assert(notesOnApproved?.status === 'approved', 'approved status preserved');
+assert(
+  notesOnApproved?.userNotes === 'Staff follow-up note after approval',
+  'remarks editable on approved'
+);
+
+const clearNotes = await repo.updateUserNotes('pay-1', null);
+assert(clearNotes?.userNotes == null, 'remarks cleared on approved');
+
 await repo.close();
 fs.unlinkSync(tmp);
 console.log('test-payment-claims: OK');

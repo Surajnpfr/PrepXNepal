@@ -208,6 +208,17 @@ export function createMysqlPaymentClaimsRepo(pool: Pool): PaymentClaimsRepositor
       return this.getById(id);
     },
 
+    async updateUserNotes(id, userNotes) {
+      const existing = await this.getById(id);
+      if (!existing) return null;
+      const [result] = await pool.query<ResultSetHeader>(
+        `UPDATE payment_claims SET user_notes = ? WHERE id = ?`,
+        [userNotes, id]
+      );
+      if (!result.affectedRows) return null;
+      return this.getById(id);
+    },
+
     async deletePending(id) {
       const [result] = await pool.query<ResultSetHeader>(
         `DELETE FROM payment_claims WHERE id = ? AND status = 'pending'`,

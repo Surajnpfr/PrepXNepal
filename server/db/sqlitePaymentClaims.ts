@@ -209,6 +209,16 @@ export function createSqlitePaymentClaimsRepo(dbFilePath: string): PaymentClaims
       return this.getById(id);
     },
 
+    async updateUserNotes(id, userNotes) {
+      const existing = await this.getById(id);
+      if (!existing) return null;
+      const result = db
+        .prepare(`UPDATE payment_claims SET user_notes = ? WHERE id = ?`)
+        .run(userNotes, id);
+      if (!result.changes) return null;
+      return this.getById(id);
+    },
+
     async deletePending(id) {
       const result = db
         .prepare(`DELETE FROM payment_claims WHERE id = ? AND status = 'pending'`)
