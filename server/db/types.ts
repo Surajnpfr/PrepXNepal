@@ -5,6 +5,17 @@ import type {
   MockMode,
   MockScope,
 } from '../mocksDomain.ts';
+import type {
+  ReferralAttributionRecord,
+  ReferralCommissionRecord,
+  ReferralLinkRecord,
+} from '../referralsDomain.ts';
+import type { PaymentClaimRecord, PaymentClaimStatus } from '../paymentsDomain.ts';
+import type { SupportIssueRecord } from '../supportDomain.ts';
+import type {
+  FormulaImportBatchRecord,
+  FormulaSheetRecord,
+} from '../formulasDomain.ts';
 
 export interface CreateBatchInput {
   id: string;
@@ -110,3 +121,139 @@ export function emptySubjectCounts(): SubjectCount[] {
   ];
   return subjects.map((subject) => ({ subject, count: 0 }));
 }
+
+export type EnsureReferralLinkInput = {
+  ownerClerkId: string;
+  code: string;
+  ownerEmail: string;
+  ownerName: string;
+  ownerRole: string;
+};
+
+export type CreateCommissionInput = {
+  id: string;
+  claimId: string;
+  referredClerkId: string;
+  referrerClerkId: string;
+  conversionAmountNpr: number;
+  commissionRate: number;
+  commissionAmountNpr: number;
+};
+
+export interface ReferralsRepository {
+  readonly driver: 'mysql' | 'sqlite';
+  ensureSchema(): Promise<void>;
+  getLinkByOwner(ownerClerkId: string): Promise<ReferralLinkRecord | null>;
+  getLinkByCode(code: string): Promise<ReferralLinkRecord | null>;
+  ensureLink(input: EnsureReferralLinkInput): Promise<ReferralLinkRecord>;
+  listLinks(): Promise<ReferralLinkRecord[]>;
+  getAttribution(referredClerkId: string): Promise<ReferralAttributionRecord | null>;
+  /** First-touch: returns existing if already attributed, else inserts. */
+  attributeFirstTouch(input: {
+    referredClerkId: string;
+    referrerClerkId: string;
+    code: string;
+  }): Promise<{ attribution: ReferralAttributionRecord; created: boolean }>;
+  getCommissionByClaimId(claimId: string): Promise<ReferralCommissionRecord | null>;
+  insertCommission(
+    input: CreateCommissionInput
+  ): Promise<
+    | { ok: true; commission: ReferralCommissionRecord }
+    | { ok: false; reason: 'duplicate_claim'; existing: ReferralCommissionRecord }
+  >;
+  listCommissionsByReferrer(referrerClerkId: string): Promise<ReferralCommissionRecord[]>;
+  listAllCommissions(): Promise<ReferralCommissionRecord[]>;
+  settleCommission(
+    id: string,
+    settledByClerkId: string
+  ): Promise<ReferralCommissionRecord | null>;
+  close(): Promise<void>;
+}
+
+export type CreatePaymentClaimInput = {
+  id: string;
+  userId: string;
+  clerkUserId: string;
+  userName: string;
+  userEmail: string;
+  planCode: string;
+  amountNpr: number;
+  paymentMethod: string;
+  transactionRef: string;
+  screenshotUrl: string;
+  userNotes?: string | null;
+};
+
+export interface PaymentClaimsRepository {
+  readonly driver: 'mysql' | 'sqlite';
+  ensureSchema(): Promise<void>;
+  insert(input: CreatePaymentClaimInput): Promise<PaymentClaimRecord>;
+  listAll(): Promise<PaymentClaimRecord[]>;
+  listByClerkUserId(clerkUserId: string): Promise<PaymentClaimRecord[]>;
+  getById(id: string): Promise<PaymentClaimRecord | null>;
+  /** Atomically transition pending → approved|rejected. Returns null if not pending. */
+  resolve(
+    id: string,
+    input: {
+      status: Extract<PaymentClaimStatus, 'approved' | 'rejected'>;
+      moderatorNotes?: string | null;
+      verifiedBy: string;
+      verifiedByClerkId: string;
+    }
+  ): Promise<PaymentClaimRecord | null>;
+  close(): Promise<void>;
+}
+
+export type CreateSupportIssueInput = {
+  id: string;
+  clerkUserId: string;
+  userName: string;
+  userEmail: string;
+  category: string;
+  body: string;
+};
+
+export interface SupportIssuesRepository {
+  readonly driver: 'mysql' | 'sqlite';
+  ensureSchema(): Promise<void>;
+  insert(input: CreateSupportIssueInput): Promise<SupportIssueRecord>;
+  listAll(): Promise<SupportIssueRecord[]>;
+  listByClerkUserId(clerkUserId: string): Promise<SupportIssueRecord[]>;
+  getById(id: string): Promise<SupportIssueRecord | null>;
+  /** Atomically open → resolved. Returns null if not open. */
+  resolve(
+    id: string,
+    input: {
+      staffNotes?: string | null;
+      resolvedBy: string;
+      resolvedByClerkId: string;
+    }
+  ): Promise<SupportIssueRecord | null>;
+  close(): Promise<void>;
+}
+
+export interface CreateFormulaBatchInput {
+  id: string;
+  label: string;
+  filename?: string | null;
+  importedByEmail: string;
+  importedByName: string;
+  sheetCount: number;
+  errorCount: number;
+}
+
+export interface FormulasRepository {
+  readonly driver: 'mysql' | 'sqlite';
+  ensureSchema(): Promise<void>;
+  list(opts?: { batchId?: string }): Promise<FormulaSheetRecord[]>;
+  insertMany(
+    sheets: Omit<FormulaSheetRecord, 'createdAt' | 'updatedAt'>[]
+  ): Promise<number>;
+  createBatch(input: CreateFormulaBatchInput): Promise<FormulaImportBatchRecord>;
+  listBatches(): Promise<FormulaImportBatchRecord[]>;
+  getBatch(id: string): Promise<FormulaImportBatchRecord | null>;
+  deleteBatch(id: string): Promise<{ deletedSheets: number }>;
+  countAll(): Promise<number>;
+  close(): Promise<void>;
+}
+

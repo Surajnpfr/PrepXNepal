@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { 
   LayoutDashboard, 
   FileCheck, 
@@ -7,18 +8,17 @@ import {
   Bookmark, 
   CalendarCheck, 
   Trophy, 
-  Sparkles, 
-  Coins, 
   Sliders, 
   HelpCircle,
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
   Zap,
   X
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { isStaffRole } from '../lib/clerkUserMapper';
+import { BrandLogo } from './BrandLogo';
+import { AppIcon } from './ui';
 
 interface SidebarProps {
   activeTab: string;
@@ -32,6 +32,13 @@ interface SidebarProps {
   savedQuestionsCount?: number;
 }
 
+type NavItem = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: number;
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
@@ -43,18 +50,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingPaymentCount = 0,
   savedQuestionsCount = 0,
 }) => {
+  const showLabels = !isCollapsed || mobileOpen;
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileOpen]);
+
   const handleNav = (tab: string) => {
     setActiveTab(tab);
     setMobileOpen(false);
   };
 
-  const coreNavItems = [
+  const coreNavItems: NavItem[] = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'catalog', label: 'Mock Tests', icon: FileCheck },
     { id: 'payment', label: 'Pricing & Plans', icon: Zap },
   ];
 
-  const studyNavItems = [
+  const studyNavItems: NavItem[] = [
     { id: 'formulas', label: 'Formula Library', icon: BookOpen },
     { id: 'saved', label: 'Saved Questions', icon: Bookmark, badge: savedQuestionsCount },
     { id: 'planner', label: 'Study Planner', icon: CalendarCheck },
@@ -62,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const canAccessAdmin = isStaffRole(userProfile);
 
-  const analyticsNavItems: any[] = [
+  const analyticsNavItems: NavItem[] = [
     { id: 'reports', label: 'Progress Reports', icon: BarChart3 },
     { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
     { id: 'policies', label: 'Help & Support', icon: HelpCircle },
@@ -77,38 +95,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
     });
   }
 
-  const renderNavGroup = (title: string, items: any[]) => (
+  const renderNavGroup = (title: string, items: NavItem[]) => (
     <div className="space-y-1">
-      {!isCollapsed && (
-        <div className="px-3 pt-3 pb-1 text-[10px] uppercase font-mono font-black tracking-widest text-slate-400">
+      {showLabels && (
+        <div className="px-3 pt-4 pb-1.5 text-[10px] uppercase font-semibold tracking-[0.08em] text-[var(--px-muted)]">
           {title}
         </div>
       )}
       {items.map((item) => {
-        const Icon = item.icon;
         const isActive = activeTab === item.id || (item.id === 'catalog' && activeTab === 'mock-engine');
 
         return (
           <button
             key={item.id}
+            type="button"
             onClick={() => handleNav(item.id)}
-            title={isCollapsed ? item.label : undefined}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all cursor-pointer relative group ${
-              isActive
-                ? 'bg-[#2563EB]/10 text-[#2563EB] font-bold border border-[#2563EB]/25 shadow-[0_2px_8px_rgba(37,99,235,0.08)] backdrop-blur-md'
-                : 'text-slate-600 hover:bg-slate-100/70 hover:text-slate-900 font-medium'
-            }`}
+            title={!showLabels ? item.label : undefined}
+            data-active={isActive}
+            aria-current={isActive ? 'page' : undefined}
+            className="px-nav-item"
           >
-            <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-[#2563EB]' : 'text-slate-400 group-hover:text-slate-700'}`} />
+            <AppIcon
+              icon={item.icon}
+              size="nav"
+              className={`transition-colors duration-200 ${
+                isActive ? 'text-[var(--px-primary)]' : 'text-[var(--px-muted)]'
+              }`}
+            />
             
-            {!isCollapsed && (
+            {showLabels && (
               <span className="truncate flex-1 text-left">{item.label}</span>
             )}
 
-            {!isCollapsed && item.badge !== undefined && (
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                isActive ? 'bg-[#2563EB]/20 text-[#2563EB]' : 'bg-slate-200/70 text-slate-700'
-              }`}>
+            {showLabels && item.badge !== undefined && (
+              <span
+                className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded-full font-bold ${
+                  isActive
+                    ? 'bg-[var(--px-primary)]/15 text-[var(--px-primary)]'
+                    : 'bg-[var(--px-surface-muted)] text-[var(--px-body)]'
+                }`}
+              >
                 {item.badge}
               </span>
             )}
@@ -119,70 +145,78 @@ export const Sidebar: React.FC<SidebarProps> = ({
   );
 
   const sidebarContent = (
-    <div className="h-full flex flex-col justify-between font-sans py-2">
-      {/* Top Header Logo */}
-      <div>
-        <div className="p-4 border-b border-slate-200/50 flex items-center justify-between">
-          <div 
-            onClick={() => handleNav('home')}
-            className="flex items-center gap-3 cursor-pointer group"
-          >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#2563EB] via-indigo-600 to-cyan-500 text-white flex items-center justify-center font-black shadow-[0_4px_12px_rgba(37,99,235,0.25)] border border-white/30 group-hover:scale-105 transition-transform shrink-0">
-              <ShieldCheck className="w-5 h-5 text-white" />
-            </div>
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="p-4 border-b border-[var(--px-border)] flex items-center justify-between shrink-0">
+        <div 
+          onClick={() => handleNav('home')}
+          className="flex items-center gap-3 cursor-pointer group min-w-0"
+          role="link"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleNav('home');
+          }}
+        >
+          <BrandLogo size={36} decorative className="shrink-0" />
 
-            {!isCollapsed && (
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-base text-slate-900 tracking-tight leading-none">PrepX</span>
-                  <span className="text-[10px] font-bold uppercase bg-blue-100/80 text-blue-700 px-1.5 py-0.5 rounded font-mono border border-blue-200/60 backdrop-blur-xs">
-                    NEPAL
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-500 font-medium tracking-wide">CEE 2026 Aspirants</span>
+          {showLabels && (
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-display font-bold text-base text-[var(--px-heading)] tracking-tight leading-none">
+                  PrepX
+                </span>
+                <span className="px-badge px-badge-primary">Nepal</span>
               </div>
-            )}
-          </div>
-
-          {/* Mobile Close Button */}
-          {mobileOpen && (
-            <button 
-              onClick={() => setMobileOpen(false)}
-              className="md:hidden p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100/60 rounded-xl"
-            >
-              <X className="w-5 h-5" />
-            </button>
+              <span className="text-[11px] text-[var(--px-muted)] font-medium mt-0.5">
+                CEE preparation
+              </span>
+            </div>
           )}
         </div>
 
-        {/* Categorized Navigation Groups */}
-        <div className="p-3 space-y-2 overflow-y-auto max-h-[calc(100vh-140px)]">
-          {renderNavGroup('Main Workspace', coreNavItems)}
-          {renderNavGroup('Study & Practice', studyNavItems)}
-          {renderNavGroup('Analytics & Governance', analyticsNavItems)}
-        </div>
+        {mobileOpen && (
+          <button 
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            className="md:hidden touch-target inline-flex items-center justify-center p-2 text-[var(--px-muted)] hover:text-[var(--px-heading)] hover:bg-[var(--px-surface-muted)] rounded-[12px] transition-colors duration-200 shrink-0"
+            aria-label="Close navigation"
+          >
+            <AppIcon icon={X} size="btn" />
+          </button>
+        )}
       </div>
 
-      {/* Bottom Desktop Collapse Trigger & User Status Card */}
-      <div className="p-3 border-t border-slate-200/50 space-y-2">
-        {!isCollapsed && (
-          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 flex items-center gap-2.5 text-xs">
-            <div className="w-7 h-7 rounded-lg bg-blue-100 text-[#2563EB] font-mono font-black flex items-center justify-center shrink-0">
+      <nav
+        className="flex-1 min-h-0 p-3 space-y-1 overflow-y-auto overscroll-contain"
+        aria-label="Primary"
+      >
+        {renderNavGroup('Workspace', coreNavItems)}
+        {renderNavGroup('Study', studyNavItems)}
+        {renderNavGroup('Insights', analyticsNavItems)}
+      </nav>
+
+      <div className="p-3 border-t border-[var(--px-border)] space-y-2 shrink-0 bg-[var(--px-surface)]">
+        {showLabels && (
+          <div className="bg-[var(--px-surface-muted)] p-2.5 rounded-[12px] border border-[var(--px-border)] flex items-center gap-2.5 text-xs min-w-0">
+            <div className="w-7 h-7 rounded-[10px] bg-[var(--px-primary-light)] text-[var(--px-primary)] font-display font-bold flex items-center justify-center shrink-0">
               {userProfile.name ? userProfile.name.charAt(0) : 'U'}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="font-bold text-slate-900 truncate text-[11px]">{userProfile.name}</div>
-              <div className="text-[10px] font-mono text-slate-500 truncate">{userProfile.plan} Tier</div>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <div className="font-semibold text-[var(--px-heading)] truncate text-[11px]">
+                {userProfile.name}
+              </div>
+              <div className="text-[10px] text-[var(--px-muted)] truncate">{userProfile.plan} plan</div>
             </div>
           </div>
         )}
 
         <button
+          type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden md:flex w-full items-center justify-center p-2 text-slate-400 hover:text-slate-700 hover:bg-white/80 rounded-xl transition-colors cursor-pointer"
+          className="hidden md:flex w-full items-center justify-center min-h-11 p-2 text-[var(--px-muted)] hover:text-[var(--px-heading)] hover:bg-[var(--px-surface-muted)] rounded-[12px] transition-colors duration-200 cursor-pointer"
           title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {isCollapsed ? <AppIcon icon={ChevronRight} size="nav" /> : <AppIcon icon={ChevronLeft} size="nav" />}
         </button>
       </div>
     </div>
@@ -190,25 +224,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Persistent Sidebar with Liquid Glass styling */}
       <aside 
-        className={`hidden md:block sticky top-4 h-[calc(100vh-2rem)] my-4 ml-4 rounded-[24px] bg-white/75 backdrop-blur-3xl border border-white/80 shadow-[0_8px_32px_rgba(37,99,235,0.06)] transition-all duration-300 z-30 shrink-0 ${
+        className={`hidden md:flex md:flex-col sticky top-4 h-[calc(100dvh-2rem)] my-4 ml-4 rounded-[16px] bg-[var(--px-surface)] border border-[var(--px-border)] shadow-[var(--px-shadow)] transition-all duration-300 ease-[var(--px-ease)] z-30 shrink-0 overflow-hidden min-h-0 ${
           isCollapsed ? 'w-20' : 'w-64'
         }`}
+        aria-label="Sidebar"
       >
         {sidebarContent}
       </aside>
 
-      {/* Mobile Backdrop & Drawer */}
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="md:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Navigation">
           <div 
+            className="absolute inset-0 bg-[var(--px-heading)]/40 backdrop-blur-[2px]"
             onClick={() => setMobileOpen(false)}
-            className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm transition-opacity"
           />
-          <div className="relative w-72 max-w-[80vw] bg-white/85 backdrop-blur-2xl border-r border-white/90 h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+          <aside className="relative w-[min(20rem,88vw)] h-full min-h-0 flex flex-col bg-[var(--px-surface)] border-r border-[var(--px-border)] shadow-[var(--px-shadow-lg)] animate-[slideIn_200ms_ease-out] overflow-hidden">
             {sidebarContent}
-          </div>
+          </aside>
         </div>
       )}
     </>

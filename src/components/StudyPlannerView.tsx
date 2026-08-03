@@ -5,14 +5,13 @@ import {
   Square,
   Plus,
   Clock,
-  Sparkles,
   Target,
   Flame,
   Trash2,
 } from 'lucide-react';
 import type { StudyPlanTask, UserProfile } from '../types';
 import { DAILY_REWARD_COINS, daysUntilExam } from '../lib/studyPlanner';
-
+import { AppIcon } from './ui';
 const SUBJECTS = ['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT', 'CEE'] as const;
 
 interface StudyPlannerViewProps {
@@ -64,36 +63,36 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6 font-sans">
-      <div className="bg-gradient-to-r from-blue-900 via-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border border-slate-800">
+      <div className="bg-slate-900 p-6 rounded-2xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border border-slate-800">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-blue-500/20 text-blue-300 text-xs font-mono font-bold rounded-full">
-            <CalendarCheck className="w-3.5 h-3.5 text-blue-400" />
-            <span>CEE Daily Plan · {dateKey}</span>
-          </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">Today’s Study Schedule</h1>
-          <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
-            {sourceLabel}. Target score {userProfile.targetScore}/200
-            {examDays > 0 ? ` · ${examDays} days to exam` : ''}.
-            Complete all tasks for +{DAILY_REWARD_COINS} Study Coins.
+          <p className="text-xs font-medium text-slate-400 inline-flex items-center gap-1.5">
+            <AppIcon icon={CalendarCheck} size="btn" />
+            Today · {dateKey}
           </p>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-white/10 border border-white/10">
-              <Flame className="w-3 h-3 text-amber-400" />
+          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Study plan</h1>
+          <p className="text-sm text-slate-300 max-w-xl leading-relaxed">
+            {sourceLabel}. Target {userProfile.targetScore}/200
+            {examDays > 0 ? ` · ${examDays} days to exam` : ''}.
+            Finish all tasks for +{DAILY_REWARD_COINS} coins.
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1 text-xs">
+            <span className="inline-flex items-center gap-1 font-medium px-2 py-1 rounded-md bg-slate-800 border border-slate-700">
+              <AppIcon icon={Flame} size="btn" className="text-amber-400" />
               {streak}-day streak
             </span>
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-white/10 border border-white/10">
-              <Target className="w-3 h-3 text-emerald-400" />
+            <span className="inline-flex items-center gap-1 font-medium px-2 py-1 rounded-md bg-slate-800 border border-slate-700">
+              <AppIcon icon={Target} size="btn" className="text-emerald-400" />
               {totalMins} min planned
             </span>
             {rewardClaimedToday && (
-              <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-400/20">
-                +{DAILY_REWARD_COINS} coins claimed today
+              <span className="font-medium px-2 py-1 rounded-md bg-emerald-900/40 text-emerald-300 border border-emerald-800">
+                +{DAILY_REWARD_COINS} coins claimed
               </span>
             )}
           </div>
         </div>
 
-        <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10 flex items-center gap-4 shrink-0">
+        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center gap-4 shrink-0">
           <div className="relative w-14 h-14 flex items-center justify-center">
             <svg className="w-14 h-14 transform -rotate-90" aria-hidden>
               <circle cx="28" cy="28" r="22" stroke="currentColor" strokeWidth="4" className="text-slate-700" fill="transparent" />
@@ -141,12 +140,12 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
 
       <form
         onSubmit={handleAddTask}
-        className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-center gap-3"
+        className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
       >
         <select
           value={newTaskSubject}
           onChange={(e) => setNewTaskSubject(e.target.value)}
-          className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none"
+          className="w-full sm:w-auto min-h-11 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none"
         >
           {SUBJECTS.map((s) => (
             <option key={s} value={s}>
@@ -160,14 +159,14 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
           placeholder="Add custom study target (e.g. Organic Reactions Practice)..."
           value={newTaskTitle}
           onChange={(e) => setNewTaskTitle(e.target.value)}
-          className="flex-1 w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+          className="flex-1 w-full min-h-11 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600"
         />
 
         <button
           type="submit"
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+          className="min-h-11 w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
         >
-          <Plus className="w-4 h-4" />
+          <AppIcon icon={Plus} size="btn" />
           <span>Add Target</span>
         </button>
       </form>
@@ -176,7 +175,7 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
         {tasks.map((task) => (
           <div
             key={task.id}
-            className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${
+            className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 ${
               task.completed
                 ? 'bg-slate-50 border-slate-200 text-slate-400 opacity-80'
                 : 'bg-white border-slate-200/80 hover:border-blue-300 text-slate-900 shadow-2xs'
@@ -189,9 +188,9 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
             >
               <span className="text-blue-600 shrink-0">
                 {task.completed ? (
-                  <CheckSquare className="w-5 h-5 text-emerald-600 fill-emerald-50" />
+                  <AppIcon icon={CheckSquare} size="card" className="text-emerald-600" />
                 ) : (
-                  <Square className="w-5 h-5 text-slate-400" />
+                  <AppIcon icon={Square} size="card" className="text-slate-400" />
                 )}
               </span>
 
@@ -206,7 +205,7 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
                   </span>
                   {task.highYield && (
                     <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-amber-600" />
+                      <AppIcon icon={Flame} size="btn" className="text-amber-600" />
                       <span>High Yield</span>
                     </span>
                   )}
@@ -228,7 +227,7 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
 
             <div className="flex items-center gap-2 shrink-0">
               <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
-                <Clock className="w-3.5 h-3.5" />
+                <AppIcon icon={Clock} size="btn" />
                 <span>{task.durationMin}m</span>
               </div>
               {task.source === 'custom' && (
@@ -238,7 +237,7 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
                   className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 cursor-pointer"
                   title="Remove custom task"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <AppIcon icon={Trash2} size="btn" />
                 </button>
               )}
             </div>

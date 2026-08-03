@@ -2,41 +2,47 @@ import React, { useRef, useState } from 'react';
 import { 
   ShieldCheck, 
   CheckCircle2, 
-  XCircle, 
   Clock, 
   Eye, 
   Upload, 
   Users, 
   Coins, 
-  BarChart2, 
   FileCode, 
   Sliders, 
   AlertCircle,
-  Copy,
-  ZoomIn,
   Search,
-  Filter,
   CreditCard,
   Plus,
   Edit3,
   Trash2,
-  Save,
-  Sparkles,
   Tag,
-  RotateCcw
+  RotateCcw,
+  Link2,
+  X,
+  Bug,
 } from 'lucide-react';
-import { PaymentClaim, Question, UserProfile, UserRole, PlanTier, PricingPlan, MockTest, MockScope } from '../types';
+import { PaymentClaim, Question, UserProfile, UserRole, PlanTier, PricingPlan, MockTest, MockScope, FormulaSheet } from '../types';
 import { BOOTSTRAP_ADMIN_EMAIL, ROLE_CONFIRM_PHRASE } from '../lib/clerkUserMapper';
-import type { ChapterQuestionCount, ImportBatch, SubjectQuestionCount } from '../lib/questionsApi';
 import type { MockImportBatch } from '../lib/mocksApi';
-import { SubjectQuestionsPieChart } from './SubjectQuestionsPieChart';
+import type { ChapterQuestionCount, ImportBatch, SubjectQuestionCount } from '../lib/questionsApi';
+import type { FormulaImportBatch } from '../lib/formulasApi';
+import { useFeedback } from './FeedbackProvider';
 import { AdminMocksPanel } from './AdminMocksPanel';
+import { AdminFormulasPanel } from './AdminFormulasPanel';
+import { SubjectQuestionsPieChart } from './SubjectQuestionsPieChart';
+import { AppIcon } from './ui';
+import { ReferralPanel } from './ReferralPanel';
+import { AdminSupportIssuesPanel } from './AdminSupportIssuesPanel';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
   paymentClaims: PaymentClaim[];
-  onApproveClaim: (claimId: string) => void;
-  onRejectClaim: (claimId: string, reason: string) => void;
+  paymentClaimsLoading?: boolean;
+  paymentClaimsError?: string | null;
+  paymentClaimsSyncedAt?: string | null;
+  onRefreshPaymentClaims?: () => void;
+  onApproveClaim: (claimId: string) => void | Promise<void>;
+  onRejectClaim: (claimId: string, reason: string) => void | Promise<void>;
   questions: Question[];
   questionBatches: ImportBatch[];
   onAddQuestion: (q: Question) => void;
@@ -83,6 +89,20 @@ interface AdminPanelProps {
   onUpdateMock?: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onDeleteMock?: (id: string) => Promise<void>;
   onDeleteMockBatch?: (batchId: string) => Promise<void>;
+  formulaSheets?: FormulaSheet[];
+  formulaBatches?: FormulaImportBatch[];
+  formulasLoading?: boolean;
+  formulasError?: string | null;
+  onImportFormulaSheets?: (
+    jsonStr: string,
+    meta?: { filename?: string | null; label?: string | null }
+  ) => Promise<{
+    successCount: number;
+    errors: string[];
+    batchId: string | null;
+    batch?: FormulaImportBatch | null;
+  }>;
+  onDeleteFormulaBatch?: (batchId: string) => Promise<void>;
   usersList: UserProfile[];
   onUpdateUserRole: (userId: string, role: UserRole) => void;
   onUpdateUserPlan: (userId: string, plan: PlanTier) => void;
@@ -98,6 +118,10 @@ interface AdminPanelProps {
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   userProfile,
   paymentClaims,
+  paymentClaimsLoading,
+  paymentClaimsError,
+  paymentClaimsSyncedAt,
+  onRefreshPaymentClaims,
   onApproveClaim,
   onRejectClaim,
   questions,
@@ -121,6 +145,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateMock,
   onDeleteMock,
   onDeleteMockBatch,
+  formulaSheets = [],
+  formulaBatches = [],
+  formulasLoading,
+  formulasError,
+  onImportFormulaSheets,
+  onDeleteFormulaBatch,
   usersList,
   onUpdateUserRole,
   onUpdateUserPlan,
@@ -132,6 +162,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   clerkSyncedAt,
   onRefreshClerkUsers,
 }) => {
+  const feedback = useFeedback();
   const isQuestionsMod = userProfile.role === 'Moderator (Questions)';
   const isBillingMod = userProfile.role === 'Moderator (Billing)';
   const canEditQuestions =
@@ -139,7 +170,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     userProfile.role === 'Moderator (Questions)' ||
     userProfile.email === BOOTSTRAP_ADMIN_EMAIL;
 
-  const [activeTab, setActiveTab] = useState<'payments' | 'questions' | 'import' | 'mocks' | 'users' | 'pricing'>(() => {
+  const [activeTab, setActiveTab] = useState<'payments' | 'questions' | 'import' | 'mocks' | 'formulas' | 'users' | 'pricing' | 'referrals' | 'issues'>(() => {
     if (isQuestionsMod) return 'questions';
     return 'payments';
   });
@@ -166,6 +197,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [confirmRoleUserInput, setConfirmRoleUserInput] = useState('');
   const [confirmRolePhraseInput, setConfirmRolePhraseInput] = useState('');
   const [roleUpdateSuccessMsg, setRoleUpdateSuccessMsg] = useState<string | null>(null);
+  const [showAddPlanModal, setShowAddPlanModal] = useState(false);
+  const [newPlanCode, setNewPlanCode] = useState('Pro');
+  const [newPlanName, setNewPlanName] = useState('Pro Aspirant Pass');
+  const [newPlanPrice, setNewPlanPrice] = useState('299');
+  const [newPlanMocks, setNewPlanMocks] = useState('15');
+  const [newPlanError, setNewPlanError] = useState<string | null>(null);
 
   const handleOpenCoinsModal = (targetUser: UserProfile) => {
     setEditingCoinsUser(targetUser);
@@ -267,6 +304,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [expandedBatchId, setExpandedBatchId] = useState<string | 'ungrouped' | null>(null);
 
   const pendingClaims = paymentClaims.filter(c => c.status === 'pending');
+  // Server already returns FIFO pending-first; keep client sort as safety net.
+  const queueClaims = [...paymentClaims].sort((a, b) => {
+    if (a.status === 'pending' && b.status !== 'pending') return -1;
+    if (a.status !== 'pending' && b.status === 'pending') return 1;
+    if (a.status === 'pending' && b.status === 'pending') {
+      return a.submittedAt.localeCompare(b.submittedAt);
+    }
+    return b.submittedAt.localeCompare(a.submittedAt);
+  });
 
   const handleCopyRef = (ref: string) => {
     navigator.clipboard.writeText(ref);
@@ -274,14 +320,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setTimeout(() => setCopiedRef(false), 2000);
   };
 
-  const handleApprove = (claimId: string) => {
-    onApproveClaim(claimId);
+  const handleApprove = async (claimId: string) => {
+    await onApproveClaim(claimId);
     setInspectingClaim(null);
   };
 
-  const handleReject = (claimId: string) => {
+  const handleReject = async (claimId: string) => {
     const finalReason = rejectReason === 'Custom Note' ? customRejectNote : rejectReason;
-    onRejectClaim(claimId, finalReason);
+    await onRejectClaim(claimId, finalReason);
     setInspectingClaim(null);
   };
 
@@ -361,34 +407,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleDeleteQuestionClick = async (q: Question) => {
     if (!canEditQuestions) return;
-    if (!window.confirm(`Delete this question?\n\n${q.stem.slice(0, 120)}`)) return;
+    const ok = await feedback.confirm({
+      title: 'Delete question?',
+      message: q.stem.slice(0, 160),
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await onDeleteQuestion(q.id);
+      feedback.toast({ message: 'Question deleted.', variant: 'success' });
     } catch (err: any) {
-      alert(err?.message || 'Failed to delete question');
+      await feedback.alert({
+        variant: 'error',
+        title: 'Delete failed',
+        message: err?.message || 'Failed to delete question',
+      });
     }
   };
 
   const handleDeleteBatchClick = async (batch: ImportBatch, opts?: { asUndo?: boolean }) => {
     if (!canEditQuestions) return;
     const asUndo = Boolean(opts?.asUndo);
-    if (
-      !window.confirm(
-        asUndo
-          ? `Undo this import?\n\nBatch: ${batch.label}\nImported by: ${batch.importedByName}\nThis removes all ${batch.questionCount} questions from that import.`
-          : `Delete entire batch "${batch.label}" and all ${batch.questionCount} questions in it?`
-      )
-    ) {
-      return;
-    }
+    const ok = await feedback.confirm({
+      title: asUndo ? 'Undo this import?' : 'Delete entire batch?',
+      message: asUndo
+        ? `Batch: ${batch.label}\nImported by: ${batch.importedByName}\nThis removes all ${batch.questionCount} questions from that import.`
+        : `Delete batch “${batch.label}” and all ${batch.questionCount} questions in it?`,
+      confirmLabel: asUndo ? 'Undo import' : 'Delete batch',
+      destructive: true,
+    });
+    if (!ok) return;
     setUndoBusy(true);
     try {
       await onDeleteQuestionBatch(batch.id);
       if (importResult?.batchId === batch.id) {
         setImportResult(null);
       }
+      feedback.toast({ message: asUndo ? 'Import undone.' : 'Batch deleted.', variant: 'success' });
     } catch (err: any) {
-      alert(err?.message || 'Failed to undo/delete batch');
+      await feedback.alert({
+        variant: 'error',
+        title: 'Action failed',
+        message: err?.message || 'Failed to undo/delete batch',
+      });
     } finally {
       setUndoBusy(false);
     }
@@ -401,7 +463,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         ? questionBatches.find((b) => b.id === importResult.batchId)
         : undefined);
     if (!batch) {
-      alert('No import batch available to undo.');
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Nothing to undo',
+        message: 'No import batch available to undo.',
+      });
       return;
     }
     await handleDeleteBatchClick(batch, { asUndo: true });
@@ -454,35 +520,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
       {/* Title */}
-      <div className="border-b border-slate-200 pb-6 flex items-center justify-between">
-        <div>
+      <div className="border-b border-slate-200 pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-rose-100 text-rose-800 text-xs font-bold rounded-full mb-2">
-            <Sliders className="w-3.5 h-3.5 text-rose-600" />
-            <span>Moderator & Admin Operations Control</span>
+            <AppIcon icon={Sliders} size="btn" className="text-rose-600 shrink-0" />
+            <span className="truncate">Moderator & Admin Operations Control</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">
             PrepX Nepal Admin Panel
           </h1>
         </div>
 
-        <div className="bg-slate-900 text-white px-3.5 py-1.5 rounded-xl font-mono text-xs flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+        <div className="bg-slate-900 text-white px-3.5 py-1.5 rounded-xl font-mono text-xs flex items-center gap-2 self-start sm:self-auto shrink-0">
+          <AppIcon icon={ShieldCheck} size="btn" className="text-emerald-400" />
           <span>Level: {userProfile.role}</span>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 pb-3 font-bold text-xs">
+      <div className="scroll-x-safe flex items-center gap-2 border-b border-slate-200 pb-3 font-bold text-xs -mx-1 px-1">
         {!isQuestionsMod && (
           <button
+            type="button"
             onClick={() => setActiveTab('payments')}
-            className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap shrink-0 ${
               activeTab === 'payments' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
             <span>Payment Moderation Queue</span>
             {pendingClaims.length > 0 && (
-              <span className="bg-rose-600 text-white text-[10px] px-2 py-0.2 rounded-full font-bold">
+              <span className="bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
                 {pendingClaims.length}
               </span>
             )}
@@ -491,8 +558,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         {!isBillingMod && (
           <button
+            type="button"
             onClick={() => setActiveTab('questions')}
-            className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'questions' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -502,8 +570,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         {!isBillingMod && (
           <button
+            type="button"
             onClick={() => setActiveTab('import')}
-            className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'import' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -513,8 +582,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         {!isBillingMod && (
           <button
+            type="button"
             onClick={() => setActiveTab('mocks')}
-            className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'mocks' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -522,10 +592,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
         )}
 
+        {!isBillingMod && onImportFormulaSheets && onDeleteFormulaBatch && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('formulas')}
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'formulas' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Formula Batches ({formulaSheets.length})
+          </button>
+        )}
+
         {!isQuestionsMod && (
           <button
+            type="button"
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'users' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -535,27 +618,89 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         {!isQuestionsMod && (
           <button
+            type="button"
             onClick={() => setActiveTab('pricing')}
-            className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'pricing' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <Tag className="w-3.5 h-3.5" />
+            <AppIcon icon={Tag} size="btn" />
             <span>Pricing & Plans Manager</span>
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('referrals')}
+          className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+            activeTab === 'referrals' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <AppIcon icon={Link2} size="btn" />
+          <span>Referrals</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('issues')}
+          className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+            activeTab === 'issues' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <AppIcon icon={Bug} size="btn" />
+          <span>Support Issues</span>
+        </button>
       </div>
 
-      {/* TAB 1: Payment Moderation Queue */}
+      {/* TAB 1: Payment Moderation Queue (server-backed, dynamic) */}
       {activeTab === 'payments' && !isQuestionsMod && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-          <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100 flex items-center justify-between">
-            <span>Pending Manual Payment Claims Queue (FIFO)</span>
-            <span className="text-xs text-slate-500 font-mono">SLA Goal &le; 2 Hours</span>
+          <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <span>Pending Manual Payment Claims Queue (FIFO)</span>
+              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                Dynamic
+              </span>
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-mono">SLA Goal &le; 2 Hours</span>
+              {onRefreshPaymentClaims ? (
+                <button
+                  type="button"
+                  onClick={() => onRefreshPaymentClaims()}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  <AppIcon icon={RotateCcw} size="btn" className={paymentClaimsLoading ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              ) : null}
+            </div>
           </h3>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+            <span>
+              Pending: <strong className="text-slate-800">{pendingClaims.length}</strong>
+            </span>
+            {paymentClaimsSyncedAt ? (
+              <span>
+                Synced: {new Date(paymentClaimsSyncedAt).toLocaleTimeString()} (auto every 15s)
+              </span>
+            ) : null}
+          </div>
+
+          {paymentClaimsError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              {paymentClaimsError}
+            </div>
+          ) : null}
+
+          {paymentClaimsLoading && queueClaims.length === 0 ? (
+            <p className="text-sm text-slate-500 py-6 text-center">Loading claims…</p>
+          ) : queueClaims.length === 0 ? (
+            <p className="text-sm text-slate-500 py-6 text-center">No payment claims yet.</p>
+          ) : (
+          <div className="overflow-x-auto scroll-x-safe">
+            <table className="w-full text-left text-xs border-collapse min-w-[640px]">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                   <th className="p-3">User Identity</th>
@@ -567,7 +712,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paymentClaims.map((claim) => (
+                {queueClaims.map((claim) => (
                   <tr key={claim.id} className="hover:bg-slate-50">
                     <td className="p-3">
                       <div className="font-bold text-slate-900">{claim.userName}</div>
@@ -583,7 +728,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           onClick={() => setInspectingClaim(claim)}
                           className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] rounded-lg cursor-pointer flex items-center gap-1 ml-auto"
                         >
-                          <Eye className="w-3.5 h-3.5" />
+                          <AppIcon icon={Eye} size="btn" />
                           <span>Inspect Claim</span>
                         </button>
                       ) : (
@@ -599,6 +744,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </tbody>
             </table>
           </div>
+          )}
         </div>
       )}
 
@@ -649,7 +795,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               onClick={() => void handleDeleteBatchClick(section.batch!, { asUndo: true })}
                               className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:opacity-60 cursor-pointer inline-flex items-center gap-1"
                             >
-                              <RotateCcw className="w-3 h-3" />
+                              <AppIcon icon={RotateCcw} size="btn" />
                               Undo import
                             </button>
                             <button
@@ -673,8 +819,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
 
                     {open && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
+                      <div className="overflow-x-auto scroll-x-safe">
+                        <table className="w-full text-left text-xs border-collapse min-w-[560px]">
                           <thead>
                             <tr className="bg-white text-slate-500 font-mono uppercase text-[10px] border-y border-slate-100">
                               <th className="p-3">Subject</th>
@@ -704,7 +850,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                         }}
                                         className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[10px] font-bold cursor-pointer inline-flex items-center gap-1"
                                       >
-                                        <Edit3 className="w-3 h-3" />
+                                        <AppIcon icon={Edit3} size="btn" />
                                         Edit
                                       </button>
                                       <button
@@ -712,7 +858,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                         onClick={() => void handleDeleteQuestionClick(q)}
                                         className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold cursor-pointer inline-flex items-center gap-1"
                                       >
-                                        <Trash2 className="w-3 h-3" />
+                                        <AppIcon icon={Trash2} size="btn" />
                                         Delete
                                       </button>
                                     </div>
@@ -769,7 +915,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           >
             <div className="flex items-start gap-3 text-left">
               <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-                <Upload className="w-5 h-5" />
+                <AppIcon icon={Upload} size="card" />
               </div>
               <div>
                 <div className="text-sm font-bold text-slate-900">Import from JSON file</div>
@@ -778,7 +924,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
                 {importFileName && (
                   <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold text-emerald-700">
-                    <FileCode className="w-3.5 h-3.5" />
+                    <AppIcon icon={FileCode} size="btn" />
                     {importFileName}
                   </div>
                 )}
@@ -832,7 +978,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               {(importResult.batch || importResult.batchId) && (
                 <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5">
                   <div className="flex items-center gap-1.5 text-slate-500 font-bold uppercase text-[10px]">
-                    <Clock className="w-3.5 h-3.5" />
+                    <AppIcon icon={Clock} size="btn" />
                     Import details
                   </div>
                   <div className="text-slate-800">
@@ -876,7 +1022,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       onClick={() => void handleUndoLastImport()}
                       className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 disabled:opacity-60 text-[11px] font-bold cursor-pointer"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
+                      <AppIcon icon={RotateCcw} size="btn" />
                       {undoBusy ? 'Undoing…' : 'Undo this import'}
                     </button>
                   )}
@@ -915,6 +1061,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         />
       )}
 
+      {activeTab === 'formulas' &&
+        !isBillingMod &&
+        onImportFormulaSheets &&
+        onDeleteFormulaBatch && (
+          <AdminFormulasPanel
+            sheets={formulaSheets}
+            batches={formulaBatches}
+            loading={formulasLoading}
+            error={formulasError}
+            canEdit={canEditQuestions}
+            onImport={onImportFormulaSheets}
+            onDeleteBatch={onDeleteFormulaBatch}
+          />
+        )}
+
       {/* Edit question modal */}
       {editingQuestion && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -926,7 +1087,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 onClick={() => setEditingQuestion(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold"
               >
-                ✕
+                <AppIcon icon={X} size="btn" />
               </button>
             </div>
 
@@ -1100,7 +1261,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 onClick={() => setInspectingClaim(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold"
               >
-                ✕
+                <AppIcon icon={X} size="btn" />
               </button>
             </div>
 
@@ -1204,7 +1365,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2 text-rose-600">
-                <AlertCircle className="w-5 h-5 shrink-0" />
+                <AppIcon icon={AlertCircle} size="card" className="shrink-0" />
                 <h3 className="text-base font-black text-slate-900 tracking-tight">
                   Security Protocol: Admin Set User Coins
                 </h3>
@@ -1213,7 +1374,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 onClick={() => setEditingCoinsUser(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg"
               >
-                ✕
+                <AppIcon icon={X} size="btn" />
               </button>
             </div>
 
@@ -1247,7 +1408,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             {/* Step 2: Double Confirmation Verification Alert & Inputs */}
             <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-xl space-y-3 text-xs font-sans">
               <div className="flex items-start gap-2 text-rose-900 font-semibold text-[11px] leading-relaxed">
-                <ShieldCheck className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <AppIcon icon={ShieldCheck} size="btn" className="text-rose-600 shrink-0 mt-0.5" />
                 <span>
                   <strong>Required Double Confirmation:</strong> Re-type both the target user's exact name and target coin amount below to verify:
                 </span>
@@ -1261,7 +1422,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </label>
                   {confirmUsernameInput.trim().toLowerCase() === editingCoinsUser.name.trim().toLowerCase() && (
                     <span className="text-emerald-600 font-bold flex items-center gap-1 text-[10px]">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Name Verified
+                      <AppIcon icon={CheckCircle2} size="btn" /> Name Verified
                     </span>
                   )}
                 </div>
@@ -1282,7 +1443,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </label>
                   {targetCoinsInput.trim() !== '' && confirmCoinsInput.trim() === targetCoinsInput.trim() && (
                     <span className="text-emerald-600 font-bold flex items-center gap-1 text-[10px]">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Amount Verified
+                      <AppIcon icon={CheckCircle2} size="btn" /> Amount Verified
                     </span>
                   )}
                 </div>
@@ -1318,7 +1479,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 onClick={handleSaveCoinsModal}
                 className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
               >
-                <Coins className="w-4 h-4" />
+                <AppIcon icon={Coins} size="btn" />
                 <span>Confirm & Update Coins</span>
               </button>
             </div>
@@ -1332,7 +1493,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 border border-slate-200 shadow-2xl space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2 text-rose-600">
-                <AlertCircle className="w-5 h-5 shrink-0" />
+                <AppIcon icon={AlertCircle} size="card" className="shrink-0" />
                 <h3 className="text-base font-black text-slate-900 tracking-tight">
                   Confirm role change
                 </h3>
@@ -1342,7 +1503,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 onClick={() => setPendingRoleChange(null)}
                 className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg"
               >
-                ✕
+                <AppIcon icon={X} size="btn" />
               </button>
             </div>
 
@@ -1366,7 +1527,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-xl space-y-3 text-xs">
               <div className="flex items-start gap-2 text-rose-900 font-semibold text-[11px] leading-relaxed">
-                <ShieldCheck className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <AppIcon icon={ShieldCheck} size="btn" className="text-rose-600 shrink-0 mt-0.5" />
                 <span>
                   Admin/Moderator privileges change Clerk access. Type the user&apos;s name and the confirmation phrase to proceed.
                 </span>
@@ -1383,7 +1544,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   {confirmRoleUserInput.trim().toLowerCase() ===
                     pendingRoleChange.user.name.trim().toLowerCase() && (
                     <span className="text-emerald-600 font-bold flex items-center gap-1 text-[10px]">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Name verified
+                      <AppIcon icon={CheckCircle2} size="btn" /> Name verified
                     </span>
                   )}
                 </div>
@@ -1406,7 +1567,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </label>
                   {confirmRolePhraseInput.trim() === ROLE_CONFIRM_PHRASE && (
                     <span className="text-emerald-600 font-bold flex items-center gap-1 text-[10px]">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Phrase verified
+                      <AppIcon icon={CheckCircle2} size="btn" /> Phrase verified
                     </span>
                   )}
                 </div>
@@ -1450,14 +1611,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="space-y-6 font-sans">
           {coinUpdateSuccessMsg && (
             <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center gap-2 shadow-xs animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0" />
               <span>{coinUpdateSuccessMsg}</span>
             </div>
           )}
 
           {roleUpdateSuccessMsg && (
             <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center gap-2 shadow-xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0" />
               <span>{roleUpdateSuccessMsg}</span>
             </div>
           )}
@@ -1487,7 +1648,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-100">
               <div>
                 <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                  <Users className="w-5 h-5 text-slate-700" />
+                  <AppIcon icon={Users} size="card" className="text-slate-700" />
                   <span>Users, Plans & Wallet Management</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -1508,7 +1669,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 )}
                 {/* User Search */}
                 <div className="relative sm:w-64 w-full">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <AppIcon icon={Search} size="btn" className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     placeholder="Search user by name or email..."
@@ -1520,8 +1681,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="overflow-x-auto scroll-x-safe">
+              <table className="w-full text-left text-xs border-collapse min-w-[720px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                     <th className="p-3">User Profile</th>
@@ -1600,7 +1761,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           onClick={() => handleOpenCoinsModal(user)}
                           className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[11px] rounded-lg transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1"
                         >
-                          <Coins className="w-3.5 h-3.5" />
+                          <AppIcon icon={Coins} size="btn" />
                           <span>Adjust Coins</span>
                         </button>
                       </td>
@@ -1620,7 +1781,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-blue-600" />
+                  <AppIcon icon={CreditCard} size="card" className="text-blue-600" />
                   <span>Dynamic Plans & Pricing Configurator</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
@@ -1629,39 +1790,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
 
               <button
+                type="button"
                 onClick={() => {
-                  const newCode = prompt('Enter Plan Code (e.g. Pro, Pass30, Elite):', 'Pro');
-                  if (!newCode) return;
-                  const newName = prompt('Enter Plan Name:', 'Pro Aspirant Pass');
-                  if (!newName) return;
-                  const priceStr = prompt('Enter Price in NPR:', '299');
-                  if (!priceStr) return;
-                  const mockStr = prompt('Enter Mocks Granted (leave blank for Unlimited):', '15');
-
-                  const newPlan: PricingPlan = {
-                    id: `plan-custom-${Date.now()}`,
-                    code: newCode.trim(),
-                    name: newName.trim(),
-                    tier: newCode.toLowerCase().includes('unlimited') ? 'Unlimited' : newCode.toLowerCase().includes('free') ? 'Free' : 'Premium',
-                    priceNpr: parseInt(priceStr, 10) || 0,
-                    originalPriceNpr: (parseInt(priceStr, 10) || 0) * 2,
-                    mocksGranted: mockStr ? parseInt(mockStr, 10) : null,
-                    coinsGranted: 150,
-                    description: 'Custom tier subscription plan generated by Admin.',
-                    features: [
-                      `${mockStr ? `${mockStr} Mocks Granted` : 'Unlimited Mocks'}`,
-                      'Full Diagnostic Score Breakdown',
-                      'Formula Sheet & Save Question Desk'
-                    ],
-                    badgeText: 'Custom Pass',
-                    status: 'active'
-                  };
-
-                  onAddPricingPlan(newPlan);
+                  setNewPlanCode('Pro');
+                  setNewPlanName('Pro Aspirant Pass');
+                  setNewPlanPrice('299');
+                  setNewPlanMocks('15');
+                  setNewPlanError(null);
+                  setShowAddPlanModal(true);
                 }}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer shrink-0"
               >
-                <Plus className="w-4 h-4" />
+                <AppIcon icon={Plus} size="btn" />
                 <span>Add Custom Plan</span>
               </button>
             </div>
@@ -1773,20 +1913,152 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                     <span className="text-[10px] text-slate-400 font-mono">ID: {plan.id}</span>
                     <button
-                      onClick={() => {
-                        if (confirm(`Are you sure you want to delete the plan "${plan.name}"?`)) {
-                          onDeletePricingPlan(plan.id);
-                        }
+                      type="button"
+                      onClick={async () => {
+                        const ok = await feedback.confirm({
+                          title: 'Delete plan?',
+                          message: `Remove “${plan.name}” from the pricing list?`,
+                          confirmLabel: 'Delete plan',
+                          destructive: true,
+                        });
+                        if (ok) onDeletePricingPlan(plan.id);
                       }}
                       className="text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 text-[11px] cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                      <AppIcon icon={Trash2} size="btn" /> Delete
                     </button>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'referrals' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+          <ReferralPanel userProfile={userProfile} />
+        </div>
+      )}
+
+      {activeTab === 'issues' && <AdminSupportIssuesPanel />}
+
+      {showAddPlanModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/50"
+            aria-label="Close"
+            onClick={() => setShowAddPlanModal(false)}
+          />
+          <form
+            className="relative w-full sm:max-w-md bg-white border border-slate-200 rounded-t-2xl sm:rounded-2xl shadow-lg p-5 sm:p-6 space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const code = newPlanCode.trim();
+              const name = newPlanName.trim();
+              const price = parseInt(newPlanPrice, 10);
+              if (!code || !name) {
+                setNewPlanError('Plan code and name are required.');
+                return;
+              }
+              if (Number.isNaN(price) || price < 0) {
+                setNewPlanError('Enter a valid price in NPR.');
+                return;
+              }
+              const mocksTrim = newPlanMocks.trim();
+              const mocksGranted = mocksTrim === '' ? null : parseInt(mocksTrim, 10);
+              if (mocksTrim !== '' && (Number.isNaN(mocksGranted!) || mocksGranted! < 0)) {
+                setNewPlanError('Mocks granted must be a number, or blank for unlimited.');
+                return;
+              }
+              const newPlan: PricingPlan = {
+                id: `plan-custom-${Date.now()}`,
+                code,
+                name,
+                tier: code.toLowerCase().includes('unlimited')
+                  ? 'Unlimited'
+                  : code.toLowerCase().includes('free')
+                    ? 'Free'
+                    : 'Premium',
+                priceNpr: price,
+                originalPriceNpr: price * 2,
+                mocksGranted,
+                coinsGranted: 150,
+                description: 'Custom subscription plan.',
+                features: [
+                  mocksGranted === null ? 'Unlimited mocks' : `${mocksGranted} mocks granted`,
+                  'Full diagnostic score breakdown',
+                  'Formula library and saved questions',
+                ],
+                badgeText: 'Custom',
+                status: 'active',
+              };
+              onAddPricingPlan(newPlan);
+              setShowAddPlanModal(false);
+              feedback.toast({ message: `Plan “${name}” added.`, variant: 'success' });
+            }}
+          >
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold text-slate-900">Add custom plan</h3>
+              <p className="text-sm text-slate-600">Create a pricing tier students can purchase.</p>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-slate-600">Plan code</span>
+              <input
+                value={newPlanCode}
+                onChange={(e) => setNewPlanCode(e.target.value)}
+                className="w-full min-h-11 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                placeholder="Pro"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-slate-600">Plan name</span>
+              <input
+                value={newPlanName}
+                onChange={(e) => setNewPlanName(e.target.value)}
+                className="w-full min-h-11 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                placeholder="Pro Aspirant Pass"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-slate-600">Price (NPR)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={newPlanPrice}
+                  onChange={(e) => setNewPlanPrice(e.target.value)}
+                  className="w-full min-h-11 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-slate-600">Mocks (blank = ∞)</span>
+                <input
+                  value={newPlanMocks}
+                  onChange={(e) => setNewPlanMocks(e.target.value)}
+                  className="w-full min-h-11 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                  placeholder="15"
+                />
+              </label>
+            </div>
+            {newPlanError && <p className="text-xs text-rose-600">{newPlanError}</p>}
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setShowAddPlanModal(false)}
+                className="min-h-11 px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="min-h-11 px-4 py-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-xl text-sm font-semibold cursor-pointer"
+              >
+                Add plan
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

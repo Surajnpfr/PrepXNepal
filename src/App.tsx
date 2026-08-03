@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
+import {
+  LayoutDashboard,
+  FileCheck,
+  BookOpen,
+  BarChart3,
+  HelpCircle,
+} from 'lucide-react';
 import { AnnouncementBar } from './components/AnnouncementBar';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
@@ -13,15 +20,16 @@ import { CoinsWalletView } from './components/CoinsWalletView';
 import { PaymentSubmissionView } from './components/PaymentSubmissionView';
 import { AdminPanel } from './components/AdminPanel';
 import { FormulasView } from './components/FormulasView';
+import { AppIcon } from './components/ui';
 import { SavedQuestionsView } from './components/SavedQuestionsView';
 import { StudyPlannerView } from './components/StudyPlannerView';
 import { LeaderboardView } from './components/LeaderboardView';
 import { HelpSupportView } from './components/HelpSupportView';
+import { ClerkLoadGuard } from './components/ClerkLoadGuard';
 
 import { 
   INITIAL_PAST_REPORTS, 
   INITIAL_COIN_TRANSACTIONS, 
-  INITIAL_PAYMENT_CLAIMS,
   INITIAL_PRICING_PLANS 
 } from './data/mockData';
 
@@ -38,10 +46,25 @@ import {
   Question,
   AppNotification,
   StudyPlanTask,
+  FormulaSheet,
 } from './types';
 import { GUEST_PROFILE, isStaffRole, mapClerkUserToProfile, buildPublicMetadataPatch, buildStudentSelfPatch } from './lib/clerkUserMapper';
 import { fetchClerkUsers, patchClerkUser } from './lib/clerkApi';
 import { claimPlannerReward, redeemCatalogItem } from './lib/coinsApi';
+import {
+  attributeReferral,
+} from './lib/referralApi';
+import {
+  captureReferralCodeFromLocation,
+  clearStoredReferralCode,
+  peekStoredReferralCode,
+} from './lib/referralCapture';
+import {
+  approvePaymentClaim,
+  fetchPaymentClaims,
+  rejectPaymentClaim,
+  submitPaymentClaim,
+} from './lib/paymentClaimsApi';
 import {
   bootstrapFromActivity,
   createNotification,
@@ -97,7 +120,19 @@ import {
   updateMockMeta,
   type MockImportBatch,
 } from './lib/mocksApi';
+import {
+  deleteFormulaBatch,
+  fetchFormulaBatches,
+  fetchFormulaSheets,
+  importFormulaSheetsJson,
+  type FormulaImportBatch,
+} from './lib/formulasApi';
 import type { PracticeGeneratePayload } from './components/UserPracticeGenerator';
+import { RouteStatePanel } from './components/RouteStatePanel';
+import { useFeedback } from './components/FeedbackProvider';
+import { useAppNavigation } from './hooks/useAppNavigation';
+import { FORMULA_SHEETS } from './data/mockData';
+import type { HelpSubTab } from './lib/appRoutes';
 
 const USERS_POLL_MS = 5000;
 const EMPTY_SUBJECT_STATS: SubjectQuestionCount[] = [
@@ -111,11 +146,45 @@ const EMPTY_SUBJECT_STATS: SubjectQuestionCount[] = [
 export function App() {
   const { user, isLoaded, isSignedIn } = useUser();
   const { getToken } = useAuth();
+  const feedback = useFeedback();
 
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [usersSyncError, setUsersSyncError] = useState<string | null>(null);
   const [lastUsersSyncAt, setLastUsersSyncAt] = useState<string | null>(null);
   const syncingRef = useRef(false);
+
+  // Capture ?ref= early so Clerk modal redirects do not lose it.
+  useEffect(() => {
+    captureReferralCodeFromLocation();
+  }, []);
+
+  // First-touch referral attribution after sign-in.
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user) return;
+    const code = peekStoredReferralCode() || captureReferralCodeFromLocation();
+    if (!code) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await attributeReferral(getToken, code);
+        if (!cancelled) clearStoredReferralCode();
+      } catch (err: any) {
+        // Keep stored code for retry on next load unless permanently invalid.
+        const msg = String(err?.message || '');
+        if (
+          msg.includes('not found') ||
+          msg.includes('own referral') ||
+          msg.includes('Invalid referral')
+        ) {
+          clearStoredReferralCode();
+        }
+        console.warn('Referral attribute failed:', msg);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, isLoaded, isSignedIn, user]);
 
   // Clear legacy local mock/user caches once — Clerk is the only user source.
   useEffect(() => {
@@ -189,6 +258,39 @@ export function App() {
       syncingRef.current = false;
     }
   }, [getToken, isSignedIn, user]);
+
+  const refreshPaymentClaims = useCallback(async () => {
+    if (!isSignedIn) {
+      setPaymentClaims([]);
+      setPaymentClaimsSyncedAt(null);
+      setPaymentClaimsError(null);
+      return;
+    }
+    setPaymentClaimsLoading(true);
+    try {
+      const data = await fetchPaymentClaims(getToken);
+      setPaymentClaims(data.claims);
+      setPaymentClaimsSyncedAt(data.syncedAt);
+      setPaymentClaimsError(null);
+    } catch (err: any) {
+      setPaymentClaimsError(err?.message || 'Failed to load payment claims');
+    } finally {
+      setPaymentClaimsLoading(false);
+    }
+  }, [getToken, isSignedIn]);
+
+  // Load + poll payment claims (dynamic shared queue).
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) {
+      setPaymentClaims([]);
+      return;
+    }
+    void refreshPaymentClaims();
+    const interval = window.setInterval(() => {
+      void refreshPaymentClaims();
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [isLoaded, isSignedIn, refreshPaymentClaims]);
 
   const refreshQuestionsBank = useCallback(async () => {
     if (!isSignedIn) {
@@ -270,6 +372,38 @@ export function App() {
     void refreshMocksCatalog();
   }, [refreshMocksCatalog]);
 
+  const refreshFormulaLibrary = useCallback(async () => {
+    if (!isSignedIn) {
+      setFormulaSheets([]);
+      setFormulaBatches([]);
+      setFormulasError(null);
+      return;
+    }
+    setFormulasLoading(true);
+    try {
+      const staff = isSignedIn && user ? isStaffRole(mapClerkUserToProfile(user)) : false;
+      const [list, batches] = await Promise.all([
+        fetchFormulaSheets(getToken),
+        staff
+          ? fetchFormulaBatches(getToken).catch(() => ({
+              batches: [] as FormulaImportBatch[],
+            }))
+          : Promise.resolve({ batches: [] as FormulaImportBatch[] }),
+      ]);
+      setFormulaSheets(list.sheets);
+      setFormulaBatches(batches.batches);
+      setFormulasError(null);
+    } catch (err: any) {
+      setFormulasError(err?.message || 'Unable to load formula library');
+    } finally {
+      setFormulasLoading(false);
+    }
+  }, [getToken, isSignedIn, user]);
+
+  useEffect(() => {
+    void refreshFormulaLibrary();
+  }, [refreshFormulaLibrary]);
+
   // Seed current Clerk session user immediately (realtime via useUser).
   useEffect(() => {
     if (!isLoaded) return;
@@ -295,12 +429,6 @@ export function App() {
     return () => window.clearInterval(id);
   }, [isLoaded, isSignedIn, refreshUsersFromClerk]);
 
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      setShowBrainLanding(false);
-    }
-  }, [isLoaded, isSignedIn]);
-
   const updateCurrentUser = (updater: (user: UserProfile) => UserProfile) => {
     const base = userProfile;
     const updated = updater(base);
@@ -320,16 +448,48 @@ export function App() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<string>('home');
-  const [helpActiveSubTab, setHelpActiveSubTab] = useState<'info' | 'policies' | 'workflow' | 'terms' | 'privacy' | 'coins-policy' | 'refund' | 'faq' | 'issue'>('info');
-  const [showBrainLanding, setShowBrainLanding] = useState<boolean>(true);
+  const {
+    showLanding,
+    showNotFound,
+    activeTab,
+    helpSubTab: helpActiveSubTab,
+    attemptedPath,
+    goToTab,
+    goToLanding,
+    enterApp,
+    setHelpSubTab,
+  } = useAppNavigation();
 
-  const handleNavigate = (tab: string, subTab?: string) => {
-    setActiveTab(tab);
-    if (tab === 'policies' && subTab) {
-      setHelpActiveSubTab(subTab as any);
+  const setActiveTab = useCallback(
+    (tab: string) => {
+      goToTab(tab);
+    },
+    [goToTab]
+  );
+
+  const handleNavigate = useCallback(
+    (tab: string, subTab?: string) => {
+      if (tab === 'policies' && subTab) {
+        goToTab('policies', { helpSubTab: subTab as HelpSubTab });
+        return;
+      }
+      goToTab(tab, subTab ? { helpSubTab: subTab as HelpSubTab } : undefined);
+    },
+    [goToTab]
+  );
+
+  const setHelpActiveSubTab = useCallback(
+    (subTab: HelpSubTab) => {
+      setHelpSubTab(subTab, true);
+    },
+    [setHelpSubTab]
+  );
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn && showLanding) {
+      enterApp('home', true);
     }
-  };
+  }, [isLoaded, isSignedIn, showLanding, enterApp]);
   
   // Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -359,10 +519,10 @@ export function App() {
     return saved ? JSON.parse(saved) : INITIAL_COIN_TRANSACTIONS;
   });
 
-  const [paymentClaims, setPaymentClaims] = useState<PaymentClaim[]>(() => {
-    const saved = localStorage.getItem('prepx_claims');
-    return saved ? JSON.parse(saved) : INITIAL_PAYMENT_CLAIMS;
-  });
+  const [paymentClaims, setPaymentClaims] = useState<PaymentClaim[]>([]);
+  const [paymentClaimsSyncedAt, setPaymentClaimsSyncedAt] = useState<string | null>(null);
+  const [paymentClaimsError, setPaymentClaimsError] = useState<string | null>(null);
+  const [paymentClaimsLoading, setPaymentClaimsLoading] = useState(false);
 
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>(() => {
     const saved = localStorage.getItem('prepx_pricing_plans');
@@ -375,6 +535,11 @@ export function App() {
   const [questionStatsTotal, setQuestionStatsTotal] = useState(0);
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [questionsError, setQuestionsError] = useState<string | null>(null);
+
+  const [formulaSheets, setFormulaSheets] = useState<FormulaSheet[]>([]);
+  const [formulaBatches, setFormulaBatches] = useState<FormulaImportBatch[]>([]);
+  const [formulasLoading, setFormulasLoading] = useState(false);
+  const [formulasError, setFormulasError] = useState<string | null>(null);
 
   const currentUserReports = pastReports.filter((r) => r.userId === userProfile.id);
   const currentUserTransactions = coinTransactions.filter((t) => t.userId === userProfile.id);
@@ -398,10 +563,6 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('prepx_transactions', JSON.stringify(coinTransactions));
   }, [coinTransactions]);
-
-  useEffect(() => {
-    localStorage.setItem('prepx_claims', JSON.stringify(paymentClaims));
-  }, [paymentClaims]);
 
   useEffect(() => {
     saveNotifications(notifications);
@@ -535,9 +696,13 @@ export function App() {
             if (user?.id) await user.reload();
           } catch (err: any) {
             // 409 = already claimed server-side; local meta still marks day complete.
-            if (!String(err?.message || '').toLowerCase().includes('already')) {
-              alert(err?.message || 'Failed to claim planner reward');
-            }
+              if (!String(err?.message || '').toLowerCase().includes('already')) {
+                void feedback.alert({
+                  variant: 'error',
+                  title: 'Reward not claimed',
+                  message: err?.message || 'Failed to claim planner reward',
+                });
+              }
           }
         })();
       }
@@ -648,13 +813,21 @@ export function App() {
 
   const handleStartMock = async (mock: MockTest) => {
     if (!isSignedIn) {
-      alert('Sign in with Clerk to start a mock test.');
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Sign in required',
+        message: 'Sign in to start a timed mock test.',
+      });
       return;
     }
     try {
       const resolved = await startMockAttempt(getToken, mock.id);
       if (!resolved.questions.length) {
-        alert('This mock has no questions available yet.');
+        await feedback.alert({
+          variant: 'warning',
+          title: 'Mock unavailable',
+          message: 'This mock has no questions available yet.',
+        });
         return;
       }
       localStorage.setItem(`prepx_paper_${resolved.id}`, JSON.stringify(resolved.questions));
@@ -663,17 +836,30 @@ export function App() {
       setActiveMock(resolved);
       setActiveTab('mock-engine');
     } catch (err: any) {
-      alert(err?.message || 'Failed to start mock test');
+      await feedback.alert({
+        variant: 'error',
+        title: 'Could not start mock',
+        message: err?.message || 'Failed to start mock test',
+      });
     }
   };
 
   const handleGeneratePractice = async (payload: PracticeGeneratePayload) => {
     if (!isSignedIn) {
-      alert('Sign in with Clerk to generate a practice mock.');
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Sign in required',
+        message: 'Sign in to generate a practice mock.',
+      });
       return;
     }
     if (userProfile.plan !== 'Unlimited' && (userProfile.mocksRemaining ?? 0) <= 0) {
-      alert('No mock quota remaining. Upgrade your plan to continue.');
+      await feedback.alert({
+        variant: 'warning',
+        title: 'No mock quota left',
+        message: 'Upgrade your plan to generate more practice mocks.',
+        confirmLabel: 'View plans',
+      });
       setActiveTab('payment');
       return;
     }
@@ -681,7 +867,11 @@ export function App() {
     try {
       const resolved = await generatePracticeMock(getToken, payload);
       if (!resolved.questions.length) {
-        alert('Could not build a paper from the question bank.');
+        await feedback.alert({
+          variant: 'warning',
+          title: 'Empty paper',
+          message: 'Could not build a paper from the question bank.',
+        });
         return;
       }
       localStorage.setItem(`prepx_paper_${resolved.id}`, JSON.stringify(resolved.questions));
@@ -689,7 +879,11 @@ export function App() {
       setActiveMock(resolved);
       setActiveTab('mock-engine');
     } catch (err: any) {
-      alert(err?.message || 'Failed to generate practice mock');
+      await feedback.alert({
+        variant: 'error',
+        title: 'Generation failed',
+        message: err?.message || 'Failed to generate practice mock',
+      });
     } finally {
       setPracticeBusy(false);
     }
@@ -716,11 +910,19 @@ export function App() {
       questions,
     };
     if (!mock || !questions.length) {
-      alert('Could not score attempt: paper questions missing.');
+      await feedback.alert({
+        variant: 'error',
+        title: 'Cannot score attempt',
+        message: 'Paper questions are missing. Restart the mock and submit again.',
+      });
       return;
     }
     if (!mock.attemptSessionId) {
-      alert('Missing attempt session. Please restart the mock and submit again.');
+      await feedback.alert({
+        variant: 'error',
+        title: 'Session expired',
+        message: 'Missing attempt session. Restart the mock and submit again.',
+      });
       return;
     }
 
@@ -790,12 +992,20 @@ export function App() {
       setActiveTab('reports');
       if (user?.id) await user.reload();
     } catch (err: any) {
-      alert(err?.message || 'Failed to score attempt');
+      await feedback.alert({
+        variant: 'error',
+        title: 'Scoring failed',
+        message: err?.message || 'Failed to score attempt',
+      });
     }
   };
   const handleRedeemCoins = async (itemId: string) => {
     if (!isSignedIn) {
-      alert('Sign in to redeem Study Coins.');
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Sign in required',
+        message: 'Sign in to redeem Study Coins.',
+      });
       return;
     }
     try {
@@ -828,100 +1038,124 @@ export function App() {
         refId: `redeem-${itemId}-${Date.now()}`,
       });
       if (user?.id) await user.reload();
-      alert(`Successfully redeemed "${result.redeemed}"!`);
+      feedback.toast({
+        variant: 'success',
+        message: `Redeemed “${result.redeemed}”.`,
+      });
     } catch (err: any) {
-      alert(err?.message || 'Failed to redeem');
+      await feedback.alert({
+        variant: 'error',
+        title: 'Redemption failed',
+        message: err?.message || 'Failed to redeem',
+      });
     }
   };
 
-  const handleSubmitPaymentClaim = (claimData: Omit<PaymentClaim, 'id' | 'status' | 'submittedAt'>) => {
-    const newClaim: PaymentClaim = {
-      ...claimData,
-      id: `pay-claim-${Date.now()}`,
-      status: 'pending',
-      submittedAt: new Date().toLocaleString()
-    };
-    setPaymentClaims(prev => [newClaim, ...prev]);
-    pushNotification({
-      userId: userProfile.id,
-      kind: 'payment',
-      title: 'Payment claim submitted',
-      desc: `${newClaim.planCode} · Rs. ${newClaim.amountNpr} · pending review`,
-      hrefTab: 'payment',
-      refId: newClaim.id,
-    });
+  const handleSubmitPaymentClaim = async (
+    claimData: Omit<PaymentClaim, 'id' | 'status' | 'submittedAt'>
+  ) => {
+    try {
+      const claim = await submitPaymentClaim(getToken, {
+        planCode: claimData.planCode,
+        amountNpr: claimData.amountNpr,
+        paymentMethod: claimData.paymentMethod,
+        transactionRef: claimData.transactionRef,
+        screenshotUrl: claimData.screenshotUrl,
+        userNotes: claimData.userNotes,
+      });
+      setPaymentClaims((prev) => {
+        const without = prev.filter((c) => c.id !== claim.id);
+        return [claim, ...without];
+      });
+      pushNotification({
+        userId: userProfile.id,
+        kind: 'payment',
+        title: 'Payment claim submitted',
+        desc: `${claim.planCode} · Rs. ${claim.amountNpr} · pending review`,
+        hrefTab: 'payment',
+        refId: claim.id,
+      });
+      feedback.toast({
+        variant: 'success',
+        message: 'Payment claim submitted for review.',
+      });
+      void refreshPaymentClaims();
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Submit failed',
+        message: err?.message || 'Could not submit payment claim',
+      });
+      throw err;
+    }
   };
 
-  const handleApproveClaim = (claimId: string) => {
-    const claim = paymentClaims.find(c => c.id === claimId);
-    if (claim) {
-      setPaymentClaims(prev =>
-        prev.map(c => c.id === claimId ? { ...c, status: 'approved', verifiedAt: new Date().toLocaleString(), verifiedBy: userProfile.name } : c)
+  const handleApproveClaim = async (claimId: string) => {
+    try {
+      const result = await approvePaymentClaim(getToken, claimId);
+      setPaymentClaims((prev) =>
+        prev.map((c) => (c.id === claimId ? result.claim : c))
       );
-
-      const matchedPlan = pricingPlans.find(p => p.code === claim.planCode || p.tier === claim.planCode || p.id === claim.planCode);
-      const newTier = matchedPlan ? matchedPlan.tier : (claim.planCode as PlanTier);
-      const mocksToAdd = matchedPlan ? matchedPlan.mocksGranted : (claim.planCode === 'Unlimited' ? null : 10);
-      const coinsToAdd = matchedPlan ? matchedPlan.coinsGranted : 100;
-
-      const target = usersList.find((u) => u.id === claim.userId);
-      setUsersList(prev =>
-        prev.map(u => {
-          if (u.id === claim.userId) {
-            const updatedMocks = mocksToAdd === null 
-              ? null 
-              : (u.mocksRemaining !== null ? u.mocksRemaining + mocksToAdd : mocksToAdd);
-
-            return {
-              ...u,
-              plan: newTier,
-              mocksRemaining: updatedMocks,
-              studyCoinBalance: u.studyCoinBalance + coinsToAdd
-            };
-          }
-          return u;
-        })
-      );
-      if (target?.clerkId) {
-        const updatedMocks =
-          mocksToAdd === null
-            ? null
-            : target.mocksRemaining !== null
-              ? target.mocksRemaining + mocksToAdd
-              : mocksToAdd;
-        void persistProfileToClerk(target.clerkId, {
-          plan: newTier,
-          mocksRemaining: updatedMocks,
-          studyCoinBalance: target.studyCoinBalance + coinsToAdd,
+      if (result.activatedUser && typeof result.activatedUser === 'object') {
+        const activated = result.activatedUser as UserProfile;
+        setUsersList((prev) => {
+          const exists = prev.some((u) => u.clerkId === activated.clerkId || u.id === activated.id);
+          if (!exists) return [activated, ...prev];
+          return prev.map((u) =>
+            u.clerkId === activated.clerkId || u.id === activated.id ? { ...u, ...activated } : u
+          );
         });
       }
-
-      if (claim.userId) {
+      if (result.claim.userId) {
         pushNotification({
-          userId: claim.userId,
+          userId: result.claim.userId,
           kind: 'payment',
           title: 'Payment claim approved',
-          desc: `${newTier} plan activated · +${coinsToAdd} coins`,
+          desc: `${result.claim.planCode} plan activated`,
           hrefTab: 'payment',
           refId: `${claimId}-approved`,
         });
       }
+      if (result.referralCommission?.recorded) {
+        feedback.toast({
+          variant: 'success',
+          message: `Claim approved · referral commission Rs. ${result.referralCommission.commission?.commissionAmountNpr ?? '—'}`,
+        });
+      } else {
+        feedback.toast({ variant: 'success', message: 'Payment claim approved.' });
+      }
+      void refreshPaymentClaims();
+      void refreshUsersFromClerk();
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Approve failed',
+        message: err?.message || 'Could not approve claim',
+      });
     }
   };
 
-  const handleRejectClaim = (claimId: string, reason: string) => {
-    const claim = paymentClaims.find((c) => c.id === claimId);
-    setPaymentClaims(prev =>
-      prev.map(c => c.id === claimId ? { ...c, status: 'rejected', moderatorNotes: reason, verifiedAt: new Date().toLocaleString(), verifiedBy: userProfile.name } : c)
-    );
-    if (claim?.userId) {
-      pushNotification({
-        userId: claim.userId,
-        kind: 'payment',
-        title: 'Payment claim rejected',
-        desc: reason || 'Your payment claim was not approved.',
-        hrefTab: 'payment',
-        refId: `${claimId}-rejected`,
+  const handleRejectClaim = async (claimId: string, reason: string) => {
+    try {
+      const claim = await rejectPaymentClaim(getToken, claimId, reason);
+      setPaymentClaims((prev) => prev.map((c) => (c.id === claimId ? claim : c)));
+      if (claim.userId) {
+        pushNotification({
+          userId: claim.userId,
+          kind: 'payment',
+          title: 'Payment claim rejected',
+          desc: reason || 'Your payment claim was not approved.',
+          hrefTab: 'payment',
+          refId: `${claimId}-rejected`,
+        });
+      }
+      feedback.toast({ variant: 'success', message: 'Payment claim rejected.' });
+      void refreshPaymentClaims();
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Reject failed',
+        message: err?.message || 'Could not reject claim',
       });
     }
   };
@@ -1040,6 +1274,39 @@ export function App() {
     await refreshQuestionsBank();
   };
 
+  const handleImportFormulaSheets = async (
+    jsonStr: string,
+    meta?: { filename?: string | null; label?: string | null }
+  ) => {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      const result = await importFormulaSheetsJson(getToken, parsed, meta);
+      await refreshFormulaLibrary();
+      const batch =
+        result.batchId && Array.isArray(result.batches)
+          ? result.batches.find((b) => b.id === result.batchId) || null
+          : null;
+      return {
+        successCount: result.successCount,
+        errors: result.errors,
+        batchId: result.batchId,
+        batch,
+      };
+    } catch (e: any) {
+      return {
+        successCount: 0,
+        errors: [`Import Error: ${e.message}`],
+        batchId: null,
+        batch: null,
+      };
+    }
+  };
+
+  const handleDeleteFormulaBatch = async (batchId: string) => {
+    await deleteFormulaBatch(getToken, batchId);
+    await refreshFormulaLibrary();
+  };
+
   const handleImportFixedMocks = async (
     jsonStr: string,
     meta?: { filename?: string | null; label?: string | null }
@@ -1092,21 +1359,34 @@ export function App() {
   const pendingClaimsCount = paymentClaims.filter(c => c.status === 'pending').length;
 
   return (
-    <div className="min-h-screen bg-[#F4F7FC] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(59,130,246,0.12),rgba(255,255,255,0))] text-slate-900 flex flex-col font-sans antialiased selection:bg-blue-100 relative overflow-x-hidden">
-      {showBrainLanding && (
-        <BrainLanding 
-          onEnterApp={() => {
-            if (isSignedIn) {
-              setShowBrainLanding(false);
-              setActiveTab('home');
-            } else {
-              setShowBrainLanding(false);
-            }
+    <div className="min-h-screen bg-[var(--px-bg)] text-[var(--px-body)] flex flex-col font-sans antialiased relative overflow-x-hidden">
+      <ClerkLoadGuard />
+      {showLanding && (
+        <BrainLanding
+          onEnterApp={(initialCategory) => {
+            enterApp(initialCategory);
           }}
-          onClose={() => setShowBrainLanding(false)}
+          onClose={() => enterApp('home')}
         />
       )}
 
+      {showNotFound && !showLanding && (
+        <RouteStatePanel
+          icon="not-found"
+          title="Page not found"
+          message={
+            attemptedPath
+              ? `No page exists at ${attemptedPath}. Check the link or return to your dashboard.`
+              : 'That address is not a PrepX page.'
+          }
+          primaryLabel="Go to dashboard"
+          onPrimary={() => goToTab('home', { replace: true })}
+          secondaryLabel="Open welcome page"
+          onSecondary={() => goToLanding(true)}
+        />
+      )}
+
+      {!showLanding && !showNotFound && (
       <>
         {activeTab !== 'mock-engine' && (
           <AnnouncementBar
@@ -1150,7 +1430,7 @@ export function App() {
               />
             )}
 
-            <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+            <div className="flex-1 flex flex-col min-w-0 min-h-0 md:min-h-screen overflow-x-hidden">
               {activeTab !== 'mock-engine' && (
                 <Topbar
                   activeTab={activeTab}
@@ -1206,8 +1486,18 @@ export function App() {
                     onToggleSavedQuestion={handleToggleSavedQuestion}
                     onExit={() => {
                       setActiveMock(null);
-                      setActiveTab('catalog');
+                      goToTab('catalog', { replace: true });
                     }}
+                  />
+                )}
+
+                {activeTab === 'mock-engine' && !activeMock && (
+                  <RouteStatePanel
+                    icon="error"
+                    title="No exam in progress"
+                    message="Start a mock from the catalog to open the timed exam screen."
+                    primaryLabel="Open mock catalog"
+                    onPrimary={() => goToTab('catalog', { replace: true })}
                   />
                 )}
 
@@ -1239,7 +1529,11 @@ export function App() {
                 )}
 
                 {activeTab === 'formulas' && (
-                  <FormulasView />
+                  <FormulasView
+                    sheets={
+                      formulaSheets.length > 0 ? formulaSheets : FORMULA_SHEETS
+                    }
+                  />
                 )}
 
                 {activeTab === 'saved' && (
@@ -1283,6 +1577,10 @@ export function App() {
                   <AdminPanel
                     userProfile={userProfile}
                     paymentClaims={paymentClaims}
+                    paymentClaimsLoading={paymentClaimsLoading}
+                    paymentClaimsError={paymentClaimsError}
+                    paymentClaimsSyncedAt={paymentClaimsSyncedAt}
+                    onRefreshPaymentClaims={() => void refreshPaymentClaims()}
                     onApproveClaim={handleApproveClaim}
                     onRejectClaim={handleRejectClaim}
                     questions={allQuestions}
@@ -1306,6 +1604,12 @@ export function App() {
                     onUpdateMock={handleUpdateMock}
                     onDeleteMock={handleDeleteMock}
                     onDeleteMockBatch={handleDeleteMockBatch}
+                    formulaSheets={formulaSheets}
+                    formulaBatches={formulaBatches}
+                    formulasLoading={formulasLoading}
+                    formulasError={formulasError}
+                    onImportFormulaSheets={handleImportFormulaSheets}
+                    onDeleteFormulaBatch={handleDeleteFormulaBatch}
                     usersList={usersList}
                     onUpdateUserRole={handleUpdateUserRole}
                     onUpdateUserPlan={handleUpdateUserPlan}
@@ -1318,53 +1622,79 @@ export function App() {
                     onRefreshClerkUsers={refreshUsersFromClerk}
                   />
                 )}
+
+                {activeTab === 'admin' && !canAccessAdmin && (
+                  <RouteStatePanel
+                    icon="forbidden"
+                    title={isSignedIn ? 'Access denied' : 'Sign in required'}
+                    message={
+                      isSignedIn
+                        ? 'Your account does not have admin or moderator access. Contact PrepX staff if you need the Admin Desk.'
+                        : 'Sign in with a staff account to open the Admin Desk.'
+                    }
+                    primaryLabel="Go to dashboard"
+                    onPrimary={() => goToTab('home', { replace: true })}
+                    secondaryLabel={isSignedIn ? undefined : 'Open welcome page'}
+                    onSecondary={isSignedIn ? undefined : () => goToLanding(true)}
+                  />
+                )}
               </main>
 
               {activeTab !== 'mock-engine' && (
-                <div className="md:hidden sticky bottom-0 z-40 bg-white/90 backdrop-blur-2xl border-t border-slate-200/80 px-4 py-2 flex items-center justify-around shadow-lg">
+                <div className="md:hidden sticky bottom-0 z-40 bg-[var(--px-surface)] border-t border-[var(--px-border)] px-2 py-1.5 flex items-center justify-around shadow-[var(--px-shadow)]">
                   <button
+                    type="button"
                     onClick={() => setActiveTab('home')}
-                    className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${
-                      activeTab === 'home' ? 'text-[#2563EB] font-bold' : 'text-slate-500'
+                    className={`min-h-11 flex-1 flex flex-col items-center justify-center gap-0.5 cursor-pointer text-[11px] font-medium ${
+                      activeTab === 'home' ? 'text-[#2563EB]' : 'text-slate-500'
                     }`}
                   >
-                    <div className="text-xs">Home</div>
+                    <AppIcon icon={LayoutDashboard} size="nav" />
+                    Home
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setActiveTab('catalog')}
-                    className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${
-                      activeTab === 'catalog' ? 'text-[#2563EB] font-bold' : 'text-slate-500'
+                    className={`min-h-11 flex-1 flex flex-col items-center justify-center gap-0.5 cursor-pointer text-[11px] font-medium ${
+                      activeTab === 'catalog' ? 'text-[#2563EB]' : 'text-slate-500'
                     }`}
                   >
-                    <div className="text-xs">Mocks</div>
+                    <AppIcon icon={FileCheck} size="nav" />
+                    Mocks
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setActiveTab('formulas')}
-                    className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${
-                      activeTab === 'formulas' ? 'text-[#2563EB] font-bold' : 'text-slate-500'
+                    className={`min-h-11 flex-1 flex flex-col items-center justify-center gap-0.5 cursor-pointer text-[11px] font-medium ${
+                      activeTab === 'formulas' ? 'text-[#2563EB]' : 'text-slate-500'
                     }`}
                   >
-                    <div className="text-xs">Study</div>
+                    <AppIcon icon={BookOpen} size="nav" />
+                    Study
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setActiveTab('reports')}
-                    className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${
-                      activeTab === 'reports' ? 'text-[#2563EB] font-bold' : 'text-slate-500'
+                    className={`min-h-11 flex-1 flex flex-col items-center justify-center gap-0.5 cursor-pointer text-[11px] font-medium ${
+                      activeTab === 'reports' ? 'text-[#2563EB]' : 'text-slate-500'
                     }`}
                   >
-                    <div className="text-xs">Progress</div>
+                    <AppIcon icon={BarChart3} size="nav" />
+                    Progress
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setActiveTab('policies')}
-                    className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${
-                      activeTab === 'policies' ? 'text-[#2563EB] font-bold' : 'text-slate-500'
+                    className={`min-h-11 flex-1 flex flex-col items-center justify-center gap-0.5 cursor-pointer text-[11px] font-medium ${
+                      activeTab === 'policies' ? 'text-[#2563EB]' : 'text-slate-500'
                     }`}
                   >
-                    <div className="text-xs">Profile</div>
+                    <AppIcon icon={HelpCircle} size="nav" />
+                    Help
                   </button>
                 </div>
               )}
@@ -1373,6 +1703,7 @@ export function App() {
             </div>
           </div>
         </>
+      )}
     </div>
   );
 }

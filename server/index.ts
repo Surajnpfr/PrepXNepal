@@ -21,7 +21,14 @@ import {
   type MockRecord,
 } from './mocksDomain.ts';
 import { isSubject } from './questionsDomain.ts';
-import type { MocksRepository, QuestionsRepository } from './db/types.ts';
+import type {
+  FormulasRepository,
+  MocksRepository,
+  PaymentClaimsRepository,
+  QuestionsRepository,
+  ReferralsRepository,
+  SupportIssuesRepository,
+} from './db/types.ts';
 import { consumeAttemptSession, createAttemptSession } from './attemptSessions.ts';
 import type { AttemptSession } from './attemptSessions.ts';
 import { updatePublicMetadataAtomic, type PublicMeta } from './clerkMeta.ts';
@@ -30,6 +37,34 @@ import {
   isAllowedPlannerDateKey,
   publicErrorMessage,
 } from './userPatchPolicy.ts';
+import {
+  REFERRAL_COMMISSION_RATE,
+  canRecordReferralCommission,
+  canSettleReferralCommission,
+  computeCommissionAmountNpr,
+  generateReferralCode,
+  isReferralStaffRole,
+  normalizeReferralCode,
+  sumCommissionTotals,
+} from './referralsDomain.ts';
+import {
+  canModeratePaymentClaims,
+  defaultEntitlementsForPlan,
+  isPaymentMethod,
+  sortClaimsForQueue,
+} from './paymentsDomain.ts';
+import {
+  canTriageSupportIssues,
+  isSupportIssueCategory,
+  normalizeIssueBody,
+  sortIssuesForQueue,
+} from './supportDomain.ts';
+import { parseFormulaImportBatch } from './formulasDomain.ts';
+import {
+  emailDomainBlockedMessage,
+  emailDomainPolicyFromEnv,
+  evaluateEmailDomain,
+} from './emailDomainPolicy.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** Bundled `server.js` lives at repo root; source `server/index.ts` lives in /server. */
@@ -54,6 +89,7 @@ const CLERK_AUTHORIZED_PARTIES = (process.env.CLERK_AUTHORIZED_PARTIES || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+const EMAIL_DOMAIN_POLICY = emailDomainPolicyFromEnv();
 
 if (!SECRET_KEY) {
   console.error(
@@ -75,6 +111,10 @@ app.use((_req, res, next) => {
 
 let questionsRepo: QuestionsRepository;
 let mocksRepo: MocksRepository;
+let referralsRepo: ReferralsRepository;
+let paymentClaimsRepo: PaymentClaimsRepository;
+let supportIssuesRepo: SupportIssuesRepository;
+let formulasRepo: FormulasRepository;
 
 type AppMeta = {
   plan?: string;
@@ -88,6 +128,8 @@ type AppMeta = {
   darkTheme?: boolean;
   lastMockScore?: number;
   lastPercentile?: number;
+  referredByClerkId?: string;
+  referralCode?: string;
 };
 
 function mapUser(user: Awaited<ReturnType<typeof clerk.users.getUser>>) {
@@ -147,6 +189,14 @@ function isStaff(role: string | undefined, email: string): boolean {
     isBootstrapAdminEmail(email) ||
     role === 'Admin' ||
     role === 'Moderator (Questions)' ||
+    role === 'Moderator (Billing)'
+  );
+}
+
+function canManageBilling(role: string | undefined, email: string): boolean {
+  return (
+    isBootstrapAdminEmail(email) ||
+    role === 'Admin' ||
     role === 'Moderator (Billing)'
   );
 }
@@ -300,6 +350,32 @@ function toClientBatch(b: Awaited<ReturnType<QuestionsRepository['listBatches']>
   };
 }
 
+function toClientFormulaSheet(s: Awaited<ReturnType<FormulasRepository['list']>>[number]) {
+  return {
+    id: s.id,
+    subject: s.subject,
+    title: s.title,
+    chapter: s.chapter,
+    formulas: s.formulas,
+    batchId: s.batchId,
+  };
+}
+
+function toClientFormulaBatch(
+  b: Awaited<ReturnType<FormulasRepository['listBatches']>>[number]
+) {
+  return {
+    id: b.id,
+    label: b.label,
+    filename: b.filename,
+    importedByEmail: b.importedByEmail,
+    importedByName: b.importedByName,
+    sheetCount: b.sheetCount,
+    errorCount: b.errorCount,
+    createdAt: b.createdAt,
+  };
+}
+
 function toClientMock(m: MockRecord, questions?: ReturnType<typeof toClientQuestion>[]) {
   return {
     id: m.id,
@@ -355,6 +431,19 @@ async function requireAuth(req: express.Request, res: express.Response, next: ex
     const payload = await verifyToken(token, verifyOpts);
     const user = await clerk.users.getUser(payload.sub);
     const profile = mapUser(user);
+
+    const emailCheck = evaluateEmailDomain(profile.email, EMAIL_DOMAIN_POLICY);
+    if (emailCheck.ok === false) {
+      console.warn(
+        `Blocked email domain for user ${user.id}: ${emailCheck.domain || '(none)'} (${emailCheck.reason})`
+      );
+      return res.status(403).json({
+        error: emailDomainBlockedMessage(emailCheck),
+        code: 'EMAIL_DOMAIN_BLOCKED',
+        reason: emailCheck.reason,
+      });
+    }
+
     (req as any).auth = { userId: user.id, profile };
     next();
   } catch (err: any) {
@@ -1461,13 +1550,680 @@ app.post('/api/coins/redeem', requireAuth, async (req, res) => {
   }
 });
 
+/** Create-or-return staff personal referral link. */
+app.post('/api/referrals/me/ensure', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    if (!isReferralStaffRole(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Staff only' });
+    }
+    const link = await referralsRepo.ensureLink({
+      ownerClerkId: userId,
+      code: generateReferralCode(userId),
+      ownerEmail: profile.email,
+      ownerName: profile.name,
+      ownerRole: profile.role,
+    });
+    res.json({ link });
+  } catch (err: any) {
+    console.error('POST /api/referrals/me/ensure failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to ensure referral link') });
+  }
+});
+
+/** Staff: own link + commissions + totals. */
+app.get('/api/referrals/me', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    if (!isReferralStaffRole(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Staff only' });
+    }
+    let link = await referralsRepo.getLinkByOwner(userId);
+    if (!link) {
+      link = await referralsRepo.ensureLink({
+        ownerClerkId: userId,
+        code: generateReferralCode(userId),
+        ownerEmail: profile.email,
+        ownerName: profile.name,
+        ownerRole: profile.role,
+      });
+    }
+    const commissions = await referralsRepo.listCommissionsByReferrer(userId);
+    const totals = sumCommissionTotals(commissions);
+    res.json({ link, commissions, totals });
+  } catch (err: any) {
+    console.error('GET /api/referrals/me failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load referrals') });
+  }
+});
+
+/** Any signed-in user: first-touch attribution from referral code. */
+app.post('/api/referrals/attribute', requireAuth, async (req, res) => {
+  try {
+    const { userId } = (req as any).auth;
+    const code = normalizeReferralCode(req.body?.code);
+    if (!code) {
+      return res.status(400).json({ error: 'Invalid referral code' });
+    }
+    const link = await referralsRepo.getLinkByCode(code);
+    if (!link || !link.active) {
+      return res.status(404).json({ error: 'Referral link not found' });
+    }
+    if (link.ownerClerkId === userId) {
+      return res.status(400).json({ error: 'Cannot attribute your own referral link' });
+    }
+    const result = await referralsRepo.attributeFirstTouch({
+      referredClerkId: userId,
+      referrerClerkId: link.ownerClerkId,
+      code: link.code,
+    });
+
+    // Best-effort Clerk read-model; DB remains source of truth.
+    if (result.created) {
+      try {
+        await updatePublicMetadataAtomic({
+          userId,
+          getUser: (id) => clerk.users.getUser(id),
+          updateUser: (id, data) => clerk.users.updateUser(id, data),
+          mutator: (draft) => ({
+            ok: true,
+            next: {
+              ...draft,
+              referredByClerkId: link.ownerClerkId,
+              referralCode: link.code,
+            },
+          }),
+        });
+      } catch (metaErr: any) {
+        console.warn('referral attribute Clerk meta sync failed:', metaErr?.message || metaErr);
+      }
+    }
+
+    res.json({
+      attribution: result.attribution,
+      created: result.created,
+    });
+  } catch (err: any) {
+    console.error('POST /api/referrals/attribute failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to attribute referral') });
+  }
+});
+
+/**
+ * Admin / Billing Mod: record 30% commission when a payment claim is approved.
+ * Idempotent on claimId.
+ */
+app.post('/api/referrals/commissions', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (
+      !canRecordReferralCommission(profile.role, isBootstrapAdminEmail(profile.email)) &&
+      !canManageBilling(profile.role, profile.email)
+    ) {
+      return res.status(403).json({ error: 'Billing staff only' });
+    }
+
+    const claimId = typeof req.body?.claimId === 'string' ? req.body.claimId.trim() : '';
+    const referredClerkId =
+      typeof req.body?.referredClerkId === 'string' ? req.body.referredClerkId.trim() : '';
+    const amountRaw = req.body?.amountNpr;
+    const amountNpr = typeof amountRaw === 'number' ? amountRaw : Number(amountRaw);
+
+    if (!claimId || !referredClerkId) {
+      return res.status(400).json({ error: 'claimId and referredClerkId are required' });
+    }
+    if (!Number.isFinite(amountNpr) || amountNpr <= 0) {
+      return res.status(400).json({ error: 'amountNpr must be a positive number' });
+    }
+
+    const attribution = await referralsRepo.getAttribution(referredClerkId);
+    if (!attribution) {
+      return res.status(200).json({
+        recorded: false,
+        reason: 'no_attribution',
+        message: 'Payer has no referral attribution; no commission created',
+      });
+    }
+
+    const commissionAmountNpr = computeCommissionAmountNpr(amountNpr, REFERRAL_COMMISSION_RATE);
+    const insert = await referralsRepo.insertCommission({
+      id: `refc-${claimId}`.slice(0, 64),
+      claimId,
+      referredClerkId,
+      referrerClerkId: attribution.referrerClerkId,
+      conversionAmountNpr: Math.round(amountNpr),
+      commissionRate: REFERRAL_COMMISSION_RATE,
+      commissionAmountNpr,
+    });
+
+    if (insert.ok === false) {
+      return res.status(200).json({
+        recorded: false,
+        reason: 'duplicate_claim',
+        commission: insert.existing,
+      });
+    }
+
+    res.status(201).json({
+      recorded: true,
+      commission: insert.commission,
+    });
+  } catch (err: any) {
+    console.error('POST /api/referrals/commissions failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to record commission') });
+  }
+});
+
+/** Admin only: all links + commissions + aggregates. */
+app.get('/api/referrals/admin/overview', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canSettleReferralCommission(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const links = await referralsRepo.listLinks();
+    const commissions = await referralsRepo.listAllCommissions();
+    const totals = sumCommissionTotals(commissions);
+    const byReferrer = links.map((link) => {
+      const rows = commissions.filter((c) => c.referrerClerkId === link.ownerClerkId);
+      return {
+        link,
+        commissions: rows,
+        totals: sumCommissionTotals(rows),
+      };
+    });
+    res.json({ links, commissions, totals, byReferrer });
+  } catch (err: any) {
+    console.error('GET /api/referrals/admin/overview failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load referral overview') });
+  }
+});
+
+/** Admin only: mark commission settled. */
+app.patch('/api/referrals/commissions/:id/settle', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    if (!canSettleReferralCommission(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing commission id' });
+    const commission = await referralsRepo.settleCommission(id, userId);
+    if (!commission) return res.status(404).json({ error: 'Commission not found' });
+    res.json({ commission });
+  } catch (err: any) {
+    console.error('PATCH /api/referrals/commissions/:id/settle failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to settle commission') });
+  }
+});
+
+function toClientPaymentClaim(c: Awaited<ReturnType<PaymentClaimsRepository['getById']>>) {
+  if (!c) return null;
+  return {
+    id: c.id,
+    userId: c.userId,
+    clerkUserId: c.clerkUserId,
+    userName: c.userName,
+    userEmail: c.userEmail,
+    planCode: c.planCode,
+    amountNpr: c.amountNpr,
+    paymentMethod: c.paymentMethod,
+    transactionRef: c.transactionRef,
+    screenshotUrl: c.screenshotUrl,
+    status: c.status,
+    userNotes: c.userNotes || undefined,
+    moderatorNotes: c.moderatorNotes || undefined,
+    submittedAt: c.submittedAt,
+    verifiedAt: c.verifiedAt || undefined,
+    verifiedBy: c.verifiedBy || undefined,
+  };
+}
+
+/** Student: submit payment claim. Staff queue is server-backed (dynamic). */
+app.post('/api/payment-claims', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    const planCode = typeof req.body?.planCode === 'string' ? req.body.planCode.trim() : '';
+    const transactionRef =
+      typeof req.body?.transactionRef === 'string' ? req.body.transactionRef.trim() : '';
+    const screenshotUrl =
+      typeof req.body?.screenshotUrl === 'string' ? req.body.screenshotUrl.trim() : '';
+    const userNotes =
+      typeof req.body?.userNotes === 'string' ? req.body.userNotes.trim() : '';
+    const amountRaw = req.body?.amountNpr;
+    const amountNpr = typeof amountRaw === 'number' ? amountRaw : Number(amountRaw);
+    const paymentMethod = req.body?.paymentMethod;
+
+    if (!planCode) return res.status(400).json({ error: 'planCode is required' });
+    if (!transactionRef) return res.status(400).json({ error: 'transactionRef is required' });
+    if (!isPaymentMethod(paymentMethod)) {
+      return res.status(400).json({ error: 'paymentMethod must be eSewa, Khalti, or Bank Transfer' });
+    }
+    if (!Number.isFinite(amountNpr) || amountNpr <= 0) {
+      return res.status(400).json({ error: 'amountNpr must be a positive number' });
+    }
+
+    const claim = await paymentClaimsRepo.insert({
+      id: `pay-claim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      userId: profile.id || `usr-clerk-${userId}`,
+      clerkUserId: userId,
+      userName: profile.name,
+      userEmail: profile.email,
+      planCode,
+      amountNpr: Math.round(amountNpr),
+      paymentMethod,
+      transactionRef,
+      screenshotUrl: screenshotUrl || '',
+      userNotes: userNotes || null,
+    });
+
+    res.status(201).json({ claim: toClientPaymentClaim(claim) });
+  } catch (err: any) {
+    console.error('POST /api/payment-claims failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to submit payment claim') });
+  }
+});
+
+/**
+ * List claims.
+ * - Billing staff / Admin: all claims (FIFO pending first)
+ * - Students: own claims only
+ */
+app.get('/api/payment-claims', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    const staff = canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email));
+    const rows = staff
+      ? sortClaimsForQueue(await paymentClaimsRepo.listAll())
+      : await paymentClaimsRepo.listByClerkUserId(userId);
+    res.json({
+      claims: rows.map((c) => toClientPaymentClaim(c)),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('GET /api/payment-claims failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load payment claims') });
+  }
+});
+
+/** Billing staff: approve claim → activate plan + record referral commission. */
+app.post('/api/payment-claims/:id/approve', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    if (!canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Billing staff only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing claim id' });
+
+    const existing = await paymentClaimsRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: 'Claim not found' });
+    if (existing.status !== 'pending') {
+      return res.status(409).json({ error: `Claim already ${existing.status}`, claim: toClientPaymentClaim(existing) });
+    }
+
+    const claim = await paymentClaimsRepo.resolve(id, {
+      status: 'approved',
+      verifiedBy: profile.name,
+      verifiedByClerkId: userId,
+      moderatorNotes: typeof req.body?.moderatorNotes === 'string' ? req.body.moderatorNotes : null,
+    });
+    if (!claim) {
+      return res.status(409).json({ error: 'Claim was already resolved by another moderator' });
+    }
+
+    const entitlements = defaultEntitlementsForPlan(claim.planCode);
+    let activatedUser = null as ReturnType<typeof mapUser> | null;
+    try {
+      const updated = await updatePublicMetadataAtomic({
+        userId: claim.clerkUserId,
+        getUser: (id) => clerk.users.getUser(id),
+        updateUser: (id, data) => clerk.users.updateUser(id, data),
+        mutator: (draft) => {
+          const prevMocks =
+            typeof draft.mocksRemaining === 'number' || draft.mocksRemaining === null
+              ? (draft.mocksRemaining as number | null)
+              : 0;
+          const prevCoins =
+            typeof draft.studyCoinBalance === 'number' ? (draft.studyCoinBalance as number) : 0;
+          const nextMocks =
+            entitlements.mocksGranted === null
+              ? null
+              : (prevMocks ?? 0) + entitlements.mocksGranted;
+          return {
+            ok: true,
+            next: {
+              ...draft,
+              plan: entitlements.tier,
+              mocksRemaining: nextMocks,
+              studyCoinBalance: prevCoins + entitlements.coinsGranted,
+            },
+          };
+        },
+      });
+      if ('user' in updated) {
+        activatedUser = mapUser(updated.user as any);
+      }
+    } catch (activateErr: any) {
+      console.error('Approve claim: Clerk activation failed:', activateErr?.message || activateErr);
+    }
+
+    let commission = null as any;
+    let commissionRecorded = false;
+    try {
+      const attribution = await referralsRepo.getAttribution(claim.clerkUserId);
+      if (attribution) {
+        const commissionAmountNpr = computeCommissionAmountNpr(
+          claim.amountNpr,
+          REFERRAL_COMMISSION_RATE
+        );
+        const insert = await referralsRepo.insertCommission({
+          id: `refc-${claim.id}`.slice(0, 64),
+          claimId: claim.id,
+          referredClerkId: claim.clerkUserId,
+          referrerClerkId: attribution.referrerClerkId,
+          conversionAmountNpr: claim.amountNpr,
+          commissionRate: REFERRAL_COMMISSION_RATE,
+          commissionAmountNpr,
+        });
+        if (insert.ok === true) {
+          commission = insert.commission;
+          commissionRecorded = true;
+        } else {
+          commission = insert.existing;
+        }
+      }
+    } catch (commErr: any) {
+      console.error('Approve claim: referral commission failed:', commErr?.message || commErr);
+    }
+
+    res.json({
+      claim: toClientPaymentClaim(claim),
+      activatedUser,
+      entitlements,
+      referralCommission: { recorded: commissionRecorded, commission },
+    });
+  } catch (err: any) {
+    console.error('POST /api/payment-claims/:id/approve failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to approve claim') });
+  }
+});
+
+/** Billing staff: reject claim. */
+app.post('/api/payment-claims/:id/reject', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    if (!canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Billing staff only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing claim id' });
+    const reason =
+      typeof req.body?.reason === 'string'
+        ? req.body.reason.trim()
+        : typeof req.body?.moderatorNotes === 'string'
+          ? req.body.moderatorNotes.trim()
+          : '';
+
+    const claim = await paymentClaimsRepo.resolve(id, {
+      status: 'rejected',
+      verifiedBy: profile.name,
+      verifiedByClerkId: userId,
+      moderatorNotes: reason || 'Rejected',
+    });
+    if (!claim) {
+      const existing = await paymentClaimsRepo.getById(id);
+      if (!existing) return res.status(404).json({ error: 'Claim not found' });
+      return res.status(409).json({ error: `Claim already ${existing.status}`, claim: toClientPaymentClaim(existing) });
+    }
+    res.json({ claim: toClientPaymentClaim(claim) });
+  } catch (err: any) {
+    console.error('POST /api/payment-claims/:id/reject failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to reject claim') });
+  }
+});
+
+function toClientSupportIssue(i: NonNullable<Awaited<ReturnType<SupportIssuesRepository['getById']>>>) {
+  return {
+    id: i.id,
+    clerkUserId: i.clerkUserId,
+    userName: i.userName,
+    userEmail: i.userEmail,
+    category: i.category,
+    body: i.body,
+    status: i.status,
+    staffNotes: i.staffNotes || undefined,
+    createdAt: i.createdAt,
+    resolvedAt: i.resolvedAt || undefined,
+    resolvedBy: i.resolvedBy || undefined,
+  };
+}
+
+/** Signed-in user: submit a support / content issue. */
+app.post('/api/support-issues', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    const category = req.body?.category;
+    const body = normalizeIssueBody(typeof req.body?.body === 'string' ? req.body.body : '');
+
+    if (!isSupportIssueCategory(category)) {
+      return res.status(400).json({
+        error: 'category must be technical, content, payment, or coins',
+      });
+    }
+    if (body.length < 10) {
+      return res.status(400).json({ error: 'Description must be at least 10 characters' });
+    }
+
+    const issue = await supportIssuesRepo.insert({
+      id: `issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      clerkUserId: userId,
+      userName: profile.name || 'Aspirant',
+      userEmail: profile.email || '',
+      category,
+      body,
+    });
+
+    res.status(201).json({ issue: toClientSupportIssue(issue) });
+  } catch (err: any) {
+    console.error('POST /api/support-issues failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to submit issue') });
+  }
+});
+
+/**
+ * List issues.
+ * - Staff: all (open FIFO first)
+ * - Students: own issues only
+ */
+app.get('/api/support-issues', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    const staff = canTriageSupportIssues(profile.role, isBootstrapAdminEmail(profile.email));
+    const rows = staff
+      ? sortIssuesForQueue(await supportIssuesRepo.listAll())
+      : await supportIssuesRepo.listByClerkUserId(userId);
+    res.json({
+      issues: rows.map((i) => toClientSupportIssue(i)),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('GET /api/support-issues failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load issues') });
+  }
+});
+
+/** Staff: mark issue resolved. */
+app.post('/api/support-issues/:id/resolve', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    if (!canTriageSupportIssues(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Staff only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing issue id' });
+
+    const existing = await supportIssuesRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: 'Issue not found' });
+    if (existing.status !== 'open') {
+      return res
+        .status(409)
+        .json({ error: `Issue already ${existing.status}`, issue: toClientSupportIssue(existing) });
+    }
+
+    const issue = await supportIssuesRepo.resolve(id, {
+      staffNotes: typeof req.body?.staffNotes === 'string' ? req.body.staffNotes.trim() : null,
+      resolvedBy: profile.name,
+      resolvedByClerkId: userId,
+    });
+    if (!issue) {
+      return res.status(409).json({ error: 'Issue was already resolved by another moderator' });
+    }
+
+    res.json({ issue: toClientSupportIssue(issue) });
+  } catch (err: any) {
+    console.error('POST /api/support-issues/:id/resolve failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to resolve issue') });
+  }
+});
+
+/** List formula sheets (any signed-in user). */
+app.get('/api/formulas', requireAuth, async (_req, res) => {
+  try {
+    const sheets = await formulasRepo.list();
+    res.json({
+      sheets: sheets.map(toClientFormulaSheet),
+      total: sheets.length,
+      syncedAt: new Date().toISOString(),
+      source: formulasRepo.driver,
+    });
+  } catch (err: any) {
+    console.error('GET /api/formulas failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load formulas') });
+  }
+});
+
+/** Staff: list formula import batches. */
+app.get('/api/formulas/batches', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Questions moderator or Admin required' });
+    }
+    const batches = await formulasRepo.listBatches();
+    res.json({
+      batches: batches.map(toClientFormulaBatch),
+      syncedAt: new Date().toISOString(),
+      source: formulasRepo.driver,
+    });
+  } catch (err: any) {
+    console.error('GET /api/formulas/batches failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load formula batches') });
+  }
+});
+
+/** Staff: bulk import formula sheets as one batch (partial success). */
+app.post('/api/formulas/import', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Questions moderator or Admin required' });
+    }
+
+    const payload = Array.isArray(req.body) ? req.body : req.body?.sheets;
+    const filename =
+      typeof req.body?.filename === 'string' && req.body.filename.trim()
+        ? req.body.filename.trim()
+        : null;
+    const label =
+      typeof req.body?.label === 'string' && req.body.label.trim()
+        ? req.body.label.trim()
+        : filename || `Formula import ${new Date().toLocaleString()}`;
+
+    const batchId = `fbatch-${Date.now()}`;
+    const parsed = parseFormulaImportBatch(payload, { batchId });
+    let successCount = 0;
+    if (parsed.sheets.length > 0) {
+      await formulasRepo.createBatch({
+        id: batchId,
+        label,
+        filename,
+        importedByEmail: profile.email,
+        importedByName: profile.name,
+        sheetCount: parsed.sheets.length,
+        errorCount: parsed.errors.length,
+      });
+      successCount = await formulasRepo.insertMany(parsed.sheets);
+    }
+
+    const batches = await formulasRepo.listBatches();
+    const sheets = await formulasRepo.list();
+    res.json({
+      successCount,
+      errors: parsed.errors,
+      batchId: successCount > 0 ? batchId : null,
+      batches: batches.map(toClientFormulaBatch),
+      sheets: sheets.map(toClientFormulaSheet),
+      total: sheets.length,
+      syncedAt: new Date().toISOString(),
+      source: formulasRepo.driver,
+    });
+  } catch (err: any) {
+    console.error('POST /api/formulas/import failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to import formulas') });
+  }
+});
+
+/** Staff: delete a formula import batch and its sheets. */
+app.delete('/api/formulas/batches/:batchId', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Questions moderator or Admin required' });
+    }
+    const existing = await formulasRepo.getBatch(req.params.batchId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Batch not found' });
+    }
+    const result = await formulasRepo.deleteBatch(req.params.batchId);
+    res.json({
+      deleted: true,
+      batchId: req.params.batchId,
+      deletedSheets: result.deletedSheets,
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('DELETE /api/formulas/batches/:batchId failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to delete formula batch') });
+  }
+});
+
 async function boot() {
   try {
+    // Clerk-side: block disposable inboxes at sign-up (Dashboard Rules equivalent).
+    try {
+      await clerk.instance.updateRestrictions({
+        blockDisposableEmailDomains: true,
+        blockEmailSubaddresses: true,
+      });
+      console.log('Clerk restrictions: disposable emails + email subaddresses blocked');
+    } catch (err: any) {
+      console.warn(
+        'Could not update Clerk email restrictions (enable in Dashboard → Protect → Rules):',
+        err?.message || err
+      );
+    }
+
     const repos = await createAppRepositories();
     questionsRepo = repos.questions;
     mocksRepo = repos.mocks;
+    referralsRepo = repos.referrals;
+    paymentClaimsRepo = repos.paymentClaims;
+    supportIssuesRepo = repos.supportIssues;
+    formulasRepo = repos.formulas;
     const total = await questionsRepo.countAll();
     const mockTotal = (await mocksRepo.list()).length;
+    const formulaTotal = await formulasRepo.countAll();
 
     // Serve Vite production build from the same Node process (Hostinger-friendly).
     const distDir = path.join(root, 'dist');
@@ -1484,7 +2240,9 @@ async function boot() {
 
     app.listen(PORT, API_BIND_HOST, () => {
       console.log(`PrepX API listening on http://${API_BIND_HOST}:${PORT}`);
-      console.log(`Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks)`);
+      console.log(
+        `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets)`
+      );
       if (fs.existsSync(distDir)) {
         console.log(`Serving SPA from ${distDir}`);
       } else {

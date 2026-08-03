@@ -1,5 +1,6 @@
 import React from 'react';
-import { ShieldCheck, FileText, Lock, AlertTriangle, CheckCircle2, Clock, Mail } from 'lucide-react';
+import { ShieldCheck, FileText, Lock, Clock, Mail } from 'lucide-react';
+import { AppIcon } from './ui';
 
 export const PoliciesView: React.FC = () => {
   return (
@@ -7,7 +8,7 @@ export const PoliciesView: React.FC = () => {
       {/* Banner */}
       <div className="bg-[#17324D] text-white p-6 rounded-xl border border-slate-800 shadow-md space-y-2">
         <div className="flex items-center space-x-2 text-amber-300 text-xs font-semibold">
-          <ShieldCheck className="w-4 h-4" />
+          <AppIcon icon={ShieldCheck} size="btn" />
           <span>Institutional Policy & Legal Governance Framework</span>
         </div>
         <h1 className="text-2xl font-extrabold text-white tracking-tight">
@@ -23,7 +24,7 @@ export const PoliciesView: React.FC = () => {
         {/* Section 1: Content Provenance */}
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-[#8A1538]" />
+            <AppIcon icon={FileText} size="btn" className="text-[#8A1538]" />
             1. Content Copyright & Provenance (Nepal Copyright Act 2059)
           </h2>
           <p>
@@ -39,7 +40,7 @@ export const PoliciesView: React.FC = () => {
         {/* Section 2: Takedown SLA */}
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-amber-600" />
+            <AppIcon icon={Clock} size="btn" className="text-amber-600" />
             2. Copyright Takedown SLA & Dispute Resolution
           </h2>
           <p>
@@ -60,7 +61,7 @@ export const PoliciesView: React.FC = () => {
         {/* Section 3: Privacy Notice */}
         <section className="space-y-2">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
-            <Lock className="w-4 h-4 text-[#17324D]" />
+            <AppIcon icon={Lock} size="btn" className="text-[#17324D]" />
             3. Privacy & Data Minimization (Nepal Privacy Act 2075)
           </h2>
           <p>
@@ -75,7 +76,7 @@ export const PoliciesView: React.FC = () => {
             <p className="text-[11px] text-slate-300">Kathmandu, Nepal</p>
           </div>
           <div className="flex items-center space-x-2 text-xs font-semibold bg-[#2563EB] px-3 py-1.5 rounded-lg">
-            <Mail className="w-3.5 h-3.5" />
+            <AppIcon icon={Mail} size="btn" />
             <span>support@prepxnepal.edu.np</span>
           </div>
         </div>

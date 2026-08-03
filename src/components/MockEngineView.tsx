@@ -5,17 +5,12 @@ import {
   ChevronRight, 
   Bookmark, 
   Flag, 
-  AlertTriangle, 
   CheckCircle2, 
-  HelpCircle, 
-  Globe, 
   X, 
   Grid,
-  Zap,
-  RotateCcw
 } from 'lucide-react';
 import { MockTest, Question, AttemptState } from '../types';
-
+import { AppIcon } from './ui';
 interface MockEngineViewProps {
   mockTest: MockTest;
   onSubmitAttempt: (attempt: AttemptState) => void | Promise<void>;
@@ -216,7 +211,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
               onClick={onExit}
               className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors cursor-pointer"
             >
-              <X className="w-4 h-4" />
+              <AppIcon icon={X} size="btn" />
             </button>
           </div>
 
@@ -289,54 +284,61 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
   return (
     <div className="min-h-screen bg-slate-100 font-sans flex flex-col">
       {/* Top Fixed Exam Navigation & Timer Header */}
-      <header className="bg-slate-900 text-white sticky top-0 z-40 border-b border-slate-800 shadow-md py-3 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <header className="bg-slate-900 text-white sticky top-0 z-40 border-b border-slate-800 shadow-md py-3 px-3 sm:px-6">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Left Title & Exit */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
+              type="button"
               onClick={onExit}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors cursor-pointer"
+              className="touch-target inline-flex items-center justify-center p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors cursor-pointer shrink-0"
               title="Exit Test"
+              aria-label="Exit test"
             >
-              <X className="w-4 h-4" />
+              <AppIcon icon={X} size="btn" />
             </button>
-            <div>
-              <h2 className="font-bold text-white text-sm sm:text-base tracking-tight line-clamp-1">
+            <div className="min-w-0">
+              <h2 className="font-bold text-white text-sm sm:text-base tracking-tight truncate">
                 {mockTest.title}
               </h2>
-              <div className="text-[10px] text-slate-400 font-mono">
+              <div className="text-[10px] text-slate-400 font-mono truncate">
                 {mockTest.examType} • {mockTest.totalQuestions} Questions • 20 Qs / Page
               </div>
             </div>
           </div>
 
-          {/* Center Timer Display */}
-          <div className="bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 flex items-center gap-2 font-mono">
-            <Clock className={`w-4 h-4 ${remainingSecs < 600 ? 'text-rose-500 animate-ping' : 'text-cyan-400'}`} />
-            <div className="text-right">
-              <div className="text-[9px] uppercase text-slate-400">Time Remaining</div>
-              <div className={`text-base font-black tracking-wider ${remainingSecs < 600 ? 'text-rose-400' : 'text-white'}`}>
-                {formatTime(remainingSecs)}
+          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
+            {/* Timer Display */}
+            <div className="bg-slate-950 px-3 sm:px-4 py-2 rounded-xl border border-slate-800 flex items-center gap-2 font-mono shrink-0">
+            <AppIcon icon={Clock} size="btn" className={remainingSecs < 600 ? 'text-rose-400' : 'text-cyan-400'} />
+              <div className="text-right">
+                <div className="text-[9px] uppercase text-slate-400">Time Left</div>
+                <div className={`text-base font-black tracking-wider ${remainingSecs < 600 ? 'text-rose-400' : 'text-white'}`}>
+                  {formatTime(remainingSecs)}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Right Palette Toggle & Submit CTA */}
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setShowPaletteDrawer(true)}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 cursor-pointer"
-            >
-              <Grid className="w-4 h-4 text-cyan-400" />
-              <span className="hidden sm:inline">Question Palette</span>
-            </button>
+            {/* Palette Toggle & Submit CTA */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowPaletteDrawer(true)}
+                className="min-h-11 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <AppIcon icon={Grid} size="btn" className="text-cyan-400" />
+                <span className="hidden sm:inline">Question Palette</span>
+              </button>
 
-            <button
-              onClick={() => setShowSubmitModal(true)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
-            >
-              Submit Exam
-            </button>
+              <button
+                type="button"
+                onClick={() => setShowSubmitModal(true)}
+                className="min-h-11 px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer whitespace-nowrap"
+              >
+                <span className="sm:hidden">Submit</span>
+                <span className="hidden sm:inline">Submit Exam</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -380,7 +382,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                     onClick={() => setAttempt(p => ({ ...p, currentPage: Math.max(1, p.currentPage - 1) }))}
                     className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 rounded-lg flex items-center gap-1 cursor-pointer"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <AppIcon icon={ChevronLeft} size="btn" />
                     <span>Prev</span>
                   </button>
 
@@ -390,14 +392,14 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                     className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg flex items-center gap-1 cursor-pointer"
                   >
                     <span>Next</span>
-                    <ChevronRight className="w-4 h-4" />
+                    <AppIcon icon={ChevronRight} size="btn" />
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Filter Mode Toolbar */}
-            <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto text-[11px] font-bold">
+            <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto scroll-x-safe text-[11px] font-bold">
               <span className="text-slate-400 font-normal shrink-0">Filter:</span>
               <button
                 onClick={() => setFilterMode('all')}
@@ -489,7 +491,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                         }`}
                         title="Bookmark question"
                       >
-                        <Bookmark className="w-4 h-4 fill-current" />
+                        <AppIcon icon={Bookmark} size="btn" />
                       </button>
 
                       <button
@@ -499,7 +501,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                         }`}
                         title="Report/Flag question error"
                       >
-                        <Flag className="w-4 h-4" />
+                        <AppIcon icon={Flag} size="btn" />
                       </button>
                     </div>
                   </div>
@@ -569,7 +571,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
               onClick={() => setAttempt(p => ({ ...p, currentPage: Math.max(1, p.currentPage - 1) }))}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-800 rounded-xl flex items-center gap-1 cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <AppIcon icon={ChevronLeft} size="btn" />
               <span>Previous Page</span>
             </button>
 
@@ -583,7 +585,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl flex items-center gap-1 cursor-pointer"
             >
               <span>Next Page</span>
-              <ChevronRight className="w-4 h-4" />
+              <AppIcon icon={ChevronRight} size="btn" />
             </button>
           </div>
         </main>
@@ -666,14 +668,15 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-6 border border-slate-200 shadow-2xl space-y-4 animate-in slide-in-from-bottom duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Grid className="w-4 h-4 text-cyan-600" />
+                <AppIcon icon={Grid} size="btn" className="text-cyan-600" />
                 <span>Question Palette ({mockTest.totalQuestions} Qs)</span>
               </h3>
               <button
                 onClick={() => setShowPaletteDrawer(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-100 rounded-lg cursor-pointer"
+                className="touch-target inline-flex items-center justify-center p-2 text-slate-400 hover:text-slate-700 bg-slate-100 rounded-lg cursor-pointer"
+                aria-label="Close question palette"
               >
-                <X className="w-4 h-4" />
+                <AppIcon icon={X} size="btn" />
               </button>
             </div>
 
@@ -745,7 +748,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
           <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-slate-200 shadow-2xl space-y-5">
             <div className="flex items-center space-x-3 text-emerald-600">
               <div className="p-2 bg-emerald-100 rounded-xl">
-                <CheckCircle2 className="w-6 h-6" />
+                <AppIcon icon={CheckCircle2} size="lg" />
               </div>
               <h3 className="text-lg font-black text-slate-900">Final Exam Submission</h3>
             </div>

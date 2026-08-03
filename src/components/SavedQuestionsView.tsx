@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Bookmark, Search, CheckCircle2, Trash2 } from 'lucide-react';
 import type { SavedQuestionItem } from '../lib/savedQuestions';
 import { formatRelativeTime } from '../lib/notifications';
+import { AppIcon } from './ui';
 
 interface SavedQuestionsViewProps {
   items: SavedQuestionItem[];
@@ -32,7 +33,7 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
       <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Bookmark className="w-6 h-6 text-amber-500 fill-current" />
+            <AppIcon icon={Bookmark} size="lg" className="text-amber-500" />
             <span>Saved & Flagged Questions</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
@@ -51,7 +52,7 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
               key={sub}
               type="button"
               onClick={() => setSelectedSubject(sub)}
-              className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+              className={`px-3.5 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer ${
                 selectedSubject === sub
                   ? 'bg-slate-900 text-white font-bold'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -63,13 +64,13 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
         </div>
 
         <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <AppIcon icon={Search} size="btn" className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search saved questions..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+            className="w-full pl-9 pr-3 py-2.5 min-h-11 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600"
           />
         </div>
       </div>
@@ -77,7 +78,7 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
       <div className="space-y-4">
         {filtered.length === 0 ? (
           <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 space-y-3">
-            <Bookmark className="w-10 h-10 text-slate-300 mx-auto" />
+            <AppIcon icon={Bookmark} size="lg" className="text-slate-300 mx-auto" />
             <h3 className="text-sm font-bold text-slate-700">No saved questions yet</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
               Bookmark questions with the star icon while taking a mock. They will appear here for revision.
@@ -113,7 +114,7 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
                     className="hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
                     title="Remove Bookmark"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <AppIcon icon={Trash2} size="btn" />
                   </button>
                 </div>
               </div>
@@ -163,7 +164,7 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
                           )}
                         </span>
                       </span>
-                      {isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                      {isCorrect && <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0" />}
                     </div>
                   );
                 })}

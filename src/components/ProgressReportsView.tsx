@@ -3,7 +3,7 @@ import { Award, ChevronRight, ClipboardList } from 'lucide-react';
 import type { AttemptReport, UserProfile } from '../types';
 import { MockScoreTrendChart } from './MockScoreTrendChart';
 import { ReportView } from './ReportView';
-
+import { AppIcon } from './ui';
 interface ProgressReportsViewProps {
   pastReports: AttemptReport[];
   activeReport: AttemptReport | null;
@@ -33,16 +33,17 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
 
   if (pastReports.length === 0) {
     return (
-      <div className="p-8 bg-white/95 backdrop-blur-2xl border border-slate-200/80 rounded-[22px] text-center max-w-md mx-auto my-12 shadow-2xs space-y-4 font-sans">
-        <div className="text-slate-800 font-black text-lg">No Mock Attempts Yet</div>
-        <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-          Complete a Nepal CEE mock exam from the mock catalog to generate your first progress report & performance analysis.
+      <div className="p-6 sm:p-8 bg-white border border-slate-200 rounded-2xl text-center max-w-md mx-4 sm:mx-auto my-12 space-y-4 font-sans">
+        <div className="text-slate-900 font-semibold text-lg">No mock attempts yet</div>
+        <p className="text-slate-600 text-sm leading-relaxed">
+          Finish a timed mock from the catalog to see score trends and chapter reports here.
         </p>
         <button
+          type="button"
           onClick={() => onNavigate('catalog')}
-          className="px-5 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+          className="min-h-11 px-5 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer"
         >
-          Browse Mock Catalog
+          Open mock catalog
         </button>
       </div>
     );
@@ -53,7 +54,7 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-800 text-xs font-bold rounded-full mb-2 border border-blue-100">
-            <ClipboardList className="w-3.5 h-3.5" />
+            <AppIcon icon={ClipboardList} size="btn" />
             <span>Progress Reports</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
@@ -74,7 +75,7 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
               <span className="font-bold text-slate-900">{summary.avg}</span>
             </div>
             <div className="px-3 py-2 rounded-xl bg-white border border-slate-200 flex items-center gap-1.5">
-              <Award className="w-3.5 h-3.5 text-amber-500" />
+              <AppIcon icon={Award} size="btn" className="text-amber-500" />
               <div>
                 <span className="text-slate-500 font-sans font-semibold block text-[9px] uppercase">Best</span>
                 <span className="font-bold text-emerald-700">{summary.best}</span>
@@ -121,7 +122,7 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
                       {report.overallScore}
                       <span className="text-slate-400 font-normal text-[10px]">/{report.maxScore}</span>
                     </span>
-                    <ChevronRight className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-300'}`} />
+                    <AppIcon icon={ChevronRight} size="btn" className={isActive ? 'text-blue-600' : 'text-slate-300'} />
                   </div>
                 </button>
               </li>

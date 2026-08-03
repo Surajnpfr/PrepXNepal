@@ -1,352 +1,240 @@
 import React, { useState } from 'react';
-import { 
-  HelpCircle, 
-  CheckCircle2, 
-  ShieldCheck, 
-  ChevronDown, 
-  ChevronUp, 
-  Lock
-} from 'lucide-react';
+import { HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { BrandLogo } from './BrandLogo';
+import { AppIcon } from './ui';
 
 interface FooterProps {
   onNavigate: (tab: string, subTab?: string) => void;
 }
 
+type FooterLink = { label: string; tab: string; subTab?: string; tone?: 'danger' };
+
+const PREPARE_LINKS: FooterLink[] = [
+  { label: 'Nepal CEE Rules', tab: 'policies', subTab: 'info' },
+  { label: 'Mock Tests', tab: 'catalog' },
+  { label: 'Previous Year Papers', tab: 'catalog' },
+  { label: 'Formula Library', tab: 'formulas' },
+  { label: 'Study Planner', tab: 'planner' },
+];
+
+const EXPLORE_LINKS: FooterLink[] = [
+  { label: 'Dashboard', tab: 'home' },
+  { label: 'Performance Reports', tab: 'reports' },
+  { label: 'Saved Questions', tab: 'saved' },
+  { label: 'Study Coins Wallet', tab: 'coins' },
+  { label: 'Subscription Pricing', tab: 'payment' },
+];
+
+const HELP_LINKS: FooterLink[] = [
+  { label: 'Help Centre', tab: 'policies', subTab: 'info' },
+  { label: 'Frequently Asked Questions', tab: 'policies', subTab: 'faq' },
+  { label: 'Payment Reference Claim', tab: 'payment' },
+  { label: 'Report a Problem', tab: 'policies', subTab: 'issue', tone: 'danger' },
+];
+
+const LEGAL_LINKS: FooterLink[] = [
+  { label: 'Terms of Service', tab: 'policies', subTab: 'terms' },
+  { label: 'Privacy Policy', tab: 'policies', subTab: 'privacy' },
+  { label: 'Study Coins Policy', tab: 'policies', subTab: 'coins-policy' },
+  { label: 'Refund Policy', tab: 'policies', subTab: 'refund' },
+];
+
+function LinkButton({
+  item,
+  onNavigate,
+}: {
+  item: FooterLink;
+  onNavigate: FooterProps['onNavigate'];
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate(item.tab, item.subTab)}
+      className={`w-full text-left transition-colors cursor-pointer hover:text-[var(--px-primary)] ${
+        item.tone === 'danger'
+          ? 'text-rose-600 font-semibold hover:text-rose-700'
+          : 'text-[var(--px-muted)]'
+      }`}
+    >
+      {item.label}
+    </button>
+  );
+}
+
+function FooterSection({
+  id,
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  id: string;
+  title: string;
+  open: boolean;
+  onToggle: (id: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border-t border-[var(--px-border)] pt-4 md:border-t-0 md:pt-0">
+      <button
+        type="button"
+        onClick={() => onToggle(id)}
+        className="w-full flex items-center justify-between md:pointer-events-none text-left py-1"
+        aria-expanded={open}
+      >
+        <h4 className="font-bold text-[var(--px-heading)] text-[13px] sm:text-sm tracking-tight">
+          {title}
+        </h4>
+        <span className="md:hidden text-[var(--px-muted)] inline-flex items-center" aria-hidden>
+          <AppIcon icon={open ? ChevronUp : ChevronDown} size="btn" />
+        </span>
+      </button>
+      <div className={`pt-3 md:block ${open ? 'block' : 'hidden md:block'}`}>{children}</div>
+    </div>
+  );
+}
+
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
-  // Mobile accordion state for collapsible sections
   const [openSection, setOpenSection] = useState<string | null>(null);
 
   const toggleSection = (section: string) => {
-    setOpenSection(prev => prev === section ? null : section);
+    setOpenSection((prev) => (prev === section ? null : section));
   };
 
   return (
-    <footer className="bg-[#F5F8FD] text-[#172033] border-t border-[#E3E9F2] mt-16 font-sans relative overflow-hidden shadow-[0_-4px_20px_rgba(37,99,235,0.02)] select-none">
-      {/* Subtle atmospheric ambient glow behind footer */}
-      <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-full max-w-5xl h-48 bg-gradient-to-r from-blue-200/20 via-indigo-200/15 to-purple-200/20 blur-3xl pointer-events-none" />
-
-      {/* Main Footer Container */}
-      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 pt-10 pb-8 relative z-10 space-y-8">
-        
-        {/* 1. FOUR MAIN COLUMNS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
-          
-          {/* COLUMN 1 — BRAND */}
-          <div className="space-y-3.5">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-[#2563EB] text-white flex items-center justify-center font-black text-xs shadow-sm ring-2 ring-blue-500/20">
-                PX
-              </div>
-              <div>
-                <span className="font-extrabold text-[#172033] text-base tracking-tight block leading-none">
+    <footer className="mt-12 relative border-t border-[var(--px-border)] bg-[var(--px-surface-muted)] text-[var(--px-body)] font-sans">
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 pt-10 pb-10 relative z-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-x-8 gap-y-8 lg:gap-x-10">
+          {/* Brand */}
+          <div className="sm:col-span-2 lg:col-span-4 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <BrandLogo size={32} decorative className="shrink-0" />
+              <div className="min-w-0">
+                <span className="font-display font-extrabold text-[var(--px-heading)] text-base tracking-tight block leading-none">
                   PrepX Nepal
                 </span>
-                <span className="text-[11px] text-[#315FCE] font-bold">
+                <span className="text-[11px] text-[var(--px-primary)] font-bold">
                   Prepare smarter. Improve faster.
                 </span>
               </div>
             </div>
 
-            <p className="text-[#627089] text-xs sm:text-[13px] leading-relaxed max-w-xs font-normal">
-              Personalized mock tests, chapter-level analytics and focused revision tools for Nepal CEE preparation.
+            <p className="text-[var(--px-muted)] text-[13px] leading-relaxed max-w-[28ch]">
+              Personalized mock tests, chapter-level analytics, and focused revision tools for Nepal
+              CEE preparation.
             </p>
 
-            <div className="pt-1 text-[11px] text-[#8A96A8] font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#12A875] shrink-0" />
+            <p className="text-[11px] text-[var(--px-muted)] font-medium flex items-start gap-2 max-w-[32ch]">
+              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--px-success)] shrink-0" />
               <span>Built for students preparing for competitive entrance exams in Nepal.</span>
-            </div>
-          </div>
-
-          {/* COLUMN 2 — PREPARATION */}
-          <div className="border-t md:border-t-0 border-[#E3E9F2] pt-4 md:pt-0">
-            <button
-              onClick={() => toggleSection('prep')}
-              className="w-full flex items-center justify-between md:cursor-default text-left py-1"
-            >
-              <h4 className="font-bold text-[#172033] text-xs sm:text-[14px] tracking-tight">
-                Preparation
-              </h4>
-              <span className="md:hidden text-[#8A96A8]">
-                {openSection === 'prep' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </span>
-            </button>
-
-            <ul className={`space-y-2.5 pt-3 text-xs sm:text-[13px] font-medium text-[#627089] list-none pl-0 md:block ${
-              openSection === 'prep' ? 'block' : 'hidden md:block'
-            }`}>
-              <li>
-                <button 
-                  onClick={() => onNavigate('policies', 'info')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Nepal CEE Rules
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('catalog')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Mock Tests
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('catalog')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Previous Year Papers
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('formulas')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Formula Library
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('planner')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Study Planner
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* COLUMN 3 — PLATFORM */}
-          <div className="border-t md:border-t-0 border-[#E3E9F2] pt-4 md:pt-0">
-            <button
-              onClick={() => toggleSection('platform')}
-              className="w-full flex items-center justify-between md:cursor-default text-left py-1"
-            >
-              <h4 className="font-bold text-[#172033] text-xs sm:text-[14px] tracking-tight">
-                Platform Navigation
-              </h4>
-              <span className="md:hidden text-[#8A96A8]">
-                {openSection === 'platform' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </span>
-            </button>
-
-            <ul className={`space-y-2.5 pt-3 text-xs sm:text-[13px] font-medium text-[#627089] list-none pl-0 md:block ${
-              openSection === 'platform' ? 'block' : 'hidden md:block'
-            }`}>
-              <li>
-                <button 
-                  onClick={() => onNavigate('home')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Dashboard
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('reports')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Performance Reports
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('saved')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Saved Questions
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('coins')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Study Coins Wallet
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('payment')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Subscription Pricing
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('policies', 'info')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Help Centre Desk
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* COLUMN 4 — SUPPORT */}
-          <div className="border-t md:border-t-0 border-[#E3E9F2] pt-4 md:pt-0 space-y-3">
-            <h4 className="font-bold text-[#172033] text-xs sm:text-[14px] tracking-tight">
-              Academic Support
-            </h4>
-
-            <p className="text-[#627089] text-xs sm:text-[13px] leading-snug">
-              Need assistance with subscriptions, CEE marks, or payment verifications?
             </p>
+          </div>
 
-            <button
-              onClick={() => onNavigate('policies', 'issue')}
-              className="h-[44px] px-4 bg-[#2563EB] hover:bg-[#1F4FC1] text-white font-bold text-xs sm:text-[13px] rounded-[14px] shadow-[0_4px_14px_rgba(37,99,235,0.25)] flex items-center justify-center gap-2 transition-all cursor-pointer w-full text-center"
+          {/* Prepare */}
+          <div className="lg:col-span-2">
+            <FooterSection
+              id="prepare"
+              title="Prepare"
+              open={openSection === 'prepare'}
+              onToggle={toggleSection}
             >
-              <HelpCircle className="w-4 h-4 text-white/90" />
-              <span>Contact Support Desk</span>
-            </button>
+              <ul className="space-y-2.5 text-[13px] font-medium list-none pl-0 m-0">
+                {PREPARE_LINKS.map((item) => (
+                  <li key={item.label}>
+                    <LinkButton item={item} onNavigate={onNavigate} />
+                  </li>
+                ))}
+              </ul>
+            </FooterSection>
+          </div>
 
-            <ul className="space-y-2 pt-1 text-xs sm:text-[13px] font-medium text-[#627089] list-none pl-0">
-              <li>
-                <button 
-                  onClick={() => onNavigate('policies', 'faq')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Frequently Asked Questions
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('payment')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Payment Reference Claim
-                </button>
-              </li>
-              <li>
-                <button 
+          {/* Explore */}
+          <div className="lg:col-span-2">
+            <FooterSection
+              id="explore"
+              title="Explore"
+              open={openSection === 'explore'}
+              onToggle={toggleSection}
+            >
+              <ul className="space-y-2.5 text-[13px] font-medium list-none pl-0 m-0">
+                {EXPLORE_LINKS.map((item) => (
+                  <li key={item.label}>
+                    <LinkButton item={item} onNavigate={onNavigate} />
+                  </li>
+                ))}
+              </ul>
+            </FooterSection>
+          </div>
+
+          {/* Help */}
+          <div className="lg:col-span-4 space-y-4">
+            <FooterSection
+              id="help"
+              title="Help"
+              open={openSection === 'help'}
+              onToggle={toggleSection}
+            >
+              <div className="space-y-4">
+                <p className="text-[var(--px-muted)] text-[13px] leading-snug max-w-[36ch]">
+                  Need help with subscriptions, CEE marks, or payment verification?
+                </p>
+
+                <button
+                  type="button"
                   onClick={() => onNavigate('policies', 'issue')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full text-rose-600 font-semibold"
+                  className="h-11 px-4 w-full sm:w-auto min-w-[200px] bg-[var(--px-primary)] hover:opacity-90 text-white font-bold text-[13px] rounded-[14px] shadow-[var(--px-shadow)] inline-flex items-center justify-center gap-2 transition-opacity cursor-pointer"
                 >
-                  Report a Problem
+                  <AppIcon icon={HelpCircle} size="btn" className="text-white/90" />
+                  <span>Contact Support</span>
                 </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('policies', 'terms')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Terms of Service
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => onNavigate('policies', 'privacy')}
-                  className="hover:text-[#1F4FC1] transition-colors cursor-pointer text-left w-full"
-                >
-                  Privacy Policy
-                </button>
-              </li>
-            </ul>
-          </div>
 
+                <ul className="space-y-2.5 text-[13px] font-medium list-none pl-0 m-0">
+                  {HELP_LINKS.map((item) => (
+                    <li key={item.label}>
+                      <LinkButton item={item} onNavigate={onNavigate} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </FooterSection>
+          </div>
         </div>
-
-        {/* 2. TRUST AND PAYMENT STRIP (Liquid Glass Panel) */}
-        <div className="bg-white/80 backdrop-blur-xl border border-white/90 rounded-[20px] p-4 sm:p-5 shadow-[0_4px_20px_rgba(37,99,235,0.03)] grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 items-center text-xs text-[#627089]">
-          
-          {/* Group 1 — Platform Status */}
-          <div className="space-y-1">
-            <div className="font-bold text-[#172033] flex items-center gap-1.5 text-xs">
-              <CheckCircle2 className="w-4 h-4 text-[#12A875]" />
-              <span>Platform Availability & Speed</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs text-[#627089] font-medium">
-              <span>99.5% target availability</span>
-              <span>•</span>
-              <span>Secure exam timing</span>
-              <span>•</span>
-              <span>Fast report generation</span>
-            </div>
-          </div>
-
-          {/* Group 2 — Payment Methods */}
-          <div className="space-y-1.5 border-t md:border-t-0 md:border-l border-[#E3E9F2] pt-3 md:pt-0 md:pl-5">
-            <div className="font-bold text-[#172033] text-xs">
-              Accepted payments
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="px-2.5 py-1 bg-emerald-50/90 text-[#12A875] border border-emerald-200/80 rounded-lg font-bold text-[11px] shadow-2xs">
-                eSewa
-              </span>
-              <span className="px-2.5 py-1 bg-purple-50/90 text-purple-700 border border-purple-200/80 rounded-lg font-bold text-[11px] shadow-2xs">
-                Khalti
-              </span>
-              <span className="px-2.5 py-1 bg-blue-50/90 text-[#2563EB] border border-blue-200/80 rounded-lg font-bold text-[11px] shadow-2xs">
-                Bank Transfer
-              </span>
-            </div>
-          </div>
-
-          {/* Group 3 — Security and Fair Use */}
-          <div className="space-y-1 border-t md:border-t-0 md:border-l border-[#E3E9F2] pt-3 md:pt-0 md:pl-5">
-            <div className="font-bold text-[#172033] flex items-center gap-1.5 text-xs">
-              <Lock className="w-3.5 h-3.5 text-[#315FCE]" />
-              <span>Security & Protection</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs text-[#627089] font-medium">
-              <span>Secure payments</span>
-              <span>•</span>
-              <span>Fair Study Coins policy</span>
-              <span>•</span>
-              <span>Protected student data</span>
-            </div>
-          </div>
-
-        </div>
-
       </div>
 
-      {/* 3. BOTTOM LEGAL BAR */}
-      <div className="bg-[#EBEEF5]/80 border-t border-[#E3E9F2] py-3.5 px-4 sm:px-6 text-[12px] text-[#627089] font-medium">
-        <div className="max-w-[1240px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-          
-          <div className="flex items-center gap-2">
+      {/* Legal bar — single place for policies */}
+      <div className="border-t border-[var(--px-border)] bg-[var(--px-surface)]/70 py-3.5 px-4 sm:px-6">
+        <div className="max-w-[1240px] mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[12px] text-[var(--px-muted)] font-medium">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-1 text-center sm:text-left">
             <span>© 2026 PrepX Nepal. All rights reserved.</span>
-            <span className="hidden sm:inline text-[#8A96A8]">•</span>
-            <span className="text-[11px] text-[#8A96A8] font-mono">Platform v1.0</span>
+            <span className="hidden sm:inline opacity-50" aria-hidden>
+              ·
+            </span>
+            <span className="text-[11px] font-mono opacity-70">Platform v1.0</span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 text-[12px]">
-            <button 
-              onClick={() => onNavigate('policies', 'terms')}
-              className="hover:text-[#1F4FC1] transition-colors cursor-pointer"
-            >
-              Terms of Service
-            </button>
-            <span className="text-slate-300">•</span>
-            <button 
-              onClick={() => onNavigate('policies', 'privacy')}
-              className="hover:text-[#1F4FC1] transition-colors cursor-pointer"
-            >
-              Privacy Policy
-            </button>
-            <span className="text-slate-300">•</span>
-            <button 
-              onClick={() => onNavigate('policies', 'coins-policy')}
-              className="hover:text-[#1F4FC1] transition-colors cursor-pointer"
-            >
-              Study Coins Policy
-            </button>
-            <span className="text-slate-300">•</span>
-            <button 
-              onClick={() => onNavigate('policies', 'refund')}
-              className="hover:text-[#1F4FC1] transition-colors cursor-pointer"
-            >
-              Refund Policy
-            </button>
-          </div>
-
+          <nav
+            aria-label="Legal"
+            className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1"
+          >
+            {LEGAL_LINKS.map((item, i) => (
+              <React.Fragment key={item.label}>
+                {i > 0 ? (
+                  <span className="text-[var(--px-border)] select-none" aria-hidden>
+                    ·
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => onNavigate(item.tab, item.subTab)}
+                  className="hover:text-[var(--px-primary)] transition-colors cursor-pointer"
+                >
+                  {item.label}
+                </button>
+              </React.Fragment>
+            ))}
+          </nav>
         </div>
       </div>
-
     </footer>
   );
 };

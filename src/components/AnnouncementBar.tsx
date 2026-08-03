@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowRight, X } from 'lucide-react';
+import { AppIcon } from './ui';
 
 interface AnnouncementBarProps {
   message: string;
@@ -20,24 +21,20 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
 
   return (
     <div className="mx-3 sm:mx-6 my-2 font-sans">
-      <div className="max-w-7xl mx-auto bg-blue-50/90 border border-blue-200/80 backdrop-blur-md rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 shadow-2xs text-xs">
-        <div className="flex items-center gap-2 text-slate-700 font-medium min-w-0">
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600" />
-          </span>
-          <span className="truncate">{message}</span>
-        </div>
+      <div className="max-w-7xl mx-auto bg-slate-50 border border-slate-200 rounded-xl px-3 sm:px-4 py-2.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3 text-sm">
+        <p className="text-slate-700 font-medium min-w-0 truncate sm:whitespace-normal sm:line-clamp-2">
+          {message}
+        </p>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center justify-end gap-2 shrink-0">
           {onCtaClick && (
             <button
               type="button"
               onClick={onCtaClick}
-              className="text-[#2563EB] hover:text-blue-800 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+              className="min-h-11 sm:min-h-0 px-2 text-[#2563EB] hover:text-[#1D4ED8] font-semibold text-sm inline-flex items-center gap-1 cursor-pointer transition-colors"
             >
               <span>{ctaLabel}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <AppIcon icon={ArrowRight} size="btn" />
             </button>
           )}
 
@@ -47,10 +44,10 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
               setDismissed(true);
               onDismiss?.();
             }}
-            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/50 transition-colors cursor-pointer"
+            className="touch-target inline-flex items-center justify-center p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
             aria-label="Dismiss notification"
           >
-            <X className="w-3.5 h-3.5" />
+            <AppIcon icon={X} size="btn" />
           </button>
         </div>
       </div>

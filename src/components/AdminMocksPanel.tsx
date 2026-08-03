@@ -3,7 +3,8 @@ import { FileCode, Plus, Trash2, Upload, RotateCcw } from 'lucide-react';
 import type { MockAllocation, MockScope, MockTest, SubjectName } from '../types';
 import type { ChapterQuestionCount, SubjectQuestionCount } from '../lib/questionsApi';
 import type { MockImportBatch } from '../lib/mocksApi';
-
+import { useFeedback } from './FeedbackProvider';
+import { AppIcon } from './ui';
 const SUBJECTS: SubjectName[] = ['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT'];
 
 const MOCK_IMPORT_PLACEHOLDER = `[
@@ -72,6 +73,7 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
   onDeleteMock,
   onDeleteMockBatch,
 }) => {
+  const feedback = useFeedback();
   const fileRef = useRef<HTMLInputElement>(null);
   const [jsonText, setJsonText] = useState('');
   const [importBusy, setImportBusy] = useState(false);
@@ -194,8 +196,8 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
         {mockTests.length === 0 ? (
           <p className="text-xs text-slate-500">No mocks yet. Import a Fixed batch or create a Dynamic blueprint below.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-x-auto scroll-x-safe">
+            <table className="w-full text-left text-xs border-collapse min-w-[640px]">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                   <th className="p-3">Title</th>
@@ -232,8 +234,14 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
                           <button
                             type="button"
                             className="text-[11px] font-bold text-rose-600 hover:text-rose-800 cursor-pointer"
-                            onClick={() => {
-                              if (confirm(`Delete mock "${m.title}"?`)) void onDeleteMock(m.id);
+                            onClick={async () => {
+                              const ok = await feedback.confirm({
+                                title: 'Delete mock?',
+                                message: `Delete “${m.title}”? This cannot be undone.`,
+                                confirmLabel: 'Delete',
+                                destructive: true,
+                              });
+                              if (ok) void onDeleteMock(m.id);
                             }}
                           >
                             Delete
@@ -266,13 +274,17 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
                   <button
                     type="button"
                     className="inline-flex items-center gap-1 text-rose-600 font-bold cursor-pointer"
-                    onClick={() => {
-                      if (confirm(`Undo import batch "${b.label}" and delete its mocks?`)) {
-                        void onDeleteMockBatch(b.id);
-                      }
+                    onClick={async () => {
+                      const ok = await feedback.confirm({
+                        title: 'Undo import batch?',
+                        message: `Undo “${b.label}” and delete its mocks?`,
+                        confirmLabel: 'Undo import',
+                        destructive: true,
+                      });
+                      if (ok) void onDeleteMockBatch(b.id);
                     }}
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    <AppIcon icon={RotateCcw} size="btn" />
                     Undo
                   </button>
                 )}
@@ -286,7 +298,7 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
       {canEdit && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
           <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100 flex items-center gap-2">
-            <Upload className="w-4 h-4 text-blue-600" />
+            <AppIcon icon={Upload} size="btn" className="text-blue-600" />
             Import Fixed Mock Tests (batch JSON)
           </h3>
           <p className="text-xs text-slate-500">
@@ -345,7 +357,7 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
       {canEdit && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
           <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100 flex items-center gap-2">
-            <Plus className="w-4 h-4 text-violet-600" />
+            <AppIcon icon={Plus} size="btn" className="text-violet-600" />
             Optional: Create Dynamic Blueprint (admin)
           </h3>
           <p className="text-xs text-slate-500">
@@ -528,7 +540,7 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
                         className="text-rose-600 font-bold cursor-pointer"
                         onClick={() => setChapterRules((prev) => prev.filter((_, idx) => idx !== i))}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <AppIcon icon={Trash2} size="btn" />
                       </button>
                     </li>
                   ))}
@@ -549,7 +561,7 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
             onClick={() => void handleCreateDynamic()}
             className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-xs font-bold rounded-xl disabled:opacity-50 cursor-pointer"
           >
-            <FileCode className="w-4 h-4" />
+            <AppIcon icon={FileCode} size="btn" />
             {createBusy ? 'Creating…' : 'Create Dynamic Mock'}
           </button>
         </div>

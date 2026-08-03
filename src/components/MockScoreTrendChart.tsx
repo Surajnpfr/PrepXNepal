@@ -138,7 +138,7 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
         </div>
       </div>
 
-      <div className="w-full overflow-x-auto">
+      <div className="w-full overflow-x-auto scroll-x-safe">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           className="w-full min-w-[320px] h-auto"

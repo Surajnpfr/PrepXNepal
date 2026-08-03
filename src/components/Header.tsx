@@ -1,24 +1,16 @@
 import React, { useState } from 'react';
 import { 
-  BookOpen, 
-  Sparkles, 
+  Brain,
   Coins, 
-  ShieldCheck, 
-  User, 
-  Upload, 
-  Moon, 
-  Sun, 
-  Bookmark, 
-  FileText, 
-  CreditCard, 
-  Zap, 
-  BarChart2, 
   Sliders,
+  Zap, 
   Menu,
   X,
   ChevronRight
 } from 'lucide-react';
 import { UserRole, UserProfile } from '../types';
+import { BrandLogo } from './BrandLogo';
+import { AppIcon } from './ui';
 
 interface HeaderProps {
   activeTab: string;
@@ -63,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Persona Switcher Pill */}
-          <div className="hidden lg:flex items-center space-x-1.5 text-[10px] shrink-0 font-mono">
+          <div className="hidden lg:flex items.center space-x-1.5 text-[10px] shrink-0 font-mono">
             <span className="text-slate-400 mr-1">Role:</span>
             <button
               onClick={() => setUserRole('Student')}
@@ -101,9 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => handleNavClick('home')}
             className="flex items-center space-x-2.5 cursor-pointer group shrink-0"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md group-hover:scale-105 transition-transform">
-              PX
-            </div>
+              <BrandLogo size={32} decorative className="shrink-0 group-hover:scale-105 transition-transform" />
             <div>
               <span className="text-lg font-black tracking-tight text-white group-hover:text-cyan-400 transition-colors block leading-none">
                 PrepX Nepal
@@ -117,10 +107,10 @@ export const Header: React.FC<HeaderProps> = ({
           {onOpenBrainPortal && (
             <button
               onClick={onOpenBrainPortal}
-              className="px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white text-[10px] font-extrabold rounded-full shadow-xs flex items-center gap-1.5 transition-all cursor-pointer ml-1 sm:ml-2 border border-cyan-400/30"
+              className="px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white text-[10px] font-extrabold rounded-full shadow-xs inline-flex items-center gap-1.5 transition-all cursor-pointer ml-1 sm:ml-2 border border-cyan-400/30"
               title="Open Split Brain Landing Portal"
             >
-              <Sparkles className="w-3 h-3 text-amber-300 animate-spin" />
+              <AppIcon icon={Brain} size="btn" />
               <span className="hidden sm:inline">Split Brain Portal</span>
             </button>
           )}
@@ -175,11 +165,11 @@ export const Header: React.FC<HeaderProps> = ({
           {(userProfile.role === 'Admin' || userProfile.role === 'Moderator') && (
             <button
               onClick={() => handleNavClick('admin')}
-              className={`transition-all py-1 cursor-pointer flex items-center gap-1.5 border-b-2 ${
+              className={`transition-all py-1 cursor-pointer inline-flex items-center gap-1.5 border-b-2 ${
                 activeTab === 'admin' ? 'text-rose-400 font-bold border-rose-400' : 'border-transparent hover:text-slate-300'
               }`}
             >
-              <Sliders className="w-3.5 h-3.5 text-rose-400" />
+              <AppIcon icon={Sliders} size="btn" className="text-rose-400" />
               <span>Admin Desk</span>
               {pendingPaymentCount > 0 && (
                 <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
@@ -195,10 +185,10 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Study Coins Pill */}
           <button
             onClick={() => handleNavClick('coins')}
-            className="flex items-center space-x-1.5 bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer transition-all shadow-xs"
+            className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer transition-all shadow-xs"
             title="Study Coins Wallet"
           >
-            <Coins className="w-4 h-4 text-amber-400 animate-bounce" />
+            <AppIcon icon={Coins} size="btn" className="text-amber-400" />
             <span className="font-mono text-xs sm:text-sm">{userProfile.studyCoinBalance}</span>
             <span className="text-[10px] text-amber-400/80 font-normal hidden sm:inline">Coins</span>
           </button>
@@ -206,19 +196,19 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Quick Mock Trigger */}
           <button
             onClick={() => handleNavClick('catalog')}
-            className="px-3 sm:px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3 sm:px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5 cursor-pointer"
           >
-            <Zap className="w-3.5 h-3.5 fill-current" />
+            <AppIcon icon={Zap} size="btn" />
             <span className="hidden sm:inline">Start CEE Mock</span>
           </button>
 
           {/* Mobile Hamburger Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 rounded-xl border border-slate-800 cursor-pointer transition-colors"
+            className="md:hidden p-2 text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 rounded-xl border border-slate-800 cursor-pointer transition-colors inline-flex items-center justify-center"
             aria-label="Toggle Navigation Menu"
           >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileMenuOpen ? <AppIcon icon={X} size="nav" /> : <AppIcon icon={Menu} size="nav" />}
           </button>
         </div>
       </div>
@@ -233,83 +223,83 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="grid grid-cols-1 gap-1 font-semibold text-sm">
             <button
               onClick={() => handleNavClick('home')}
-              className={`p-2.5 rounded-xl text-left flex items-center justify-between ${
+              className={`p-2.5 rounded-xl text-left inline-flex items-center justify-between ${
                 activeTab === 'home' ? 'bg-cyan-500/10 text-cyan-400 font-bold border border-cyan-500/20' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
               <span>Dashboard</span>
-              <ChevronRight className="w-4 h-4 opacity-60" />
+              <AppIcon icon={ChevronRight} size="btn" className="opacity-60" />
             </button>
 
             <button
               onClick={() => handleNavClick('catalog')}
-              className={`p-2.5 rounded-xl text-left flex items-center justify-between ${
+              className={`p-2.5 rounded-xl text-left inline-flex items-center justify-between ${
                 activeTab === 'catalog' || activeTab === 'mock-engine' ? 'bg-cyan-500/10 text-cyan-400 font-bold border border-cyan-500/20' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
               <span>Mock Tests Engine</span>
-              <ChevronRight className="w-4 h-4 opacity-60" />
+              <AppIcon icon={ChevronRight} size="btn" className="opacity-60" />
             </button>
 
             <button
               onClick={() => handleNavClick('reports')}
-              className={`p-2.5 rounded-xl text-left flex items-center justify-between ${
+              className={`p-2.5 rounded-xl text-left inline-flex items-center justify-between ${
                 activeTab === 'reports' ? 'bg-cyan-500/10 text-cyan-400 font-bold border border-cyan-500/20' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
               <span>Reports & Rank Prediction</span>
-              <ChevronRight className="w-4 h-4 opacity-60" />
+              <AppIcon icon={ChevronRight} size="btn" className="opacity-60" />
             </button>
 
             <button
               onClick={() => handleNavClick('formulas')}
-              className={`p-2.5 rounded-xl text-left flex items-center justify-between ${
+              className={`p-2.5 rounded-xl text-left inline-flex items-center justify-between ${
                 activeTab === 'formulas' ? 'bg-cyan-500/10 text-cyan-400 font-bold border border-cyan-500/20' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
               <span>Formulas & Revision Sheets</span>
-              <ChevronRight className="w-4 h-4 opacity-60" />
+              <AppIcon icon={ChevronRight} size="btn" className="opacity-60" />
             </button>
 
             <button
               onClick={() => handleNavClick('payment')}
-              className={`p-2.5 rounded-xl text-left flex items-center justify-between ${
+              className={`p-2.5 rounded-xl text-left inline-flex items-center justify-between ${
                 activeTab === 'payment' ? 'bg-amber-500/10 text-amber-300 font-bold border border-amber-500/20' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <div className="flex items-center gap-2">
+              <div className="inline-flex items-center gap-2">
                 <span>Upgrade Plan</span>
                 <span className="bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-mono">
                   {userProfile.plan}
                 </span>
               </div>
-              <ChevronRight className="w-4 h-4 opacity-60" />
+              <AppIcon icon={ChevronRight} size="btn" className="opacity-60" />
             </button>
 
             <button
               onClick={() => handleNavClick('coins')}
-              className={`p-2.5 rounded-xl text-left flex items-center justify-between ${
+              className={`p-2.5 rounded-xl text-left inline-flex items-center justify-between ${
                 activeTab === 'coins' ? 'bg-amber-500/10 text-amber-300 font-bold border border-amber-500/20' : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <div className="flex items-center gap-2">
+              <div className="inline-flex items-center gap-2">
                 <span>Study Coins Wallet</span>
                 <span className="bg-amber-400 text-slate-950 font-bold font-mono text-[10px] px-2 py-0.5 rounded-full">
                   {userProfile.studyCoinBalance}
                 </span>
               </div>
-              <ChevronRight className="w-4 h-4 opacity-60" />
+              <AppIcon icon={ChevronRight} size="btn" className="opacity-60" />
             </button>
 
             {(userProfile.role === 'Admin' || userProfile.role === 'Moderator') && (
               <button
                 onClick={() => handleNavClick('admin')}
-                className={`p-2.5 rounded-xl text-left flex items-center justify-between ${
+                className={`p-2.5 rounded-xl text-left inline-flex items-center justify-between ${
                   activeTab === 'admin' ? 'bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20' : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-rose-400" />
+                <div className="inline-flex items-center gap-2">
+                  <AppIcon icon={Sliders} size="btn" className="text-rose-400" />
                   <span>Admin Desk</span>
                   {pendingPaymentCount > 0 && (
                     <span className="bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
@@ -317,7 +307,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </span>
                   )}
                 </div>
-                <ChevronRight className="w-4 h-4 opacity-60" />
+                <AppIcon icon={ChevronRight} size="btn" className="opacity-60" />
               </button>
             )}
           </div>
@@ -357,4 +347,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-

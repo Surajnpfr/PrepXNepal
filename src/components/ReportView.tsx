@@ -1,30 +1,22 @@
 import React, { useState } from 'react';
 import { 
-  BarChart2, 
-  Award, 
-  Target, 
   CheckCircle2, 
-  XCircle, 
-  AlertCircle, 
   Download, 
   Share2, 
-  Zap, 
   BookOpen, 
-  TrendingUp, 
-  Clock, 
-  Coins, 
-  ChevronRight,
   Info
 } from 'lucide-react';
 import { AttemptReport } from '../types';
 import { downloadQuestionPaperPdf } from '../lib/downloadQuestionPaperPdf';
-
+import { useFeedback } from './FeedbackProvider';
+import { AppIcon } from './ui';
 interface ReportViewProps {
   report: AttemptReport;
   onNavigate: (tab: string) => void;
 }
 
 export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) => {
+  const feedback = useFeedback();
   const [showShareModal, setShowShareModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showChapterAnalysis, setShowChapterAnalysis] = useState(false);
@@ -35,10 +27,14 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     const result = downloadQuestionPaperPdf(report);
     if (result.ok === false) {
-      alert(result.error);
+      await feedback.alert({
+        variant: 'error',
+        title: 'Download failed',
+        message: result.error,
+      });
     }
   };
 
@@ -48,7 +44,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full mb-2">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600" />
             <span>Official Scored Report #{report.id.slice(-6)}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
@@ -65,7 +61,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
             onClick={() => setShowShareModal(true)}
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors border border-slate-200"
           >
-            <Share2 className="w-4 h-4 text-slate-600" />
+            <AppIcon icon={Share2} size="btn" className="text-slate-600" />
             <span>Share Report</span>
           </button>
 
@@ -73,7 +69,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
             onClick={handleDownloadPdf}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-all"
           >
-            <Download className="w-4 h-4" />
+            <AppIcon icon={Download} size="btn" />
             <span>Download PDF</span>
           </button>
         </div>
@@ -88,7 +84,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
             {report.overallScore} <span className="text-slate-400 text-base font-normal">/ {report.maxScore}</span>
           </div>
           <div className="text-xs text-emerald-600 font-bold flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
+            <AppIcon icon={CheckCircle2} size="btn" />
             <span>Accuracy: {report.accuracyPercentage}%</span>
           </div>
         </div>
@@ -129,7 +125,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
 
       {/* Methodology Blurb Banner */}
       <div className="bg-blue-50/80 p-4 rounded-2xl border border-blue-200 flex items-start space-x-3 text-xs text-blue-900">
-        <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+        <AppIcon icon={Info} size="card" className="text-blue-600 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <span className="font-bold block">Rank Prediction Methodology:</span>
           <p className="text-blue-800 leading-relaxed">
@@ -232,13 +228,13 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
               onClick={() => setShowChapterAnalysis(true)}
               className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
             >
-              <BookOpen className="w-4 h-4 text-cyan-400" />
+              <AppIcon icon={BookOpen} size="btn" className="text-cyan-400" />
               <span>Show Detailed Chapter Mastery Report</span>
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-x-auto scroll-x-safe">
+            <table className="w-full text-left text-xs border-collapse min-w-[560px]">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                   <th className="p-3">Subject</th>
@@ -275,7 +271,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
       </div>
 
       {/* Recommended Revision Tasks */}
-      <div className="bg-gradient-to-br from-blue-900 to-slate-900 rounded-2xl p-6 text-white border border-blue-800 shadow-md space-y-4">
+      <div className="bg-slate-900 rounded-2xl p-6 text-white border border-slate-800 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-black text-white text-lg">Personalized Revision Plan</h3>

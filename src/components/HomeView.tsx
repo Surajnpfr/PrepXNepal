@@ -1,24 +1,17 @@
 import React, { useState } from 'react';
 import { 
-  Target, 
-  Clock, 
   CheckCircle2, 
-  ChevronRight, 
   Calendar,
-  Sparkles,
   ArrowRight,
-  BookOpen,
-  FileCheck,
-  TrendingUp,
   History,
   ChevronDown,
   ChevronUp,
   Coins,
   ShieldAlert,
-  Zap,
-  Award
 } from 'lucide-react';
 import { UserProfile, MockTest, AttemptReport, StudyPlanTask } from '../types';
+import { useFeedback } from './FeedbackProvider';
+import { Badge, Button, Card, PageHeader, ProgressBar, AppIcon } from './ui';
 
 interface HomeViewProps {
   userProfile: UserProfile;
@@ -43,6 +36,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onViewReport,
   onNavigate,
 }) => {
+  const feedback = useFeedback();
   const [showRecentActivity, setShowRecentActivity] = useState(true);
 
   const completedCount = studyPlanTasks.filter((i) => i.completed).length;
@@ -66,10 +60,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
         duration: `${latestReport.recommendations[0].estimatedMinutes} mins`
       }
     : {
-        title: "Take CEE Model Exam",
-        desc: "Complete your first grand mock test in the catalog to generate personalized diagnostics and chapter insights.",
-        subject: "General",
-        duration: "180 mins"
+        title: 'Take a full CEE mock',
+        desc: 'Complete a timed mock to get subject and chapter scores for revision.',
+        subject: 'Full paper',
+        duration: '180 mins'
       };
 
   // Dynamic Subject Progress Calculation (CEE subjects from scored reports)
@@ -123,222 +117,182 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
   const daysRemaining = getDaysRemaining();
 
-  const handleScoreUpdate = () => {
-    const target = prompt("Enter your target MEC score (out of 200):", userProfile.targetScore.toString());
-    if (target) {
-      const num = parseInt(target, 10);
-      if (!isNaN(num) && num > 0 && num <= 200) {
-        onUpdateTargetScore(num);
-      } else {
-        alert("Please enter a valid number between 1 and 200.");
-      }
-    }
+  const handleScoreUpdate = async () => {
+    const target = await feedback.prompt({
+      title: 'Target score',
+      message: 'Set your target MEC score out of 200.',
+      label: 'Target score',
+      defaultValue: String(userProfile.targetScore),
+      inputType: 'number',
+      placeholder: '165',
+      confirmLabel: 'Save target',
+      validate: (value) => {
+        const num = parseInt(value, 10);
+        if (Number.isNaN(num) || num < 1 || num > 200) {
+          return 'Enter a whole number between 1 and 200.';
+        }
+        return null;
+      },
+    });
+    if (!target) return;
+    onUpdateTargetScore(parseInt(target, 10));
+    feedback.toast({ message: 'Target score updated.', variant: 'success' });
   };
 
   return (
-    <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 space-y-8 select-none">
+    <div className="px-page space-y-6">
       
-      {/* 1. CLEAN MEDICAL HERO BANNER (NO BLUR BLOBS) */}
-      <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-2 max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/20 text-blue-300 text-xs font-mono font-semibold rounded-md border border-blue-500/30">
-            <span>Nepal CEE Preparation Workspace</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-snug">
-            Namaste{userProfile.name ? `, ${userProfile.name.split(' ')[0]}` : ''}! 👋
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-300 font-normal leading-relaxed">
-            Welcome to your preparation cockpit. Practice full-length model mocks, analyze chapter-level score gaps, and track your national percentile.
-          </p>
-        </div>
+      <PageHeader
+        title={userProfile.name ? `${userProfile.name.split(' ')[0]}’s dashboard` : 'Dashboard'}
+        subtitle={
+          latestReport
+            ? `Latest mock: ${latestReport.overallScore}/200. Target ${userProfile.targetScore}/200.`
+            : `Target ${userProfile.targetScore}/200 · ${daysRemaining} days until exam.`
+        }
+        actions={
+          <>
+            <Button type="button" onClick={() => onNavigate('catalog')}>
+              <span>Open mock catalog</span>
+              <AppIcon icon={ArrowRight} size="btn" />
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => onNavigate('planner')}>
+              Today’s plan
+            </Button>
+          </>
+        }
+      />
 
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <button
-            onClick={() => onNavigate('catalog')}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
-          >
-            <span>Start Practice Mocks</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => onNavigate('planner')}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs sm:text-sm rounded-xl transition-colors cursor-pointer border border-slate-700"
-          >
-            Daily Schedule
-          </button>
-        </div>
-      </div>
-
-      {/* 2. STATS & PERFORMANCE METRIC GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        {/* Readiness Gauge */}
-        <div className="bg-white border border-slate-200/90 p-5 rounded-2xl shadow-xs space-y-3">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-            <span>Score Readiness</span>
-            <span className="text-blue-700 font-mono text-[11px] font-bold">Nepal CEE</span>
+        <Card padding="md" className="space-y-3">
+          <div className="flex items-center justify-between text-xs font-medium text-[var(--px-muted)]">
+            <span>Average score</span>
+            <span className="tabular-nums text-[11px]">/200</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold font-mono text-slate-900">{readinessPercentage}%</span>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-              Avg: {averageScore}/200
+            <span className="text-2xl font-display font-bold tabular-nums text-[var(--px-heading)]">{averageScore}</span>
+            <span className="text-xs text-[var(--px-muted)]">{readinessPercentage}% of max</span>
+          </div>
+          <ProgressBar value={readinessPercentage} aria-label="Average score readiness" />
+        </Card>
+
+        <Card padding="md" className="space-y-3">
+          <div className="flex items-center justify-between text-xs font-medium text-[var(--px-muted)]">
+            <span>Target score</span>
+            <button 
+              type="button"
+              onClick={handleScoreUpdate}
+              className="text-[11px] font-semibold text-[var(--px-primary)] hover:underline cursor-pointer"
+            >
+              Edit
+            </button>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-display font-bold tabular-nums text-[var(--px-heading)]">{userProfile.targetScore}</span>
+            <span className="text-xs text-[var(--px-muted)]">
+              Gap {latestReport ? Math.max(0, userProfile.targetScore - latestReport.overallScore) : userProfile.targetScore}
             </span>
           </div>
-          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-            <div className="bg-blue-600 h-full rounded-full transition-all duration-500" style={{ width: `${readinessPercentage}%` }} />
+          <div className="text-[11px] text-[var(--px-muted)]">
+            {userProfile.targetExam || 'Nepal CEE'}
           </div>
-        </div>
+        </Card>
 
-        {/* Target Score & Gap */}
-        <div className="bg-white border border-slate-200/90 p-5 rounded-2xl shadow-xs space-y-3 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>Target Goal Score</span>
-              <button 
-                onClick={handleScoreUpdate}
-                className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
-              >
-                Edit
-              </button>
-            </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-extrabold font-mono text-slate-900">{userProfile.targetScore}</span>
-              <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
-                Gap: {latestReport ? Math.max(0, userProfile.targetScore - latestReport.overallScore) : userProfile.targetScore} pts
-              </span>
-            </div>
+        <Card padding="md" className="space-y-3">
+          <div className="flex items-center justify-between text-xs font-medium text-[var(--px-muted)]">
+            <span>Study coins</span>
+            <AppIcon icon={Coins} size="btn" className="text-[var(--px-muted)]" />
           </div>
-          <div className="text-[11px] text-slate-500 font-medium">
-            Exam: {userProfile.targetExam || 'Nepal CEE'}
-          </div>
-        </div>
-
-        {/* Study Coins Balance */}
-        <div className="bg-white border border-slate-200/90 p-5 rounded-2xl shadow-xs space-y-3 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>Study Coins Balance</span>
-              <Coins className="w-4 h-4 text-amber-600" />
-            </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-extrabold font-mono text-slate-900">{userProfile.studyCoinBalance}</span>
-              <span className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 font-bold">
-                Coins
-              </span>
-            </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-display font-bold tabular-nums text-[var(--px-heading)]">{userProfile.studyCoinBalance}</span>
           </div>
           <button
+            type="button"
             onClick={() => onNavigate('coins')}
-            className="text-xs font-bold text-amber-700 hover:underline self-start cursor-pointer"
+            className="text-xs font-semibold text-[var(--px-primary)] hover:underline self-start cursor-pointer"
           >
-            Redeem Rewards →
+            Open wallet
           </button>
-        </div>
+        </Card>
 
-        {/* Countdown */}
-        <div className="bg-white border border-slate-200/90 p-5 rounded-2xl shadow-xs space-y-3 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>CEE 2026 Countdown</span>
-              <Calendar className="w-4 h-4 text-blue-600" />
-            </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-extrabold font-mono text-blue-700">{daysRemaining}</span>
-              <span className="text-xs font-semibold text-slate-500 font-mono">days left</span>
-            </div>
+        <Card padding="md" className="space-y-3">
+          <div className="flex items-center justify-between text-xs font-medium text-[var(--px-muted)]">
+            <span>Days to exam</span>
+            <AppIcon icon={Calendar} size="btn" className="text-[var(--px-muted)]" />
           </div>
-          <div className="text-[11px] text-slate-500 font-mono">
-            Target Date:{' '}
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-display font-bold tabular-nums text-[var(--px-heading)]">{daysRemaining}</span>
+            <span className="text-xs text-[var(--px-muted)]">days</span>
+          </div>
+          <div className="text-[11px] text-[var(--px-muted)]">
             {userProfile.examDate
               ? new Date(userProfile.examDate).toLocaleDateString(undefined, {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',
                 })
-              : 'Not set'}
+              : 'Exam date not set'}
           </div>
-        </div>
+        </Card>
 
       </div>
 
-      {/* 3. TODAY'S FOCUS & NEXT MOCK ROW */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         
-        {/* TODAY'S FOCUS */}
-        <div className="lg:col-span-8 bg-blue-50/60 border border-blue-200/80 rounded-2xl p-6 shadow-xs flex flex-col justify-between space-y-4">
+        <Card padding="lg" className="lg:col-span-8 flex flex-col justify-between gap-4">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-100 text-blue-800 font-bold text-[10px] rounded-md border border-blue-200 uppercase tracking-wider font-mono">
-              <span>Recommended Revision</span>
-            </div>
+            <p className="text-xs font-medium text-[var(--px-muted)]">Next revision focus</p>
 
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+            <h2 className="font-display text-lg font-bold text-[var(--px-heading)] tracking-tight">
               {recommendation.title}
             </h2>
 
-            <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+            <p className="text-sm text-[var(--px-body)] leading-relaxed">
               {recommendation.desc}
             </p>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2 text-[11px] font-mono text-slate-600">
-              <span className="bg-white px-2.5 py-1 rounded-md border border-slate-200 font-semibold">{recommendation.duration}</span>
-              <span className="text-slate-300">•</span>
-              <span className="bg-blue-100 text-blue-800 px-2.5 py-1 rounded-md font-bold">{recommendation.subject}</span>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Badge tone="neutral">{recommendation.duration}</Badge>
+              <Badge tone="neutral">{recommendation.subject}</Badge>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-blue-200/60">
-            <button
+          <div className="pt-3 border-t border-[var(--px-border)]">
+            <Button
+              type="button"
               onClick={() => onNavigate(latestReport ? 'formulas' : 'catalog')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-colors cursor-pointer shadow-xs"
             >
-              {latestReport ? 'Open Revision Sheet' : 'Browse Exam Catalog'}
-            </button>
+              {latestReport ? 'Open formula library' : 'Browse mock catalog'}
+            </Button>
           </div>
-        </div>
+        </Card>
 
-        {/* NEXT MOCK */}
-        <div className="lg:col-span-4 bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs flex flex-col justify-between space-y-4">
+        <Card padding="lg" className="lg:col-span-4 flex flex-col justify-between gap-4">
           {nextMock ? (
             <>
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 font-mono">Target Grand Mock</span>
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
-                    Available
-                  </span>
-                </div>
+                <p className="text-xs font-medium text-[var(--px-muted)]">Suggested mock</p>
 
-                <h3 className="text-base font-bold text-slate-900 leading-snug">{nextMock.title}</h3>
+                <h3 className="font-display text-base font-bold text-[var(--px-heading)] leading-snug">{nextMock.title}</h3>
 
-                <div className="space-y-1.5 text-xs text-slate-600 font-medium">
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                    <span>{nextMock.totalQuestions} questions • {Math.floor(nextMock.durationSec / 3600)} hours</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-                    <span>−0.25 CEE marking rule</span>
-                  </div>
+                <div className="space-y-1 text-sm text-[var(--px-body)]">
+                  <p>{nextMock.totalQuestions} questions · {Math.floor(nextMock.durationSec / 3600)} hours</p>
+                  <p>−0.25 negative marking</p>
                 </div>
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <button
-                  onClick={() => onStartMock(nextMock)}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-colors cursor-pointer text-center shadow-xs"
-                >
-                  Start Mock Attempt
-                </button>
-              </div>
+              <Button type="button" fullWidth onClick={() => onStartMock(nextMock)}>
+                Start this mock
+              </Button>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center text-center h-full space-y-3 py-6">
-              <ShieldAlert className="w-8 h-8 text-slate-400" />
-              <div className="text-xs font-bold text-slate-700">No Mocks Published</div>
-              <p className="text-[10px] text-slate-500">Administrators have not uploaded mock papers yet.</p>
+              <AppIcon icon={ShieldAlert} size="lg" className="text-[var(--px-muted)]" />
+              <div className="text-xs font-bold text-[var(--px-heading)]">No Mocks Published</div>
+              <p className="text-[10px] text-[var(--px-muted)]">Administrators have not uploaded mock papers yet.</p>
             </div>
           )}
-        </div>
+        </Card>
 
       </div>
 
@@ -346,9 +300,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* SUBJECT PROGRESS */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="font-bold text-slate-900 text-sm sm:text-base">Subject Mastery Breakdown</h3>
+        <div className="px-surface p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-[var(--px-border)] pb-3">
+            <h3 className="font-display font-bold text-[var(--px-heading)] text-sm sm:text-base">Subject Mastery Breakdown</h3>
             <button
               onClick={() => onNavigate('reports')}
               className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
@@ -384,7 +338,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* TODAY'S STUDY PLAN */}
         <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="font-bold text-slate-900 text-sm sm:text-base">Today’s Target Checklist</h3>
+            <h3 className="font-semibold text-slate-900 text-sm sm:text-base">Today’s tasks</h3>
             <span className="text-xs font-bold font-mono text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
               {completedCount} of {studyPlanTasks.length} completed
             </span>
@@ -433,9 +387,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
             onClick={() => setShowRecentActivity(!showRecentActivity)}
             className="flex items-center gap-2 font-bold text-slate-800 text-sm hover:text-blue-600 transition-colors cursor-pointer"
           >
-            <History className="w-4 h-4 text-slate-400" />
-            <span>Recent Test Activity History</span>
-            {showRecentActivity ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+            <AppIcon icon={History} size="btn" className="text-slate-400" />
+            <span>Recent mocks</span>
+            {showRecentActivity ? <AppIcon icon={ChevronUp} size="btn" className="text-slate-400" /> : <AppIcon icon={ChevronDown} size="btn" className="text-slate-400" />}
           </button>
 
           <button
@@ -456,7 +410,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               pastReports.slice(0, 5).map((rep) => (
                 <div key={rep.id} className="py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                    <AppIcon icon={CheckCircle2} size="btn" className="text-blue-600" />
                     <span>Scored {rep.overallScore}/{rep.maxScore} in {rep.mockTitle} (Accuracy: {rep.accuracyPercentage}%)</span>
                   </div>
                   <span className="text-slate-400 font-mono text-[10px]">{rep.completedAt}</span>

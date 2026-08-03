@@ -205,9 +205,11 @@ export interface CoinTransaction {
 export interface PaymentClaim {
   id: string;
   userId: string;
+  /** Clerk user id of the payer (server-backed claims). */
+  clerkUserId?: string;
   userName: string;
   userEmail: string;
-  planCode: 'Premium' | 'Unlimited';
+  planCode: string;
   amountNpr: number;
   paymentMethod: 'eSewa' | 'Khalti' | 'Bank Transfer';
   transactionRef: string;
@@ -230,6 +232,7 @@ export interface FormulaSheet {
     formula: string;
     note?: string;
   }[];
+  batchId?: string;
 }
 
 export interface FlaggedQuestionReport {
@@ -289,4 +292,55 @@ export interface StudyPlanTask {
   source: 'auto' | 'custom';
   chapter?: string;
   refReportId?: string;
+}
+
+/** Staff referral commission rate (30% of approved paid conversion). */
+export const REFERRAL_COMMISSION_RATE = 0.3;
+
+export type ReferralCommissionStatus = 'pending' | 'settled';
+
+export interface ReferralLink {
+  ownerClerkId: string;
+  code: string;
+  ownerEmail: string;
+  ownerName: string;
+  ownerRole: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReferralAttribution {
+  referredClerkId: string;
+  referrerClerkId: string;
+  code: string;
+  attributedAt: string;
+}
+
+export interface ReferralCommission {
+  id: string;
+  claimId: string;
+  referredClerkId: string;
+  referrerClerkId: string;
+  conversionAmountNpr: number;
+  commissionRate: number;
+  commissionAmountNpr: number;
+  status: ReferralCommissionStatus;
+  createdAt: string;
+  settledAt: string | null;
+  settledByClerkId: string | null;
+}
+
+export interface ReferralTotals {
+  totalConversionNpr: number;
+  totalCommissionNpr: number;
+  pendingCommissionNpr: number;
+  settledCommissionNpr: number;
+  conversionCount: number;
+}
+
+export interface StaffReferralBundle {
+  link: ReferralLink;
+  commissions: ReferralCommission[];
+  totals: ReferralTotals;
 }

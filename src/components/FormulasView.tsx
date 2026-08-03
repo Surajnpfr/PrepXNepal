@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Bookmark, Search, CheckCircle2, BookOpen, Download, Copy, Check } from 'lucide-react';
+import { Bookmark, Search, CheckCircle2, Download, Copy, Check, Lightbulb } from 'lucide-react';
 import { FORMULA_SHEETS } from '../data/mockData';
+import type { FormulaSheet } from '../types';
+import { downloadFormulaSheetPdf } from '../lib/downloadFormulaSheetPdf';
+import { useFeedback } from './FeedbackProvider';
+import { FormulaMath } from './FormulaMath';
+import { AppIcon } from './ui';
 
-export const FormulasView: React.FC = () => {
+interface FormulasViewProps {
+  sheets?: FormulaSheet[];
+}
+
+export const FormulasView: React.FC<FormulasViewProps> = ({ sheets }) => {
+  const feedback = useFeedback();
+  const library = sheets && sheets.length > 0 ? sheets : FORMULA_SHEETS;
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedFormula, setCopiedFormula] = useState<string | null>(null);
@@ -27,7 +38,23 @@ export const FormulasView: React.FC = () => {
     setTimeout(() => setCopiedFormula(null), 1800);
   };
 
-  const filteredSheets = FORMULA_SHEETS.filter(s => {
+  const handleDownloadSheet = async (
+    sheet: FormulaSheet,
+    formulas: FormulaSheet['formulas']
+  ) => {
+    const result = downloadFormulaSheetPdf(sheet, { formulas });
+    if (result.ok === false) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Download unavailable',
+        message: result.error,
+      });
+      return;
+    }
+    feedback.toast({ message: `Downloaded “${sheet.title}”`, variant: 'success' });
+  };
+
+  const filteredSheets = library.filter(s => {
     if (selectedSubject === 'Bookmarks') {
       return s.formulas.some(f => savedFormulas.includes(`${s.id}-${f.name}`));
     }
@@ -45,9 +72,9 @@ export const FormulasView: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
       {/* Toast Notification Banner */}
       {copiedFormula && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 text-xs font-mono animate-in fade-in slide-in-from-bottom-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>Formula copied to clipboard: <strong>{copiedFormula}</strong></span>
+        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-start sm:items-center gap-2.5 text-xs font-mono animate-in fade-in slide-in-from-bottom-2 max-w-md sm:max-w-sm ml-auto">
+          <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
+          <span className="min-w-0 break-words">Formula copied to clipboard: <strong>{copiedFormula}</strong></span>
         </div>
       )}
 
@@ -68,13 +95,13 @@ export const FormulasView: React.FC = () => {
             <button
               key={sub}
               onClick={() => setSelectedSubject(sub)}
-              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                 selectedSubject === sub 
                   ? 'bg-slate-900 text-white shadow-xs font-bold' 
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {sub === 'Bookmarks' && <Bookmark className="w-3.5 h-3.5 text-amber-400 fill-current" />}
+              {sub === 'Bookmarks' && <AppIcon icon={Bookmark} size="btn" className="text-amber-400" />}
               <span>{sub}</span>
               {sub === 'Bookmarks' && savedFormulas.length > 0 && (
                 <span className="bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-full text-[10px] font-mono">
@@ -86,13 +113,13 @@ export const FormulasView: React.FC = () => {
         </div>
 
         <div className="relative flex-1 md:w-64 w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <AppIcon icon={Search} size="btn" className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search formulas or concepts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+            className="w-full pl-9 pr-3 py-2.5 min-h-11 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600"
           />
         </div>
       </div>
@@ -116,11 +143,13 @@ export const FormulasView: React.FC = () => {
                   <h3 className="font-bold text-slate-900 text-base mt-1">{sheet.title}</h3>
                 </div>
                 <button 
-                  onClick={() => window.print()}
+                  type="button"
+                  onClick={() => void handleDownloadSheet(sheet, formulasToRender)}
                   className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
                   title="Download PDF Formula Sheet"
+                  aria-label={`Download ${sheet.title} as PDF`}
                 >
-                  <Download className="w-4 h-4" />
+                  <AppIcon icon={Download} size="btn" />
                 </button>
               </div>
 
@@ -140,9 +169,9 @@ export const FormulasView: React.FC = () => {
                             title="Copy formula text"
                           >
                             {copiedFormula === f.formula ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <AppIcon icon={Check} size="btn" className="text-emerald-600" />
                             ) : (
-                              <Copy className="w-3.5 h-3.5" />
+                              <AppIcon icon={Copy} size="btn" />
                             )}
                           </button>
                           <button
@@ -152,18 +181,17 @@ export const FormulasView: React.FC = () => {
                             }`}
                             title={isSaved ? 'Remove Bookmark' : 'Bookmark Formula'}
                           >
-                            <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-current' : ''}`} />
+                            <AppIcon icon={Bookmark} size="btn" />
                           </button>
                         </div>
                       </div>
 
-                      <div className="font-mono text-sm font-black text-blue-600 bg-white p-2.5 rounded-lg border border-slate-200 inline-block shadow-2xs">
-                        {f.formula}
-                      </div>
+                      <FormulaMath formula={f.formula} />
 
                       {f.note && (
-                        <div className="text-[10px] text-slate-500 font-mono leading-relaxed pt-0.5">
-                          💡 {f.note}
+                        <div className="text-[10px] text-slate-500 font-mono leading-relaxed pt-0.5 flex items-start gap-1.5">
+                          <AppIcon icon={Lightbulb} size="btn" className="text-amber-600 mt-0.5" />
+                          <span>{f.note}</span>
                         </div>
                       )}
                     </div>

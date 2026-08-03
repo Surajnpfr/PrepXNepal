@@ -1,32 +1,25 @@
 import React, { useState } from 'react';
 import { 
   CreditCard, 
-  Upload, 
   CheckCircle2, 
-  XCircle, 
   Clock, 
-  QrCode, 
-  Copy, 
   ShieldCheck, 
-  Image as ImageIcon,
   AlertCircle,
-  HelpCircle,
-  ArrowRight,
   TrendingUp,
-  Sparkles,
+  Percent,
   BookOpen,
-  Download,
-  Share2,
-  Lock,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
 import { PaymentClaim, UserProfile, PricingPlan } from '../types';
-
+import { useFeedback } from './FeedbackProvider';
+import { AppIcon } from './ui';
 interface PaymentSubmissionViewProps {
   userProfile: UserProfile;
   claimsHistory: PaymentClaim[];
-  onSubmitClaim: (claim: Omit<PaymentClaim, 'id' | 'status' | 'submittedAt'>) => void;
+  onSubmitClaim: (
+    claim: Omit<PaymentClaim, 'id' | 'status' | 'submittedAt'>
+  ) => void | Promise<void>;
   pricingPlans: PricingPlan[];
 }
 
@@ -36,6 +29,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   onSubmitClaim,
   pricingPlans = [],
 }) => {
+  const feedback = useFeedback();
   const activePlans = (pricingPlans || []).filter((p) => p.status === 'active');
   const defaultPaidPlan = activePlans.find((p) => p.priceNpr > 0) || activePlans[0];
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>(
@@ -47,6 +41,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   const [userNotes, setUserNotes] = useState('');
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [copiedRef, setCopiedRef] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // FAQ collapse state
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -67,33 +62,48 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     setTimeout(() => setCopiedRef(false), 2000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlanObj || selectedPlanObj.priceNpr <= 0) {
-      alert('Select a paid plan before submitting a payment claim.');
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Select a paid plan',
+        message: 'Choose a paid plan before submitting a payment claim.',
+      });
       return;
     }
     if (!transactionRef.trim()) {
-      alert('Please enter your payment reference transaction ID from eSewa/Khalti receipt.');
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Reference ID required',
+        message: 'Enter the payment reference / transaction ID from your eSewa, Khalti, or bank receipt.',
+      });
       return;
     }
 
-    onSubmitClaim({
-      userId: userProfile.id,
-      userName: userProfile.name,
-      userEmail: userProfile.email,
-      planCode: selectedPlanObj.code as 'Premium' | 'Unlimited',
-      amountNpr: amount,
-      paymentMethod,
-      transactionRef: transactionRef.trim(),
-      screenshotUrl,
-      userNotes: userNotes.trim(),
-    });
+    setSubmitting(true);
+    try {
+      await onSubmitClaim({
+        userId: userProfile.id,
+        userName: userProfile.name,
+        userEmail: userProfile.email,
+        planCode: selectedPlanObj.code,
+        amountNpr: amount,
+        paymentMethod,
+        transactionRef: transactionRef.trim(),
+        screenshotUrl,
+        userNotes: userNotes.trim(),
+      });
 
-    setSubmittedSuccess(true);
-    setTransactionRef('');
-    setUserNotes('');
-    setTimeout(() => setSubmittedSuccess(false), 5000);
+      setSubmittedSuccess(true);
+      setTransactionRef('');
+      setUserNotes('');
+      setTimeout(() => setSubmittedSuccess(false), 5000);
+    } catch {
+      /* parent surfaces errors */
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const toggleFaq = (index: number) => {
@@ -126,27 +136,22 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-12 font-sans select-none">
       
-      {/* 1. HERO SECTION */}
-      <section className="bg-slate-900 text-white rounded-3xl p-6 sm:p-10 relative overflow-hidden shadow-xl border border-slate-800 text-center space-y-5">
-        <div className="absolute inset-0 bg-radial-gradient(circle_at_center,rgba(59,130,246,0.15),transparent)" />
-        <div className="relative z-10 max-w-2xl mx-auto space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/20 text-blue-400 text-[10px] font-bold rounded-full font-mono uppercase">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>PrepX Nepal Subscription Hub</span>
-          </div>
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
-            Choose Your Preparation Plan
+      <section className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 space-y-4">
+        <div className="max-w-2xl space-y-2">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+            Plans and payment
           </h1>
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-semibold">
-            Unlock premium CEE mock tests, performance analytics, and dynamic rank predictions. All metrics, study planners, and coins are kept synced in one desk.
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Pick a plan, pay with eSewa, Khalti, or bank transfer, then submit your transaction reference for verification.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
-            <div className="px-3.5 py-1.5 bg-slate-800/80 border border-slate-700/60 rounded-xl text-xs font-bold text-slate-200">
-              Current Plan: <span className="text-[#2563EB] font-black">{userProfile.plan} Tier</span>
+          <div className="flex flex-wrap items-center gap-3 pt-1 text-sm">
+            <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+              Current plan: <span className="font-semibold text-slate-900">{userProfile.plan}</span>
             </div>
-            <div className="px-3.5 py-1.5 bg-slate-800/80 border border-slate-700/60 rounded-xl text-xs font-bold text-slate-200">
-              Mock Quota: <span className="text-emerald-400 font-mono font-black">
-                {userProfile.mocksRemaining !== null ? `${userProfile.mocksRemaining} Remaining` : 'Unlimited'}
+            <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+              Mocks left:{' '}
+              <span className="font-semibold font-mono text-slate-900">
+                {userProfile.mocksRemaining !== null ? userProfile.mocksRemaining : 'Unlimited'}
               </span>
             </div>
           </div>
@@ -156,7 +161,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       {/* 2. DYNAMIC PRICING CARDS (from Admin-managed pricingPlans) */}
       {activePlans.length === 0 ? (
         <section className="bg-white rounded-2xl border border-amber-200 p-6 text-center space-y-2 shadow-xs">
-          <AlertCircle className="w-5 h-5 text-amber-600 mx-auto" />
+          <AppIcon icon={AlertCircle} size="card" className="text-amber-600 mx-auto" />
           <h3 className="font-bold text-slate-900 text-sm">No active plans published</h3>
           <p className="text-xs text-slate-500 font-medium">
             An admin needs to activate pricing plans before checkout is available.
@@ -217,9 +222,13 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 <ul className={`space-y-2 text-xs font-semibold list-none ${isUnlimited ? 'text-slate-300' : 'text-slate-600'}`}>
                   {plan.features.map((feat, idx) => (
                     <li key={idx} className="flex items-center gap-2">
-                      <CheckCircle2 className={`w-3.5 h-3.5 ${
-                        isUnlimited ? 'text-amber-400' : plan.isPopular ? 'text-blue-600' : 'text-slate-400'
-                      }`} /> 
+                      <AppIcon
+                        icon={CheckCircle2}
+                        size="btn"
+                        className={
+                          isUnlimited ? 'text-amber-400' : plan.isPopular ? 'text-blue-600' : 'text-slate-400'
+                        }
+                      /> 
                       <span>{feat}</span>
                     </li>
                   ))}
@@ -261,8 +270,8 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       {activePlans.length > 0 && (
       <section className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4">
         <h3 className="font-bold text-slate-900 text-base border-b border-slate-100 pb-3">Plan Feature Comparison Matrix</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto scroll-x-safe">
+          <table className="w-full text-left text-xs border-collapse min-w-[640px]">
             <thead>
               <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                 <th className="p-3">Core Features</th>
@@ -333,7 +342,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <ShieldCheck className="w-4.5 h-4.5 text-blue-600" />
+              <AppIcon icon={ShieldCheck} size="card" className="text-blue-600" />
               <span>Real CEE Exam Experience</span>
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-medium">
@@ -342,7 +351,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <TrendingUp className="w-4.5 h-4.5 text-blue-600" />
+              <AppIcon icon={TrendingUp} size="card" className="text-blue-600" />
               <span>Granular Performance Reports</span>
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-medium">
@@ -351,7 +360,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <Sparkles className="w-4.5 h-4.5 text-blue-600" />
+              <AppIcon icon={Percent} size="card" className="text-blue-600" />
               <span>Rank Prediction Percentiles</span>
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-medium">
@@ -360,7 +369,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <BookOpen className="w-4.5 h-4.5 text-blue-600" />
+              <AppIcon icon={BookOpen} size="card" className="text-blue-600" />
               <span>Affordable MEC Prep</span>
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-medium">
@@ -369,7 +378,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <CreditCard className="w-4.5 h-4.5 text-blue-600" />
+              <AppIcon icon={CreditCard} size="card" className="text-blue-600" />
               <span>Study Coins Habit Loop</span>
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-medium">
@@ -378,7 +387,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <Clock className="w-4.5 h-4.5 text-blue-600" />
+              <AppIcon icon={Clock} size="card" className="text-blue-600" />
               <span>Auto-Save Integrity</span>
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-medium">
@@ -471,7 +480,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
 
             {submittedSuccess && (
               <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl flex items-start gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <AppIcon icon={CheckCircle2} size="card" className="text-emerald-600 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold block">Claim Submitted Successfully!</span>
                   <span>Our active moderators will verify your payment reference ID within 2 hours.</span>
@@ -519,9 +528,12 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                disabled={submitting}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
               >
-                Submit Verification Claim (NPR {amount})
+                {submitting
+                  ? 'Submitting…'
+                  : `Submit Verification Claim (NPR ${amount})`}
               </button>
             </form>
           </div>
@@ -539,7 +551,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 className="w-full flex items-center justify-between text-left text-xs font-bold text-slate-800 hover:text-blue-600 transition-colors cursor-pointer"
               >
                 <span>{faq.q}</span>
-                {openFaqIndex === idx ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                {openFaqIndex === idx ? <AppIcon icon={ChevronUp} size="btn" className="text-slate-400" /> : <AppIcon icon={ChevronDown} size="btn" className="text-slate-400" />}
               </button>
               {openFaqIndex === idx && (
                 <p className="text-[11px] text-slate-500 font-semibold leading-relaxed pl-1">
@@ -551,42 +563,38 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         </div>
       </section>
 
-      {/* 7. BOTTOM CALL TO ACTION */}
-      <section className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-3xl p-8 sm:p-10 text-center space-y-5 shadow-lg relative overflow-hidden">
-        <div className="absolute inset-0 bg-radial-gradient(circle_at_center,rgba(255,255,255,0.1),transparent)" />
-        <div className="relative z-10 space-y-3">
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight">Start Preparing Smarter Today</h2>
-          <p className="text-xs sm:text-sm text-blue-100 max-w-md mx-auto leading-relaxed">
-            Gain full analytical insights, mock test quotas, and track your prep streaks with Nepal's leading CEE platform.
+      <section className="bg-[#2563EB] text-white rounded-2xl p-8 sm:p-10 space-y-4 border border-blue-700">
+        <div className="max-w-xl space-y-3">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Need more mock quota?</h2>
+          <p className="text-sm text-blue-100 leading-relaxed">
+            Choose a paid plan above, complete payment, then submit your transaction reference for verification.
           </p>
-          <div className="flex justify-center gap-3 pt-3">
-            {upgradeCtaPlan ? (
-              <button 
-                onClick={() => {
-                  setSelectedPlanCode(upgradeCtaPlan.code);
-                  document.getElementById('claim-form-section')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="px-6 py-2.5 bg-white text-blue-600 hover:bg-slate-50 text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
-              >
-                Upgrade to {upgradeCtaPlan.name}
-              </button>
-            ) : null}
-          </div>
+          {upgradeCtaPlan ? (
+            <button 
+              type="button"
+              onClick={() => {
+                setSelectedPlanCode(upgradeCtaPlan.code);
+                document.getElementById('claim-form-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-5 py-2.5 bg-white text-[#2563EB] hover:bg-slate-50 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
+            >
+              Select {upgradeCtaPlan.name}
+            </button>
+          ) : null}
         </div>
       </section>
 
-      {/* Prior Claims History Log Ledger */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-        <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100 flex items-center justify-between">
-          <span>Your Claim Logs & Activation History</span>
-          <span className="text-xs text-slate-500 font-mono">Moderator SLA &le; 2 Hours</span>
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+        <h3 className="font-semibold text-slate-900 text-base pb-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <span>Payment claims</span>
+          <span className="text-xs text-slate-500">Typical review within 2 hours</span>
         </h3>
 
         {claimsHistory.length === 0 ? (
-          <p className="text-xs text-slate-400 text-center py-4 font-medium">No prior billing claims submitted yet.</p>
+          <p className="text-sm text-slate-500 text-center py-4">No payment claims yet.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-x-auto scroll-x-safe">
+            <table className="w-full text-left text-xs border-collapse min-w-[560px]">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                   <th className="p-3">Submitted At</th>

@@ -13,11 +13,13 @@ import {
   CreditCard, 
   Sliders 
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { AppIcon } from './ui';
 
 interface WorkflowStep {
   number: number;
   title: string;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
   features: string[];
   color: string;
   bgColor: string;
@@ -204,7 +206,7 @@ export const WorkflowView: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className={`p-2.5 rounded-xl bg-white ${step.color} shadow-2xs`}>
-                    <StepIcon className="w-5 h-5" />
+                    <AppIcon icon={StepIcon} size="card" />
                   </div>
                   <span className="text-xs font-mono font-black text-slate-400">Step {step.number}</span>
                 </div>
