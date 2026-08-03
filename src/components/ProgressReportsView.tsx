@@ -218,7 +218,6 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
   if (pastReports.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
-        {guideBlock}
         <div className="p-6 sm:p-8 bg-white border border-slate-200 rounded-2xl text-center max-w-md mx-auto space-y-4">
           <div className="text-slate-900 font-semibold text-lg">No mock attempts yet</div>
           <p className="text-slate-600 text-sm leading-relaxed">
@@ -233,6 +232,7 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
             Open mock catalog
           </a>
         </div>
+        {guideBlock}
       </div>
     );
   }

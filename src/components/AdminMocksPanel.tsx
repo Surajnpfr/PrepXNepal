@@ -83,6 +83,13 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
     successCount: number;
     errors: string[];
     batchId: string | null;
+    fileCount?: number;
+    fileResults?: {
+      filename: string;
+      successCount: number;
+      errors: string[];
+      batchId: string | null;
+    }[];
   } | null>(null);
 
   const [dynTitle, setDynTitle] = useState('CEE Dynamic Full Mock');
@@ -120,21 +127,95 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
         successCount: result.successCount,
         errors: result.errors,
         batchId: result.batchId,
+        fileCount: 1,
+        fileResults: [
+          {
+            filename: filename || 'pasted.json',
+            successCount: result.successCount,
+            errors: result.errors,
+            batchId: result.batchId,
+          },
+        ],
       });
     } finally {
       setImportBusy(false);
     }
   };
 
-  const handleFile = async (file: File) => {
-    if (file.size > 2 * 1024 * 1024) {
-      setImportFileError('File is too large (max 2 MB).');
+  const handleFiles = async (fileList: FileList | File[] | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList as ArrayLike<File>);
+    const jsonFiles = files.filter(
+      (f) => f.name.toLowerCase().endsWith('.json') || f.type === 'application/json'
+    );
+    if (jsonFiles.length === 0) {
+      setImportFileError('Please choose one or more .json files.');
       return;
     }
-    setImportFileName(file.name);
-    const text = await file.text();
-    setJsonText(text);
-    await runImport(text, file.name);
+    const tooBig = jsonFiles.find((f) => f.size > 10 * 1024 * 1024);
+    if (tooBig) {
+      setImportFileError(`“${tooBig.name}” is too large (max 10 MB per file).`);
+      return;
+    }
+
+    setImportBusy(true);
+    setImportFileError(null);
+    setImportFileName(
+      jsonFiles.length === 1
+        ? jsonFiles[0].name
+        : `${jsonFiles.length} files: ${jsonFiles.map((f) => f.name).join(', ')}`
+    );
+
+    let successCount = 0;
+    const errors: string[] = [];
+    const fileResults: {
+      filename: string;
+      successCount: number;
+      errors: string[];
+      batchId: string | null;
+    }[] = [];
+    let lastBatchId: string | null = null;
+
+    try {
+      for (const file of jsonFiles) {
+        try {
+          const text = await file.text();
+          JSON.parse(text);
+          if (jsonFiles.length === 1) setJsonText(text);
+          const result = await onImportFixedMocks(text, { filename: file.name });
+          successCount += result.successCount;
+          for (const err of result.errors) {
+            errors.push(`[${file.name}] ${err}`);
+          }
+          fileResults.push({
+            filename: file.name,
+            successCount: result.successCount,
+            errors: result.errors,
+            batchId: result.batchId,
+          });
+          if (result.batchId) lastBatchId = result.batchId;
+        } catch (err: any) {
+          const msg = err?.message || 'invalid file';
+          errors.push(`[${file.name}] ${msg}`);
+          fileResults.push({
+            filename: file.name,
+            successCount: 0,
+            errors: [msg],
+            batchId: null,
+          });
+        }
+      }
+      setImportResult({
+        successCount,
+        errors,
+        batchId: lastBatchId,
+        fileCount: jsonFiles.length,
+        fileResults,
+      });
+    } finally {
+      setImportBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   const handleCreateDynamic = async () => {
@@ -302,7 +383,8 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
             Import Fixed Mock Tests (batch JSON)
           </h3>
           <p className="text-xs text-slate-500">
-            Array of mocks with embedded questions. Questions are upserted into the bank; paper order is frozen.
+            One or more JSON files — each an array of mocks with embedded questions. Each file becomes its own batch.
+            Questions are upserted into the bank; paper order is frozen.
           </p>
           <div
             className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-500 cursor-pointer hover:border-blue-300"
@@ -310,23 +392,22 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
-              const file = e.dataTransfer.files?.[0];
-              if (file) void handleFile(file);
+              void handleFiles(e.dataTransfer.files);
             }}
           >
-            Drag & drop or browse. Max 2 MB.
-            {importFileName && <div className="mt-2 font-mono text-slate-700">{importFileName}</div>}
+            Drag & drop or browse — select multiple files. Max 10 MB each.
+            {importFileName && (
+              <div className="mt-2 font-mono text-slate-700 break-all">{importFileName}</div>
+            )}
             {importFileError && <div className="mt-2 text-rose-600 font-semibold">{importFileError}</div>}
           </div>
           <input
             ref={fileRef}
             type="file"
             accept="application/json,.json"
+            multiple
             className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void handleFile(file);
-            }}
+            onChange={(e) => void handleFiles(e.target.files)}
           />
           <textarea
             value={jsonText}
@@ -343,10 +424,30 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
             {importBusy ? 'Importing…' : 'Validate & Import Fixed Mocks'}
           </button>
           {importResult && (
-            <div className="text-xs space-y-1 bg-slate-50 border border-slate-100 rounded-xl p-3">
-              <div className="font-bold text-emerald-700">Imported {importResult.successCount} mock(s)</div>
+            <div className="text-xs space-y-2 bg-slate-50 border border-slate-100 rounded-xl p-3">
+              <div className="font-bold text-emerald-700">
+                Imported {importResult.successCount} mock(s)
+                {importResult.fileCount && importResult.fileCount > 1
+                  ? ` across ${importResult.fileCount} files`
+                  : ''}
+              </div>
+              {importResult.fileResults && importResult.fileResults.length > 1 ? (
+                <ul className="space-y-1 font-mono text-[11px]">
+                  {importResult.fileResults.map((fr) => (
+                    <li key={fr.filename} className="flex flex-wrap justify-between gap-2">
+                      <span className="break-all text-slate-800">{fr.filename}</span>
+                      <span className={fr.successCount > 0 ? 'text-emerald-700' : 'text-rose-600'}>
+                        +{fr.successCount}
+                        {fr.errors.length > 0 ? ` · ${fr.errors.length} err` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {importResult.errors.map((err, i) => (
-                <div key={i} className="text-rose-600">{err}</div>
+                <div key={i} className="text-rose-600">
+                  {err}
+                </div>
               ))}
             </div>
           )}

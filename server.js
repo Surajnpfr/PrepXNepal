@@ -2323,7 +2323,7 @@ if (!SECRET_KEY) {
 var clerk = createClerkClient({ secretKey: SECRET_KEY });
 var app = express();
 app.disable("x-powered-by");
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");

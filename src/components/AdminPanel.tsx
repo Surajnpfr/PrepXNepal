@@ -335,6 +335,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     errors: string[];
     batchId?: string | null;
     batch?: ImportBatch | null;
+    fileCount?: number;
+    fileResults?: {
+      filename: string;
+      successCount: number;
+      errors: string[];
+      batchId: string | null;
+    }[];
   } | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [undoBusy, setUndoBusy] = useState(false);
@@ -540,39 +547,91 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleJsonFileSelected = async (file: File | null) => {
+  const handleJsonFilesSelected = async (fileList: FileList | File[] | null) => {
     setImportFileError(null);
     setImportResult(null);
-    if (!file) return;
+    if (!fileList || (Array.isArray(fileList) ? fileList.length === 0 : fileList.length === 0)) {
+      return;
+    }
+    const files = Array.from(fileList as ArrayLike<File>);
+    const jsonFiles = files.filter(
+      (f) => f.name.toLowerCase().endsWith('.json') || f.type === 'application/json'
+    );
+    if (jsonFiles.length === 0) {
+      setImportFileError('Please choose one or more .json files.');
+      setImportFileName(null);
+      return;
+    }
+    const tooBig = jsonFiles.find((f) => f.size > 10 * 1024 * 1024);
+    if (tooBig) {
+      setImportFileError(`“${tooBig.name}” is too large (max 10 MB per file).`);
+      setImportFileName(null);
+      return;
+    }
 
-    const lower = file.name.toLowerCase();
-    if (!lower.endsWith('.json') && file.type !== 'application/json') {
-      setImportFileError('Please choose a .json file.');
-      setImportFileName(null);
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setImportFileError('File is too large (max 2 MB). Split the batch into smaller JSON files.');
-      setImportFileName(null);
-      return;
-    }
+    setImportBusy(true);
+    setImportFileName(
+      jsonFiles.length === 1
+        ? jsonFiles[0].name
+        : `${jsonFiles.length} files: ${jsonFiles.map((f) => f.name).join(', ')}`
+    );
+
+    let successCount = 0;
+    const errors: string[] = [];
+    const fileResults: {
+      filename: string;
+      successCount: number;
+      errors: string[];
+      batchId: string | null;
+    }[] = [];
+    let lastBatch: ImportBatch | null = null;
+    let lastBatchId: string | null = null;
 
     try {
-      const text = await file.text();
-      JSON.parse(text);
-      setImportFileName(file.name);
-      setJsonText(text);
-      await handleRunImport(text, { filename: file.name, label: file.name.replace(/\.json$/i, '') });
-    } catch (err: any) {
-      setImportFileName(null);
-      setImportFileError(err?.message || 'Could not read JSON file');
+      for (const file of jsonFiles) {
+        try {
+          const text = await file.text();
+          JSON.parse(text);
+          const res = await onBulkImportJSON(text, {
+            filename: file.name,
+            label: file.name.replace(/\.json$/i, ''),
+          });
+          successCount += res.successCount;
+          for (const err of res.errors) {
+            errors.push(`[${file.name}] ${err}`);
+          }
+          fileResults.push({
+            filename: file.name,
+            successCount: res.successCount,
+            errors: res.errors,
+            batchId: res.batchId,
+          });
+          if (res.batchId) {
+            lastBatchId = res.batchId;
+            lastBatch = res.batch ?? null;
+            setExpandedBatchId(res.batchId);
+          }
+        } catch (err: any) {
+          const msg = err?.message || 'invalid file';
+          errors.push(`[${file.name}] ${msg}`);
+          fileResults.push({
+            filename: file.name,
+            successCount: 0,
+            errors: [msg],
+            batchId: null,
+          });
+        }
+      }
       setImportResult({
-        successCount: 0,
-        errors: [`JSON file error: ${err?.message || 'invalid file'}`],
-        batchId: null,
-        batch: null,
+        successCount,
+        errors,
+        batchId: lastBatchId,
+        batch: lastBatch,
+        fileCount: jsonFiles.length,
+        fileResults,
       });
     } finally {
+      setImportBusy(false);
       if (jsonFileInputRef.current) jsonFileInputRef.current.value = '';
     }
   };
@@ -1136,16 +1195,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </h3>
 
           <p className="text-xs text-slate-600 leading-relaxed">
-            Upload a <span className="font-mono font-semibold">.json</span> file (array of question objects), or paste JSON below.
-            Invalid rows are reported; valid rows are still imported into the database.
+            Upload one or more <span className="font-mono font-semibold">.json</span> files (each an array of question objects), or paste JSON below.
+            Each file becomes its own import batch. Invalid rows are reported; valid rows are still imported.
           </p>
 
           <input
             ref={jsonFileInputRef}
             type="file"
             accept=".json,application/json"
+            multiple
             className="hidden"
-            onChange={(e) => void handleJsonFileSelected(e.target.files?.[0] ?? null)}
+            onChange={(e) => void handleJsonFilesSelected(e.target.files)}
           />
 
           <div
@@ -1157,8 +1217,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             onDrop={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              const file = e.dataTransfer.files?.[0] ?? null;
-              void handleJsonFileSelected(file);
+              void handleJsonFilesSelected(e.dataTransfer.files);
             }}
           >
             <div className="flex items-start gap-3 text-left">
@@ -1166,14 +1225,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <AppIcon icon={Upload} size="card" />
               </div>
               <div>
-                <div className="text-sm font-bold text-slate-900">Import from JSON file</div>
+                <div className="text-sm font-bold text-slate-900">Import from JSON file(s)</div>
                 <div className="text-[11px] text-slate-500 mt-0.5">
-                  Drag &amp; drop or browse. Max 2 MB. Schema: subject, chapter, question, options, correctAnswer. Optional for MAT: <code className="font-mono">imageUrl</code>, <code className="font-mono">optionImages</code>.
+                  Drag &amp; drop or browse — select multiple files. Max 10 MB each. Schema: subject, chapter, question, options, correctAnswer. Optional for MAT: <code className="font-mono">imageUrl</code>, <code className="font-mono">optionImages</code>.
                 </div>
                 {importFileName && (
-                  <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold text-emerald-700">
-                    <AppIcon icon={FileCode} size="btn" />
-                    {importFileName}
+                  <div className="mt-2 inline-flex items-start gap-1.5 text-[11px] font-mono font-semibold text-emerald-700">
+                    <AppIcon icon={FileCode} size="btn" className="mt-0.5 shrink-0" />
+                    <span className="break-all">{importFileName}</span>
                   </div>
                 )}
                 {importFileError && (
@@ -1188,7 +1247,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               onClick={() => jsonFileInputRef.current?.click()}
               className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold text-xs rounded-xl cursor-pointer shrink-0"
             >
-              {importBusy ? 'Importing…' : 'Choose JSON file'}
+              {importBusy ? 'Importing…' : 'Choose JSON file(s)'}
             </button>
           </div>
 
@@ -1221,7 +1280,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 text-xs">
               <div className="font-bold text-emerald-600 font-mono">
                 Successfully imported: {importResult.successCount} questions
+                {importResult.fileCount && importResult.fileCount > 1
+                  ? ` across ${importResult.fileCount} files`
+                  : ''}
               </div>
+
+              {importResult.fileResults && importResult.fileResults.length > 1 ? (
+                <ul className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5 font-mono text-[11px]">
+                  {importResult.fileResults.map((fr) => (
+                    <li key={fr.filename} className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-slate-800 font-semibold break-all">{fr.filename}</span>
+                      <span className={fr.successCount > 0 ? 'text-emerald-700' : 'text-rose-600'}>
+                        +{fr.successCount}
+                        {fr.errors.length > 0 ? ` · ${fr.errors.length} err` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
 
               {(importResult.batch || importResult.batchId) && (
                 <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5">

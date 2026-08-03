@@ -107,8 +107,8 @@ export const AdminFormulasPanel: React.FC<AdminFormulasPanelProps> = ({
       setImportFileError('Only .json files are supported.');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setImportFileError('File too large (max 2 MB).');
+    if (file.size > 10 * 1024 * 1024) {
+      setImportFileError('File too large (max 10 MB).');
       return;
     }
     try {
@@ -276,7 +276,7 @@ export const AdminFormulasPanel: React.FC<AdminFormulasPanelProps> = ({
               <div>
                 <div className="text-sm font-bold text-slate-900">Import from JSON file</div>
                 <div className="text-[11px] text-slate-500 mt-0.5">
-                  Schema: subject, title, chapter, formulas[{'{'}name, formula, note?{'}'}]. Max 2
+                  Schema: subject, title, chapter, formulas[{'{'}name, formula, note?{'}'}]. Max 10
                   MB.
                 </div>
                 {importFileName && (
