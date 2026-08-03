@@ -102,6 +102,51 @@ const again = await repo.resolve('pay-1', {
 });
 assert(again === null, 'cannot re-resolve');
 
+const c2 = await repo.insert({
+  id: 'pay-2',
+  userId: 'usr-clerk-s',
+  clerkUserId: 'user_s',
+  userName: 'Stu',
+  userEmail: 's@ex.com',
+  planCode: 'Premium',
+  amountNpr: 149,
+  paymentMethod: 'eSewa',
+  transactionRef: 'TX-EDIT',
+  screenshotUrl: '',
+});
+assert(c2.status === 'pending', 'second claim pending');
+
+const updated = await repo.updatePending('pay-2', {
+  planCode: 'Unlimited',
+  amountNpr: 999,
+  transactionRef: 'TX-EDITED',
+  userNotes: 'staff corrected amount',
+  promoCode: 'SAVE10',
+  promoDiscountNpr: 50,
+  listAmountNpr: 1049,
+});
+assert(updated?.planCode === 'Unlimited', 'plan updated');
+assert(updated?.amountNpr === 999, 'amount updated');
+assert(updated?.transactionRef === 'TX-EDITED', 'ref updated');
+assert(updated?.userNotes === 'staff corrected amount', 'notes updated');
+assert(updated?.promoCode === 'SAVE10', 'promo updated');
+assert(updated?.listAmountNpr === 1049, 'list amount updated');
+assert(updated?.status === 'pending', 'still pending after edit');
+
+const resetList = await repo.updatePending('pay-2', { listAmountNpr: null });
+// Domain maps null list → payable amount when reading.
+assert(resetList?.listAmountNpr === resetList?.amountNpr, 'null list falls back to amount');
+
+const noEditResolved = await repo.updatePending('pay-1', { amountNpr: 1 });
+assert(noEditResolved === null, 'cannot edit resolved claim');
+
+const deleted = await repo.deletePending('pay-2');
+assert(deleted === true, 'pending deleted');
+assert((await repo.getById('pay-2')) === null, 'gone after delete');
+
+const noDeleteResolved = await repo.deletePending('pay-1');
+assert(noDeleteResolved === false, 'cannot delete resolved claim');
+
 await repo.close();
 fs.unlinkSync(tmp);
 console.log('test-payment-claims: OK');

@@ -64,9 +64,12 @@ import {
 } from './lib/referralCapture';
 import {
   approvePaymentClaim,
+  deletePaymentClaim,
   fetchPaymentClaims,
   rejectPaymentClaim,
   submitPaymentClaim,
+  updatePaymentClaim,
+  type PaymentClaimEditInput,
 } from './lib/paymentClaimsApi';
 import {
   bootstrapFromActivity,
@@ -901,8 +904,8 @@ export function App() {
     if (userProfile.plan !== 'Unlimited' && (userProfile.mocksRemaining ?? 0) <= 0) {
       await feedback.alert({
         variant: 'warning',
-        title: 'No mock quota left',
-        message: 'Upgrade your plan to generate more practice mocks.',
+        title: 'No mock attempts remaining',
+        message: 'Upgrade your plan to generate more practice tests.',
         confirmLabel: 'View plans',
       });
       setActiveTab('payment');
@@ -914,8 +917,8 @@ export function App() {
       if (!resolved.questions.length) {
         await feedback.alert({
           variant: 'warning',
-          title: 'Empty paper',
-          message: 'Could not build a paper from the question bank.',
+          title: 'Unable to create test',
+          message: 'There are not enough questions available for this practice test yet.',
         });
         return;
       }
@@ -1185,6 +1188,39 @@ export function App() {
         title: 'Reject failed',
         message: err?.message || 'Could not reject claim',
       });
+    }
+  };
+
+  const handleUpdateClaim = async (claimId: string, patch: PaymentClaimEditInput) => {
+    try {
+      const claim = await updatePaymentClaim(getToken, claimId, patch);
+      setPaymentClaims((prev) => prev.map((c) => (c.id === claimId ? claim : c)));
+      feedback.toast({ variant: 'success', message: 'Payment claim updated.' });
+      void refreshPaymentClaims();
+      return claim;
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Update failed',
+        message: err?.message || 'Could not update claim',
+      });
+      throw err;
+    }
+  };
+
+  const handleDeleteClaim = async (claimId: string) => {
+    try {
+      await deletePaymentClaim(getToken, claimId);
+      setPaymentClaims((prev) => prev.filter((c) => c.id !== claimId));
+      feedback.toast({ variant: 'success', message: 'Payment claim deleted from queue.' });
+      void refreshPaymentClaims();
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Delete failed',
+        message: err?.message || 'Could not delete claim',
+      });
+      throw err;
     }
   };
 
@@ -1471,8 +1507,8 @@ export function App() {
           title="Page not found"
           message={
             attemptedPath
-              ? `No page exists at ${attemptedPath}. Check the link or return to your dashboard.`
-              : 'That address is not a PrepX page.'
+              ? `No page was found at ${attemptedPath}. Check the link or return to your dashboard.`
+              : 'This link is not a PrepX page.'
           }
           primaryLabel="Go to dashboard"
           onPrimary={() => goToTab('home', { replace: true })}
@@ -1491,7 +1527,7 @@ export function App() {
                     announcementNotification.desc ? ` — ${announcementNotification.desc}` : ''
                   }`
                 : mockTests.length > 0
-                  ? `${mockTests.filter((m) => m.isPublished !== false).length} mocks ready in your catalog`
+                  ? `${mockTests.filter((m) => m.isPublished !== false).length} mock tests are ready in Mock Tests`
                   : 'Sign in and open Mock Tests to start a timed CEE practice paper.'
             }
             ctaLabel={
@@ -1685,6 +1721,8 @@ export function App() {
                     onRefreshPaymentClaims={() => void refreshPaymentClaims()}
                     onApproveClaim={handleApproveClaim}
                     onRejectClaim={handleRejectClaim}
+                    onUpdateClaim={handleUpdateClaim}
+                    onDeleteClaim={handleDeleteClaim}
                     questions={allQuestions}
                     questionBatches={questionBatches}
                     onAddQuestion={(q) => void handleAddQuestionToDb(q)}
@@ -1731,8 +1769,8 @@ export function App() {
                     title={isSignedIn ? 'Access denied' : 'Sign in required'}
                     message={
                       isSignedIn
-                        ? 'Your account does not have admin or moderator access. Contact PrepX staff if you need the Admin Desk.'
-                        : 'Sign in with a staff account to open the Admin Desk.'
+                        ? 'Your account does not have admin or moderator access. Contact PrepX staff if you need staff tools.'
+                        : 'Sign in with a staff account to open Admin tools.'
                     }
                     primaryLabel="Go to dashboard"
                     onPrimary={() => goToTab('home', { replace: true })}

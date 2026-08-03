@@ -71,13 +71,13 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
             <BrandLogo size={64} className="shrink-0" alt="PrepX Nepal logo — Nepal CEE mock test platform" />
         <div className="text-sm text-slate-600 leading-relaxed space-y-2">
           <p>
-            Use this page when you have finished at least one timed mock and want to decide what to
-            study next. Industry context: Nepal medical entrance preparation under MEC CEE rules.
+            Use this page after a timed mock to see what to revise next for Nepal CEE (MEC) entrance
+            prep.
           </p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>Audience: Nepal CEE / MBBS entrance students and mentors</li>
-            <li>Use case: turn each mock into a chapter revision checklist</li>
-            <li>Decision context: which subject to prioritise before the next timed attempt</li>
+            <li>Built for Nepal CEE / MBBS aspirants and mentors</li>
+            <li>Turn each attempt into a chapter revision checklist</li>
+            <li>Decide which subject to prioritise before your next timed mock</li>
           </ul>
         </div>
       </div>

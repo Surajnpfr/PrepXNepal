@@ -176,13 +176,13 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
                 : 'Generate Chapter-wise Mock'}
           </h2>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Uses the official CEE unit blueprint
+            Follows the official CEE unit blueprint
             {scope === 'full'
-              ? ' (200 Qs by subject/unit).'
+              ? ' (200 questions by subject and unit).'
               : scope === 'subject'
-                ? ` (${subjectQuota(subject)} Qs across ${subject} units).`
+                ? ` (${subjectQuota(subject)} questions across ${subject} units).`
                 : ' for the selected unit.'}{' '}
-            Short units are filled from available bank questions in that subject.
+            If a unit has fewer questions than needed, we fill from other questions in that subject.
           </p>
         </div>
       </div>
@@ -193,7 +193,7 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-bold text-slate-700">Subject</span>
               <span className="text-[10px] font-mono text-slate-400">
-                Tap to select · CEE quota shown
+                Select a subject · question count shown
               </span>
             </div>
             <div
@@ -249,7 +249,7 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
                             : 'text-slate-500'
                       }`}
                     >
-                      {empty ? 'Bank empty' : `${bank} in bank`}
+                      {empty ? 'No questions yet' : `${bank} available`}
                     </div>
                   </button>
                 );
@@ -297,7 +297,7 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
                           selected ? 'text-white/85' : 'text-slate-500'
                         }`}
                       >
-                        Blueprint {u.count} · Bank {bankCount}
+                        Target {u.count} · Available {bankCount}
                       </div>
                     </button>
                   );
@@ -336,20 +336,23 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
       <div className="text-xs bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5 text-slate-600">
         Target <span className="font-mono font-bold text-slate-900">{availableSummary.target}</span>
         {' · '}
-        Available in bank{' '}
+        Available{' '}
         <span className="font-mono font-bold text-slate-900">{availableSummary.available}</span>
         {availableSummary.available < availableSummary.target && availableSummary.available > 0 && (
-          <span className="text-amber-700"> — will use all available</span>
+          <span className="text-amber-700"> — will use all available questions</span>
         )}
         {availableSummary.available === 0 && (
-          <span className="text-rose-600"> — no questions yet; import into the bank first</span>
+          <span className="text-rose-600">
+            {' '}
+            — no questions for this selection yet. Try another subject or check back later.
+          </span>
         )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
         <div className="text-[11px] text-slate-500 font-mono">
-          Duration ~{durationSec >= 3600 ? `${durationSec / 3600}h` : `${durationSec / 60}m`} · 1 quota
-          on start
+          Duration ~{durationSec >= 3600 ? `${durationSec / 3600}h` : `${durationSec / 60}m`} · uses 1
+          attempt when you start
         </div>
         <button
           type="button"
@@ -358,7 +361,7 @@ export const UserPracticeGenerator: React.FC<UserPracticeGeneratorProps> = ({
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl disabled:opacity-50 cursor-pointer shadow-xs transition-colors"
         >
           <AppIcon icon={Zap} size="btn" />
-          {busy ? 'Building paper…' : 'Generate & Start'}
+          {busy ? 'Preparing your test…' : 'Generate & Start'}
         </button>
       </div>
     </div>

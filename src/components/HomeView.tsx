@@ -288,8 +288,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
           ) : (
             <div className="flex flex-col items-center justify-center text-center h-full space-y-3 py-6">
               <AppIcon icon={ShieldAlert} size="lg" className="text-[var(--px-muted)]" />
-              <div className="text-xs font-bold text-[var(--px-heading)]">No Mocks Published</div>
-              <p className="text-[10px] text-[var(--px-muted)]">Administrators have not uploaded mock papers yet.</p>
+              <div className="text-xs font-bold text-[var(--px-heading)]">No mocks available</div>
+              <p className="text-[10px] text-[var(--px-muted)]">
+                New mock tests will appear here once they are published.
+              </p>
             </div>
           )}
         </Card>
@@ -404,7 +406,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div className="divide-y divide-slate-100 text-xs font-medium text-slate-700 pt-1">
             {pastReports.length === 0 ? (
               <div className="py-4 text-slate-400 text-center font-medium">
-                You haven't attempted any mock tests yet. Take a mock test from the catalog!
+                You haven&apos;t completed a mock yet. Open Mock Tests to start your first timed practice.
               </div>
             ) : (
               pastReports.slice(0, 5).map((rep) => (

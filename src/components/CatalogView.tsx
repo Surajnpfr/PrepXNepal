@@ -99,7 +99,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             Mock tests
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Start a fixed paper from the catalog, or generate a dynamic, subject, or chapter mock from the question bank.
+            Choose a published mock, or build a full-length, subject, or chapter practice test.
           </p>
         </div>
 
@@ -164,8 +164,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             </div>
             <p className="text-[11px] text-slate-500 leading-snug sm:hidden">
               {showGenerator
-                ? 'Generate a paper from the question bank.'
-                : 'Browse imported fixed papers.'}
+                ? 'Build a practice test from available questions.'
+                : 'Browse published full-length mocks.'}
             </p>
           </div>
 
@@ -174,7 +174,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               <AppIcon icon={Search} size="btn" className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="search"
-                placeholder="Search fixed mocks"
+                placeholder="Search published mocks"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2.5 min-h-11 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
@@ -189,7 +189,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         <>
           {!isEntitledBase ? (
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-900 space-y-3">
-              <p className="font-semibold">Upgrade your plan to generate practice mocks.</p>
+              <p className="font-semibold">Upgrade your plan to unlock practice test generation.</p>
               <button
                 type="button"
                 onClick={() => onNavigate('payment')}
@@ -211,9 +211,14 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       )}
 
       {!showGenerator && filteredMocks.length === 0 && (
-        <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-10 text-center text-sm text-slate-500">
-          No fixed mock papers yet. Admins import Fixed JSON in Admin → Mock Tests. Use Dynamic / Subject /
-          Chapter tabs to generate your own papers from the bank.
+        <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-10 text-center space-y-2 max-w-lg mx-auto">
+          <p className="text-sm font-semibold text-slate-900">
+            Published full-length mocks will appear here
+          </p>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            None are available right now. Open the Dynamic, Subject, or Chapter tab to build a
+            practice test, or check back soon for new timed mocks from PrepX Nepal.
+          </p>
         </div>
       )}
 
@@ -329,7 +334,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   )}
 
                   <div className="text-center text-[10px] text-slate-400">
-                    {isFreeDemo ? 'Free Demo Mock for all aspirants' : '1 Quota / Mock Deduction upon Start'}
+                    {isFreeDemo ? 'Free demo for all aspirants' : 'Uses 1 mock attempt from your plan when you start'}
                   </div>
                 </div>
               </div>

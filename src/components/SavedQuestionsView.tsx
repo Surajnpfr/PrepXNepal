@@ -81,7 +81,7 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
             <AppIcon icon={Bookmark} size="lg" className="text-slate-300 mx-auto" />
             <h3 className="text-sm font-bold text-slate-700">No saved questions yet</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Bookmark questions with the star icon while taking a mock. They will appear here for revision.
+              Save questions with the star icon during a mock. They appear here for later revision.
             </p>
             {onNavigate && (
               <button

@@ -84,7 +84,7 @@ export const FormulasView: React.FC<FormulasViewProps> = ({ sheets }) => {
           High-Yield Formula Sheets & Saved Notes
         </h1>
         <p className="text-xs sm:text-sm text-slate-600">
-          Instant offline-cached revision formulas for CEE Physics, Chemistry, Botany, Zoology, and MAT.
+          Instant revision formulas for CEE Physics, Chemistry, Botany, Zoology, and MAT.
         </p>
       </div>
 

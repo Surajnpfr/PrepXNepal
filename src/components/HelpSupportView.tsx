@@ -81,25 +81,25 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
 
   const faqs = [
     {
-      q: "How does CEE negative marking work?",
-      a: "Under the Medical Education Commission (MEC) rules, each correct answer earns 1 mark, while each wrong answer deducts 0.25 marks. Unanswered questions result in 0 marks. Skipping questions you are unsure about is a key strategy to avoid point deductions."
+      q: 'How does CEE negative marking work?',
+      a: 'Under Medical Education Commission (MEC) rules, each correct answer earns 1 mark and each wrong answer deducts 0.25 marks. Unanswered questions score 0. Skipping uncertain questions helps protect your total.',
     },
     {
-      q: "Can I upgrade standard premium credits to Unlimited?",
-      a: "Yes! If you purchased the Standard Plan (10 mocks credits) and want to go Unlimited, you can scan the Unlimited QR code on the plans page, send the remaining balance, and submit your reference transaction receipt claim."
+      q: 'Can I upgrade from Premium to Unlimited?',
+      a: 'Yes. Open Plans & payment, choose Unlimited, pay the difference via the merchant QR, and submit your transaction reference for verification.',
     },
     {
-      q: "What is the moderator verification SLA for payment receipt claims?",
-      a: "Our active billing moderators verify payment claims via digital receipts within 2 hours. If your submission is sent after 10 PM, it will be prioritized and verified by 8 AM the next morning."
+      q: 'How long does payment verification take?',
+      a: 'Most payment claims are reviewed within about 2 hours during the day. Claims submitted late at night are usually reviewed the next morning.',
     },
     {
-      q: "Do my study coins expire?",
-      a: "No, Study Coins do not expire. You can save them in your coin wallet to unlock specialized revision files or study countdown worksheets later in the session."
+      q: 'Do Study Coins expire?',
+      a: 'No. Study Coins stay in your wallet until you redeem them for practice packs or formula resources.',
     },
     {
-      q: "How can I report a wrong answer explanation or typo?",
-      a: "If you notice a typo or questionable explanation inside any mock question, navigate to the 'Report an Issue' sub-tab on this page, choose 'Question Content Error', enter the Mock test title/Question number, and submit it directly to our content moderators."
-    }
+      q: 'How do I report a wrong answer or typo?',
+      a: 'Open Report a problem on this page, choose content or question error, include the mock title and question number, then submit. Our team will review it.',
+    },
   ];
 
   return (
@@ -110,10 +110,10 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             <AppIcon icon={HelpCircle} size="lg" className="text-[#2563EB]" />
-            <span>Help Desk & Academic Regulations</span>
+            <span>Help & support</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Browse MEC CEE rules, terms of service, coin usage policies, or file a support ticket directly to Kathmandu office.
+            MEC CEE rules, terms, privacy, Study Coins policy, and support tickets.
           </p>
         </div>
 
@@ -292,7 +292,7 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
         <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto">
           <h2 className="text-lg font-bold text-slate-900 pb-2 border-b border-slate-100 flex items-center gap-2">
             <AppIcon icon={HelpCircle} size="card" className="text-blue-600" />
-            <span>Preparation & Billing FAQ Library</span>
+            <span>Frequently asked questions</span>
           </h2>
           <div className="divide-y divide-slate-100">
             {faqs.map((faq, idx) => (
@@ -323,12 +323,12 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
             <span>Terms of Service Agreement</span>
           </h2>
           <p>
-            Welcome to PrepX Nepal. By signing in via Clerk, starting mock tests, or purchasing credits, you agree to these Terms of Service.
+            Welcome to PrepX Nepal. By signing in, starting mock tests, or purchasing a plan, you agree to these Terms of Service.
           </p>
           <div className="space-y-3 pt-2 font-semibold">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-900 font-bold block mb-1">1. Non-Sharing of Credentials</span>
-              <span>Each account subscription and mock credit quota is tied to a single user profile. Attempting to share your login credentials or bulk export question stems violates our academic fair-use terms.</span>
+              <span>Each subscription and mock allowance is tied to a single user profile. Sharing login details or bulk-exporting question text violates our fair-use terms.</span>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-900 font-bold block mb-1">2. Timer Integrity & Attempt Lockouts</span>
@@ -357,7 +357,7 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
               <strong>Data Collection:</strong> We collect only your name, email, target score, and answers selection data required to build reports. We do not inspect other local files or tracking cookies.
             </p>
             <p>
-              <strong>Authentication Security:</strong> Clerk manages all sign-in procedures safely. We do not store your passwords on our local database logs.
+              <strong>Authentication security:</strong> Sign-in is handled by our secure authentication partner. We do not store your password.
             </p>
             <p>
               <strong>Transaction Safety:</strong> eSewa/Khalti verification records (Reference ID logs) are kept securely in our transaction claims table and audited purely to approve subscriptions.
@@ -371,10 +371,10 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
         <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto text-xs text-slate-700 leading-relaxed">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
             <AppIcon icon={Coins} size="btn" className="text-amber-500" />
-            <span>Study Coins Curation & Redemption Policy</span>
+            <span>Study Coins policy</span>
           </h2>
           <p>
-            Study Coins represent a non-monetary, gamified preparation incentive loop designed to cultivate consistent study habits.
+            Study Coins are practice rewards that encourage consistent study. They have no cash value.
           </p>
           <div className="space-y-3 pt-2 font-semibold">
             <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/60">
@@ -382,8 +382,8 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
               <span>Students receive +10 coins upon CEE mock completions and +15 coins upon completing weak chapter revision packs. Repeated retakes of the same mock test do not award additional coins.</span>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-slate-900 font-bold block mb-1">Redemptions & Quotas</span>
-              <span>Coins can be exchanged for Mock Credits or target formula packs. Coins carry zero cash valuation and cannot be transferred, sold, or redeemed for Nepalese Rupees.</span>
+              <span className="text-slate-900 font-bold block mb-1">Redemptions</span>
+              <span>Coins can be redeemed for mock attempts or formula packs. They have no cash value and cannot be transferred, sold, or withdrawn as NPR.</span>
             </div>
           </div>
         </div>
@@ -401,7 +401,7 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
           </p>
           <div className="space-y-3 pt-2 font-semibold">
             <p>
-              <strong>Claim Audits:</strong> Verification claims are matched against the Reference ID ledger. Approved claims activate standard premium quotas (10 credits) or unlimited status immediately.
+              <strong>Payment review:</strong> Claims are checked against your transaction reference. Once approved, your Premium or Unlimited plan benefits are activated.
             </p>
             <p>
               <strong>Refund Eligibility:</strong> Because mock credentials can be consumed immediately, plan purchases are generally non-refundable once approved and credits are credited.

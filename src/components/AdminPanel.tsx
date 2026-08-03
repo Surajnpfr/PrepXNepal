@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { PaymentClaim, Question, UserProfile, UserRole, PlanTier, PricingPlan, MockTest, MockScope, FormulaSheet } from '../types';
 import { BOOTSTRAP_ADMIN_EMAIL, ROLE_CONFIRM_PHRASE } from '../lib/clerkUserMapper';
+import type { PaymentClaimEditInput } from '../lib/paymentClaimsApi';
 import type { MockImportBatch } from '../lib/mocksApi';
 import type { ChapterQuestionCount, ImportBatch, SubjectQuestionCount } from '../lib/questionsApi';
 import type { FormulaImportBatch } from '../lib/formulasApi';
@@ -35,6 +36,13 @@ import { ReferralPanel } from './ReferralPanel';
 import { AdminSupportIssuesPanel } from './AdminSupportIssuesPanel';
 import { AdminPromoCodesPanel } from './AdminPromoCodesPanel';
 
+const PAYMENT_METHODS: PaymentClaim['paymentMethod'][] = [
+  'Fonepay',
+  'eSewa',
+  'Khalti',
+  'Bank Transfer',
+];
+
 interface AdminPanelProps {
   userProfile: UserProfile;
   paymentClaims: PaymentClaim[];
@@ -44,6 +52,8 @@ interface AdminPanelProps {
   onRefreshPaymentClaims?: () => void;
   onApproveClaim: (claimId: string) => void | Promise<void>;
   onRejectClaim: (claimId: string, reason: string) => void | Promise<void>;
+  onUpdateClaim?: (claimId: string, patch: PaymentClaimEditInput) => void | Promise<PaymentClaim | void>;
+  onDeleteClaim?: (claimId: string) => void | Promise<void>;
   questions: Question[];
   questionBatches: ImportBatch[];
   onAddQuestion: (q: Question) => void;
@@ -125,6 +135,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onRefreshPaymentClaims,
   onApproveClaim,
   onRejectClaim,
+  onUpdateClaim,
+  onDeleteClaim,
   questions,
   questionBatches,
   onAddQuestion,
@@ -189,6 +201,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return 'payments';
   });
   const [inspectingClaim, setInspectingClaim] = useState<PaymentClaim | null>(null);
+  const [editingClaim, setEditingClaim] = useState<PaymentClaim | null>(null);
+  const [editClaimBusy, setEditClaimBusy] = useState(false);
+  const [editClaimError, setEditClaimError] = useState<string | null>(null);
+  const [editClaimForm, setEditClaimForm] = useState({
+    planCode: '',
+    amountNpr: '',
+    listAmountNpr: '',
+    promoCode: '',
+    promoDiscountNpr: '',
+    paymentMethod: 'Fonepay' as PaymentClaim['paymentMethod'],
+    transactionRef: '',
+    screenshotUrl: '',
+    userNotes: '',
+  });
   const [rejectReason, setRejectReason] = useState('Reference ID mismatch');
   const [customRejectNote, setCustomRejectNote] = useState('');
   const [copiedRef, setCopiedRef] = useState(false);
@@ -352,6 +378,107 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
     await onRejectClaim(claimId, finalReason);
     setInspectingClaim(null);
+  };
+
+  const openEditClaim = (claim: PaymentClaim) => {
+    setInspectingClaim(null);
+    setEditClaimError(null);
+    setEditingClaim(claim);
+    setEditClaimForm({
+      planCode: claim.planCode,
+      amountNpr: String(claim.amountNpr),
+      listAmountNpr:
+        claim.listAmountNpr != null && Number.isFinite(claim.listAmountNpr)
+          ? String(claim.listAmountNpr)
+          : '',
+      promoCode: claim.promoCode ?? '',
+      promoDiscountNpr:
+        claim.promoDiscountNpr != null && Number.isFinite(claim.promoDiscountNpr)
+          ? String(claim.promoDiscountNpr)
+          : '0',
+      paymentMethod: claim.paymentMethod,
+      transactionRef: claim.transactionRef,
+      screenshotUrl: claim.screenshotUrl ?? '',
+      userNotes: claim.userNotes ?? '',
+    });
+  };
+
+  const handleSaveEditedClaim = async () => {
+    if (!editingClaim || !onUpdateClaim) return;
+    const planCode = editClaimForm.planCode.trim();
+    const transactionRef = editClaimForm.transactionRef.trim();
+    const amountNpr = Number(editClaimForm.amountNpr);
+    if (!planCode) {
+      setEditClaimError('Plan code is required.');
+      return;
+    }
+    if (!Number.isFinite(amountNpr) || amountNpr <= 0) {
+      setEditClaimError('Amount must be a positive number.');
+      return;
+    }
+    if (!transactionRef) {
+      setEditClaimError('Transaction reference is required.');
+      return;
+    }
+    const listRaw = editClaimForm.listAmountNpr.trim();
+    let listAmountNpr: number | null | undefined = undefined;
+    if (listRaw === '') {
+      listAmountNpr = null;
+    } else {
+      const list = Number(listRaw);
+      if (!Number.isFinite(list) || list <= 0) {
+        setEditClaimError('List amount must be a positive number (or empty).');
+        return;
+      }
+      listAmountNpr = Math.round(list);
+    }
+    const promoDiscount = Number(editClaimForm.promoDiscountNpr || '0');
+    if (!Number.isFinite(promoDiscount) || promoDiscount < 0) {
+      setEditClaimError('Promo discount must be ≥ 0.');
+      return;
+    }
+
+    const patch: PaymentClaimEditInput = {
+      planCode,
+      amountNpr: Math.round(amountNpr),
+      listAmountNpr,
+      promoCode: editClaimForm.promoCode.trim() || null,
+      promoDiscountNpr: Math.round(promoDiscount),
+      paymentMethod: editClaimForm.paymentMethod,
+      transactionRef,
+      userNotes: editClaimForm.userNotes.trim() || null,
+    };
+    const shot = editClaimForm.screenshotUrl.trim();
+    if (shot) patch.screenshotUrl = shot;
+
+    setEditClaimBusy(true);
+    setEditClaimError(null);
+    try {
+      await onUpdateClaim(editingClaim.id, patch);
+      setEditingClaim(null);
+    } catch (err: any) {
+      setEditClaimError(err?.message || 'Could not update claim');
+    } finally {
+      setEditClaimBusy(false);
+    }
+  };
+
+  const handleDeletePendingClaim = async (claim: PaymentClaim) => {
+    if (!onDeleteClaim) return;
+    const ok = await feedback.confirm({
+      destructive: true,
+      title: 'Delete pending claim?',
+      message: `Remove ${claim.userName}'s ${claim.planCode} claim (NPR ${claim.amountNpr}, ref ${claim.transactionRef}) from the FIFO queue? This cannot be undone.`,
+      confirmLabel: 'Delete claim',
+    });
+    if (!ok) return;
+    try {
+      await onDeleteClaim(claim.id);
+      if (inspectingClaim?.id === claim.id) setInspectingClaim(null);
+      if (editingClaim?.id === claim.id) setEditingClaim(null);
+    } catch {
+      /* App handler already alerts */
+    }
   };
 
   const handleRunImport = async (
@@ -775,13 +902,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </td>
                     <td className="p-3 text-right">
                       {claim.status === 'pending' ? (
-                        <button
-                          onClick={() => setInspectingClaim(claim)}
-                          className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] rounded-lg cursor-pointer flex items-center gap-1 ml-auto"
-                        >
-                          <AppIcon icon={Eye} size="btn" />
-                          <span>Inspect Claim</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setInspectingClaim(claim)}
+                            className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] rounded-lg cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <AppIcon icon={Eye} size="btn" />
+                            <span>Inspect</span>
+                          </button>
+                          {onUpdateClaim ? (
+                            <button
+                              type="button"
+                              onClick={() => openEditClaim(claim)}
+                              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-[11px] rounded-lg cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <AppIcon icon={Edit3} size="btn" />
+                              <span>Edit</span>
+                            </button>
+                          ) : null}
+                          {onDeleteClaim ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleDeletePendingClaim(claim)}
+                              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] rounded-lg cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <AppIcon icon={Trash2} size="btn" />
+                              <span>Delete</span>
+                            </button>
+                          ) : null}
+                        </div>
                       ) : (
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono ${
                           claim.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
@@ -1414,8 +1564,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t border-slate-100">
+              {onUpdateClaim ? (
+                <button
+                  type="button"
+                  onClick={() => openEditClaim(inspectingClaim)}
+                  className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-xs rounded-xl cursor-pointer inline-flex items-center gap-1"
+                >
+                  <AppIcon icon={Edit3} size="btn" />
+                  Edit claim
+                </button>
+              ) : null}
+              {onDeleteClaim ? (
+                <button
+                  type="button"
+                  onClick={() => void handleDeletePendingClaim(inspectingClaim)}
+                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl cursor-pointer inline-flex items-center gap-1"
+                >
+                  <AppIcon icon={Trash2} size="btn" />
+                  Delete
+                </button>
+              ) : null}
               <button
+                type="button"
                 onClick={() => handleReject(inspectingClaim.id)}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl cursor-pointer"
               >
@@ -1423,10 +1594,170 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => handleApprove(inspectingClaim.id)}
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md cursor-pointer"
               >
                 Approve & Grant Entitlement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit pending payment claim */}
+      {editingClaim && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 border border-slate-200 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Edit pending claim</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {editingClaim.userName} · {editingClaim.userEmail}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !editClaimBusy && setEditingClaim(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                <AppIcon icon={X} size="btn" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <label className="space-y-1 sm:col-span-1">
+                <span className="font-bold text-slate-700">Plan code</span>
+                <input
+                  value={editClaimForm.planCode}
+                  onChange={(e) =>
+                    setEditClaimForm((f) => ({ ...f, planCode: e.target.value }))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="font-bold text-slate-700">Payable amount (NPR)</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={editClaimForm.amountNpr}
+                  onChange={(e) =>
+                    setEditClaimForm((f) => ({ ...f, amountNpr: e.target.value }))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="font-bold text-slate-700">List amount (NPR)</span>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="Optional"
+                  value={editClaimForm.listAmountNpr}
+                  onChange={(e) =>
+                    setEditClaimForm((f) => ({ ...f, listAmountNpr: e.target.value }))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="font-bold text-slate-700">Payment method</span>
+                <select
+                  value={editClaimForm.paymentMethod}
+                  onChange={(e) =>
+                    setEditClaimForm((f) => ({
+                      ...f,
+                      paymentMethod: e.target.value as PaymentClaim['paymentMethod'],
+                    }))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
+                >
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1 sm:col-span-2">
+                <span className="font-bold text-slate-700">Transaction ref</span>
+                <input
+                  value={editClaimForm.transactionRef}
+                  onChange={(e) =>
+                    setEditClaimForm((f) => ({ ...f, transactionRef: e.target.value }))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="font-bold text-slate-700">Promo code</span>
+                <input
+                  value={editClaimForm.promoCode}
+                  onChange={(e) =>
+                    setEditClaimForm((f) => ({ ...f, promoCode: e.target.value }))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg uppercase"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="font-bold text-slate-700">Promo discount (NPR)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={editClaimForm.promoDiscountNpr}
+                  onChange={(e) =>
+                    setEditClaimForm((f) => ({ ...f, promoDiscountNpr: e.target.value }))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
+                />
+              </label>
+              <label className="space-y-1 sm:col-span-2">
+                <span className="font-bold text-slate-700">Screenshot URL</span>
+                <input
+                  value={editClaimForm.screenshotUrl}
+                  onChange={(e) =>
+                    setEditClaimForm((f) => ({ ...f, screenshotUrl: e.target.value }))
+                  }
+                  placeholder="https://… or data:image/…"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-[11px]"
+                />
+              </label>
+              <label className="space-y-1 sm:col-span-2">
+                <span className="font-bold text-slate-700">User notes</span>
+                <textarea
+                  rows={3}
+                  value={editClaimForm.userNotes}
+                  onChange={(e) =>
+                    setEditClaimForm((f) => ({ ...f, userNotes: e.target.value }))
+                  }
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg resize-y"
+                />
+              </label>
+            </div>
+
+            {editClaimError ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                {editClaimError}
+              </div>
+            ) : null}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={editClaimBusy}
+                onClick={() => setEditingClaim(null)}
+                className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={editClaimBusy}
+                onClick={() => void handleSaveEditedClaim()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl"
+              >
+                {editClaimBusy ? 'Saving…' : 'Save changes'}
               </button>
             </div>
           </div>

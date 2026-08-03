@@ -124,9 +124,9 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
 
       {tasks.length === 0 && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center space-y-3">
-          <p className="text-sm font-bold text-slate-900">No tasks for today yet</p>
+          <p className="text-sm font-bold text-slate-900">No study tasks for today</p>
           <p className="text-xs text-slate-500">
-            Complete a mock to auto-generate weak-chapter targets, or add a custom target below.
+            Complete a mock to get suggested chapter targets, or add your own below.
           </p>
           <button
             type="button"

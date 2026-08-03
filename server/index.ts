@@ -2055,6 +2055,134 @@ app.post('/api/payment-claims/:id/reject', requireAuth, async (req, res) => {
   }
 });
 
+/** Billing staff: edit a pending claim (plan, amount, ref, method, notes). */
+app.patch('/api/payment-claims/:id', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Billing staff only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing claim id' });
+
+    const existing = await paymentClaimsRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: 'Claim not found' });
+    if (existing.status !== 'pending') {
+      return res.status(409).json({
+        error: `Only pending claims can be edited (currently ${existing.status})`,
+        claim: toClientPaymentClaim(existing),
+      });
+    }
+
+    const body = req.body || {};
+    const patch: Parameters<PaymentClaimsRepository['updatePending']>[1] = {};
+
+    if (typeof body.planCode === 'string' && body.planCode.trim()) {
+      patch.planCode = body.planCode.trim();
+    }
+    if (body.amountNpr !== undefined) {
+      const amount = typeof body.amountNpr === 'number' ? body.amountNpr : Number(body.amountNpr);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'amountNpr must be a positive number' });
+      }
+      patch.amountNpr = Math.round(amount);
+    }
+    if (body.listAmountNpr !== undefined) {
+      if (body.listAmountNpr === null || body.listAmountNpr === '') {
+        patch.listAmountNpr = null;
+      } else {
+        const list =
+          typeof body.listAmountNpr === 'number' ? body.listAmountNpr : Number(body.listAmountNpr);
+        if (!Number.isFinite(list) || list <= 0) {
+          return res.status(400).json({ error: 'listAmountNpr must be a positive number' });
+        }
+        patch.listAmountNpr = Math.round(list);
+      }
+    }
+    if (body.promoCode !== undefined) {
+      patch.promoCode =
+        typeof body.promoCode === 'string' && body.promoCode.trim()
+          ? body.promoCode.trim().toUpperCase()
+          : null;
+    }
+    if (body.promoDiscountNpr !== undefined) {
+      const d =
+        typeof body.promoDiscountNpr === 'number'
+          ? body.promoDiscountNpr
+          : Number(body.promoDiscountNpr);
+      if (!Number.isFinite(d) || d < 0) {
+        return res.status(400).json({ error: 'promoDiscountNpr must be >= 0' });
+      }
+      patch.promoDiscountNpr = Math.round(d);
+    }
+    if (body.paymentMethod !== undefined) {
+      if (!isPaymentMethod(body.paymentMethod)) {
+        return res.status(400).json({
+          error: 'paymentMethod must be Fonepay, eSewa, Khalti, or Bank Transfer',
+        });
+      }
+      patch.paymentMethod = body.paymentMethod;
+    }
+    if (typeof body.transactionRef === 'string' && body.transactionRef.trim()) {
+      patch.transactionRef = body.transactionRef.trim();
+    }
+    if (typeof body.screenshotUrl === 'string' && body.screenshotUrl.trim()) {
+      const url = body.screenshotUrl.trim();
+      if (!url.startsWith('data:image/') && !/^https?:\/\//i.test(url)) {
+        return res.status(400).json({ error: 'screenshotUrl must be an image data URL or http(s) URL' });
+      }
+      patch.screenshotUrl = url;
+    }
+    if (body.userNotes !== undefined) {
+      patch.userNotes =
+        typeof body.userNotes === 'string' && body.userNotes.trim()
+          ? body.userNotes.trim()
+          : null;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'No editable fields provided' });
+    }
+
+    const claim = await paymentClaimsRepo.updatePending(id, patch);
+    if (!claim) {
+      return res.status(409).json({ error: 'Claim is no longer pending' });
+    }
+    res.json({ claim: toClientPaymentClaim(claim) });
+  } catch (err: any) {
+    console.error('PATCH /api/payment-claims/:id failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to update claim') });
+  }
+});
+
+/** Billing staff: delete a pending claim from the FIFO queue. */
+app.delete('/api/payment-claims/:id', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Billing staff only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing claim id' });
+
+    const existing = await paymentClaimsRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: 'Claim not found' });
+    if (existing.status !== 'pending') {
+      return res.status(409).json({
+        error: `Only pending claims can be deleted (currently ${existing.status})`,
+        claim: toClientPaymentClaim(existing),
+      });
+    }
+
+    const ok = await paymentClaimsRepo.deletePending(id);
+    if (!ok) return res.status(409).json({ error: 'Claim is no longer pending' });
+    res.json({ ok: true, id });
+  } catch (err: any) {
+    console.error('DELETE /api/payment-claims/:id failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to delete claim') });
+  }
+});
+
 function toClientPromoCode(p: NonNullable<Awaited<ReturnType<PromoCodesRepository['getById']>>>) {
   return {
     id: p.id,

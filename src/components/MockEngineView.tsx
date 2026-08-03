@@ -202,7 +202,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
           
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
-              <span className="text-[10px] uppercase font-mono tracking-widest text-[#2563EB] font-black">Examination Hall Entry Gate</span>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-[#2563EB] font-black">Before you begin</span>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">
                 MEC CEE Regulations
               </h2>
@@ -237,11 +237,11 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
               </div>
               <div className="flex items-start gap-2.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB] mt-1.5 shrink-0" />
-                <span><strong>Auto-Save Integrity:</strong> The system automatically caches your current inputs every 10 seconds. Reloading the page or recovering from a network disconnect will resume from your exact state.</span>
+                <span><strong>Auto-save:</strong> Your answers are saved about every 10 seconds. If you reload or briefly lose connection, you can continue from where you left off.</span>
               </div>
               <div className="flex items-start gap-2.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#E11D48] mt-1.5 shrink-0" />
-                <span><strong>Countdown Constraint:</strong> Reaching 00:00:00 will trigger a silent backend auto-submission. Unanswered questions do not deduct points.</span>
+                <span><strong>Time limit:</strong> When the timer reaches 00:00:00, your attempt is submitted automatically. Unanswered questions do not deduct marks.</span>
               </div>
             </div>
           </div>
@@ -255,7 +255,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                 className="w-4 h-4 rounded text-[#2563EB] focus:ring-[#2563EB]/20 border-slate-300 cursor-pointer mt-0.5"
               />
               <span className="text-slate-600 font-bold leading-normal">
-                I certify that I have read the academic code of conduct and agree to abide by the negative marking penalizations.
+                I have read these exam rules and agree to the −0.25 negative marking policy.
               </span>
             </label>
 
@@ -264,14 +264,14 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                 onClick={onExit}
                 className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
-                Back to Desk
+                Back to mock tests
               </button>
               <button 
                 disabled={!isAgreedToTerms}
                 onClick={handleStartExam}
                 className="flex-1 py-3 bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl transition-all cursor-pointer shadow-md"
               >
-                Begin MEC CEE Mock Exam
+                Begin timed mock
               </button>
             </div>
           </div>

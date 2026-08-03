@@ -240,11 +240,11 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     },
     {
       q: "Can I retake a completed mock test?",
-      a: "Absolutely! You can retake any unlocked mock test to practice and track improvement. Note that only your first attempt will award Study Coins to prevent reward farming."
+      a: "Yes. You can retake any unlocked mock to practise and track improvement. Only your first attempt awards Study Coins."
     },
     {
-      q: "Do purchased mock test quotas expire?",
-      a: "No. Standard Plan mock credits remain active and valid in your wallet indefinitely. Under the Unlimited Plan, mock access is active for your full preparation term."
+      q: "Do purchased mock attempts expire?",
+      a: "No. Standard plan mock attempts stay available until you use them. Unlimited plan access lasts for your full preparation term."
     },
     {
       q: "What happens if my payment claim is rejected?",
@@ -302,7 +302,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
             </div>
             {!latestClaim ? (
               <p className="text-sm font-semibold text-slate-700">
-                No claims yet — pay via Merchant QR, then submit a verification claim below.
+                No payment submitted yet. Pay with the merchant QR, then enter your transaction details below.
               </p>
             ) : (
               <>
@@ -340,12 +340,12 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
             }`}
           >
             {!latestClaim
-              ? 'NO CLAIM'
+              ? 'Not submitted'
               : latestClaim.status === 'approved'
-                ? 'APPROVED'
+                ? 'Approved'
                 : latestClaim.status === 'rejected'
-                  ? 'REJECTED'
-                  : 'PENDING REVIEW'}
+                  ? 'Rejected'
+                  : 'Pending review'}
           </div>
         </div>
       </section>
@@ -354,9 +354,9 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       {activePlans.length === 0 ? (
         <section className="bg-white rounded-2xl border border-amber-200 p-6 text-center space-y-2 shadow-xs">
           <AppIcon icon={AlertCircle} size="card" className="text-amber-600 mx-auto" />
-          <h3 className="font-bold text-slate-900 text-sm">No active plans published</h3>
+          <h3 className="font-bold text-slate-900 text-sm">Plans are temporarily unavailable</h3>
           <p className="text-xs text-slate-500 font-medium">
-            An admin needs to activate pricing plans before checkout is available.
+            Pricing will appear here once plans are published. Please check back shortly.
           </p>
         </section>
       ) : (
@@ -403,7 +403,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                     </span>
                   ) : null}
                   <span className="text-xs text-slate-400 font-sans ml-1">
-                    {isFree ? '/ forever' : plan.mocksGranted === null ? '/ full term' : `/ ${plan.mocksGranted} mocks quota`}
+                    {isFree ? '/ forever' : plan.mocksGranted === null ? '/ full term' : `/ ${plan.mocksGranted} mock attempts`}
                   </span>
                 </div>
 
@@ -580,7 +580,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
               <AppIcon icon={Clock} size="card" className="text-blue-600" />
-              <span>Auto-Save Integrity</span>
+              <span>Auto-save protection</span>
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-medium">
               Focus entirely on solving stems; the system backs up your answers to avoid loss during disconnects.
@@ -842,7 +842,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
 
       <section className="bg-[#2563EB] text-white rounded-2xl p-8 sm:p-10 space-y-4 border border-blue-700">
         <div className="max-w-xl space-y-3">
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Need more mock quota?</h2>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Need more mock attempts?</h2>
           <p className="text-sm text-blue-100 leading-relaxed">
             Choose a paid plan above, complete payment, then submit your transaction reference for verification.
           </p>
@@ -868,7 +868,9 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         </h3>
 
         {claimsHistory.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-4">No payment claims yet.</p>
+          <p className="text-sm text-slate-500 text-center py-4">
+            You haven&apos;t submitted a payment for review yet.
+          </p>
         ) : (
           <div className="overflow-x-auto scroll-x-safe">
             <table className="w-full text-left text-xs border-collapse min-w-[720px]">

@@ -45,7 +45,7 @@ export const CoinsWalletView: React.FC<CoinsWalletViewProps> = ({
     <div className="px-page space-y-6 font-sans">
       <PageHeader
         title="Study Coins"
-        subtitle="Earn coins by finishing mocks and today’s study plan. Redeem for practice packs and extra mock quota."
+        subtitle="Earn coins by finishing mocks and today’s study plan. Redeem for practice packs and extra mock attempts."
       />
 
       <div className="px-surface p-5 sm:p-6">
@@ -63,7 +63,7 @@ export const CoinsWalletView: React.FC<CoinsWalletViewProps> = ({
 
           <ul className="text-xs text-[var(--px-muted)] space-y-1 sm:text-right shrink-0">
             <li>Not withdrawable or transferable</li>
-            <li>Ledger follows your account activity</li>
+            <li>Activity updates with your account</li>
             <li>Unlocks stay after redemption</li>
           </ul>
         </div>
@@ -73,7 +73,7 @@ export const CoinsWalletView: React.FC<CoinsWalletViewProps> = ({
         {(
           [
             { id: 'catalog' as const, label: 'Redemption Catalog' },
-            { id: 'ledger' as const, label: `Transaction Ledger (${transactions.length})` },
+            { id: 'ledger' as const, label: `Coin history (${transactions.length})` },
             { id: 'rules' as const, label: 'Earning Rules' },
           ] as const
         ).map((tab) => (
@@ -154,12 +154,12 @@ export const CoinsWalletView: React.FC<CoinsWalletViewProps> = ({
       {activeTab === 'ledger' && (
         <div className="px-surface p-5 sm:p-6 space-y-4">
           <h3 className="font-display font-bold text-[var(--px-heading)] text-base pb-2 border-b border-[var(--px-border)]">
-            Wallet Transaction Ledger
+            Coin activity
           </h3>
 
           {transactions.length === 0 ? (
             <p className="text-xs text-[var(--px-muted)] py-6 text-center">
-              No coin transactions yet. Complete a mock or your daily study plan to earn coins.
+              No coin activity yet. Complete a mock or today&apos;s study plan to start earning.
             </p>
           ) : (
             <div className="overflow-x-auto scroll-x-safe">

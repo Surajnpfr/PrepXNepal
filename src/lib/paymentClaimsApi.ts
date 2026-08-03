@@ -89,3 +89,43 @@ export async function rejectPaymentClaim(
   const data = await res.json();
   return data.claim as PaymentClaim;
 }
+
+export type PaymentClaimEditInput = {
+  planCode?: string;
+  amountNpr?: number;
+  listAmountNpr?: number | null;
+  promoCode?: string | null;
+  promoDiscountNpr?: number;
+  paymentMethod?: PaymentClaim['paymentMethod'];
+  transactionRef?: string;
+  screenshotUrl?: string;
+  userNotes?: string | null;
+};
+
+export async function updatePaymentClaim(
+  getToken: () => Promise<string | null>,
+  claimId: string,
+  patch: PaymentClaimEditInput
+): Promise<PaymentClaim> {
+  const headers = await authHeaders(getToken);
+  const res = await fetch(`/api/payment-claims/${encodeURIComponent(claimId)}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  const data = await res.json();
+  return data.claim as PaymentClaim;
+}
+
+export async function deletePaymentClaim(
+  getToken: () => Promise<string | null>,
+  claimId: string
+): Promise<void> {
+  const headers = await authHeaders(getToken);
+  const res = await fetch(`/api/payment-claims/${encodeURIComponent(claimId)}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!res.ok) throw new Error(await readError(res));
+}

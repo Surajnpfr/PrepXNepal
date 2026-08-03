@@ -65,7 +65,7 @@ export const PoliciesView: React.FC = () => {
             3. Privacy & Data Minimization (Nepal Privacy Act 2075)
           </h2>
           <p>
-            In compliance with Nepal’s Privacy Act, 2075 (2018), PrepX Nepal practices data minimization. The platform collects only essential user profile details (target score, exam date, preferred language) and session identifiers required for Clerk authentication and mock attempt history. Personal student data, transaction records, and study results are kept secure and never sold or shared.
+            In compliance with Nepal’s Privacy Act, 2075 (2018), PrepX Nepal practices data minimization. The platform collects only essential profile details (target score, exam date, preferred language) and session identifiers required for secure sign-in and mock attempt history. Personal student data, transaction records, and study results are kept secure and never sold or shared.
           </p>
         </section>
 

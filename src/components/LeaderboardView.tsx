@@ -122,7 +122,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
 
       {sortedRankers.length === 0 ? (
         <div className="px-surface p-8 text-center text-sm text-[var(--px-muted)] font-semibold">
-          No aspirants to show yet. Complete a mock to appear on the board.
+          The leaderboard is empty. Complete a mock to take your place.
         </div>
       ) : (
         <>

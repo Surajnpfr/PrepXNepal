@@ -195,6 +195,23 @@ export interface PaymentClaimsRepository {
   listAll(): Promise<PaymentClaimRecord[]>;
   listByClerkUserId(clerkUserId: string): Promise<PaymentClaimRecord[]>;
   getById(id: string): Promise<PaymentClaimRecord | null>;
+  /** Update fields on a pending claim. Returns null if missing or not pending. */
+  updatePending(
+    id: string,
+    patch: {
+      planCode?: string;
+      amountNpr?: number;
+      listAmountNpr?: number | null;
+      promoCode?: string | null;
+      promoDiscountNpr?: number;
+      paymentMethod?: string;
+      transactionRef?: string;
+      screenshotUrl?: string;
+      userNotes?: string | null;
+    }
+  ): Promise<PaymentClaimRecord | null>;
+  /** Delete a pending claim. Returns false if missing or not pending. */
+  deletePending(id: string): Promise<boolean>;
   /** Atomically transition pending → approved|rejected. Returns null if not pending. */
   resolve(
     id: string,

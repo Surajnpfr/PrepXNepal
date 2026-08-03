@@ -163,6 +163,59 @@ export function createMysqlPaymentClaimsRepo(pool: Pool): PaymentClaimsRepositor
       return rows[0] ? mapRow(rows[0]) : null;
     },
 
+    async updatePending(id, patch) {
+      const existing = await this.getById(id);
+      if (!existing || existing.status !== 'pending') return null;
+      const next = {
+        planCode: patch.planCode ?? existing.planCode,
+        amountNpr: patch.amountNpr ?? existing.amountNpr,
+        listAmountNpr:
+          patch.listAmountNpr !== undefined
+            ? patch.listAmountNpr
+            : existing.listAmountNpr,
+        promoCode:
+          patch.promoCode !== undefined ? patch.promoCode : existing.promoCode,
+        promoDiscountNpr:
+          patch.promoDiscountNpr !== undefined
+            ? patch.promoDiscountNpr
+            : existing.promoDiscountNpr,
+        paymentMethod: patch.paymentMethod ?? existing.paymentMethod,
+        transactionRef: patch.transactionRef ?? existing.transactionRef,
+        screenshotUrl: patch.screenshotUrl ?? existing.screenshotUrl,
+        userNotes:
+          patch.userNotes !== undefined ? patch.userNotes : existing.userNotes,
+      };
+      const [result] = await pool.query<ResultSetHeader>(
+        `UPDATE payment_claims
+         SET plan_code = ?, amount_npr = ?, list_amount_npr = ?, promo_code = ?,
+             promo_discount_npr = ?, payment_method = ?, transaction_ref = ?,
+             screenshot_url = ?, user_notes = ?
+         WHERE id = ? AND status = 'pending'`,
+        [
+          next.planCode,
+          next.amountNpr,
+          next.listAmountNpr,
+          next.promoCode,
+          next.promoDiscountNpr,
+          next.paymentMethod,
+          next.transactionRef,
+          next.screenshotUrl,
+          next.userNotes,
+          id,
+        ]
+      );
+      if (!result.affectedRows) return null;
+      return this.getById(id);
+    },
+
+    async deletePending(id) {
+      const [result] = await pool.query<ResultSetHeader>(
+        `DELETE FROM payment_claims WHERE id = ? AND status = 'pending'`,
+        [id]
+      );
+      return result.affectedRows > 0;
+    },
+
     async resolve(id, input) {
       const now = new Date();
       const [result] = await pool.query<ResultSetHeader>(
