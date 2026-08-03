@@ -326,7 +326,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleReject = async (claimId: string) => {
-    const finalReason = rejectReason === 'Custom Note' ? customRejectNote : rejectReason;
+    const finalReason =
+      rejectReason === 'Custom Note' ? customRejectNote.trim() : rejectReason.trim();
+    if (!finalReason) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Rejection reason required',
+        message: 'Select a reason or type a custom note so the student can see why the claim was rejected.',
+      });
+      return;
+    }
     await onRejectClaim(claimId, finalReason);
     setInspectingClaim(null);
   };
@@ -717,6 +726,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <td className="p-3">
                       <div className="font-bold text-slate-900">{claim.userName}</div>
                       <div className="text-[10px] text-slate-500">{claim.userEmail}</div>
+                      {claim.userNotes?.trim() ? (
+                        <div className="mt-1 text-[10px] text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-1.5 py-0.5 line-clamp-2 max-w-[200px]">
+                          Note: {claim.userNotes}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="p-3 font-bold text-blue-600">{claim.planCode}</td>
                     <td className="p-3 text-slate-700">{claim.paymentMethod}</td>
@@ -1295,6 +1309,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="text-slate-500">Method: {inspectingClaim.paymentMethod}</div>
                 </div>
 
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1">
+                  <div className="text-amber-800/70 text-[10px] uppercase font-bold">User Remarks</div>
+                  {inspectingClaim.userNotes?.trim() ? (
+                    <p className="text-slate-800 text-xs font-sans font-medium leading-relaxed whitespace-pre-wrap">
+                      {inspectingClaim.userNotes}
+                    </p>
+                  ) : (
+                    <p className="text-slate-500 text-xs font-sans italic">No remarks provided by user.</p>
+                  )}
+                </div>
+
                 {/* Rejection Reason Selector */}
                 <div className="space-y-2 pt-2 border-t border-slate-200">
                   <label className="block font-bold text-slate-800">In Case of Rejection, Select Reason:</label>
@@ -1325,14 +1350,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="space-y-2">
                 <div className="text-xs font-bold text-slate-700">Uploaded Receipt Screenshot Preview:</div>
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-950 p-2 text-center">
-                  <img
-                    src={inspectingClaim.screenshotUrl}
-                    alt="Payment Screenshot"
-                    className="max-h-64 object-contain mx-auto rounded"
-                  />
-                  <div className="text-[10px] text-slate-400 font-mono mt-2">
-                    Zoom-on-hover & Pan Preview Active
-                  </div>
+                  {inspectingClaim.screenshotUrl?.trim() ? (
+                    <img
+                      src={inspectingClaim.screenshotUrl}
+                      alt="Payment Screenshot"
+                      className="max-h-64 object-contain mx-auto rounded"
+                    />
+                  ) : (
+                    <div className="py-16 text-[11px] text-slate-400 font-mono">
+                      No screenshot attached
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

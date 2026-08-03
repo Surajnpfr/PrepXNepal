@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   CreditCard, 
   CheckCircle2, 
@@ -9,11 +9,19 @@ import {
   Percent,
   BookOpen,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Download,
+  Upload,
+  X,
 } from 'lucide-react';
 import { PaymentClaim, UserProfile, PricingPlan } from '../types';
 import { useFeedback } from './FeedbackProvider';
 import { AppIcon } from './ui';
+
+const PAYMENT_QR_SRC = '/payment-qr.svg';
+const PAYMENT_QR_PNG_SRC = '/payment-qr.png';
+const MAX_SCREENSHOT_BYTES = Math.floor(1.5 * 1024 * 1024);
+
 interface PaymentSubmissionViewProps {
   userProfile: UserProfile;
   claimsHistory: PaymentClaim[];
@@ -30,17 +38,20 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   pricingPlans = [],
 }) => {
   const feedback = useFeedback();
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
   const activePlans = (pricingPlans || []).filter((p) => p.status === 'active');
   const defaultPaidPlan = activePlans.find((p) => p.priceNpr > 0) || activePlans[0];
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>(
     () => defaultPaidPlan?.code || 'Premium'
   );
-  const [paymentMethod, setPaymentMethod] = useState<'eSewa' | 'Khalti' | 'Bank Transfer'>('eSewa');
+  const [paymentMethod, setPaymentMethod] = useState<'Fonepay' | 'eSewa' | 'Khalti' | 'Bank Transfer'>(
+    'Fonepay'
+  );
   const [transactionRef, setTransactionRef] = useState('');
-  const [screenshotUrl, setScreenshotUrl] = useState<string>('https://images.unsplash.com/photo-1556742049-0a67d512a95e?auto=format&fit=crop&w=600&q=80');
+  const [screenshotUrl, setScreenshotUrl] = useState<string>('');
+  const [screenshotName, setScreenshotName] = useState<string | null>(null);
   const [userNotes, setUserNotes] = useState('');
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
-  const [copiedRef, setCopiedRef] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // FAQ collapse state
@@ -56,10 +67,50 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     activePlans.find((p) => p.isPopular && p.priceNpr > 0) ||
     activePlans.find((p) => p.priceNpr > 0);
 
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedRef(true);
-    setTimeout(() => setCopiedRef(false), 2000);
+  const clearScreenshot = () => {
+    setScreenshotUrl('');
+    setScreenshotName(null);
+    if (screenshotInputRef.current) screenshotInputRef.current.value = '';
+  };
+
+  const handleScreenshotSelected = async (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Invalid file',
+        message: 'Please attach an image file (PNG, JPG, or WebP).',
+      });
+      return;
+    }
+    if (file.size > MAX_SCREENSHOT_BYTES) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'File too large',
+        message: 'Payment screenshot must be 1.5 MB or smaller.',
+      });
+      return;
+    }
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+      if (!dataUrl.startsWith('data:image/')) {
+        throw new Error('Invalid image data');
+      }
+      setScreenshotUrl(dataUrl);
+      setScreenshotName(file.name);
+    } catch {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Could not read file',
+        message: 'Try another image or a smaller file.',
+      });
+      clearScreenshot();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,7 +127,15 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       await feedback.alert({
         variant: 'warning',
         title: 'Reference ID required',
-        message: 'Enter the payment reference / transaction ID from your eSewa, Khalti, or bank receipt.',
+        message: 'Enter the payment reference / transaction ID from your Fonepay or bank receipt.',
+      });
+      return;
+    }
+    if (!screenshotUrl.trim().startsWith('data:image/')) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Payment screenshot required',
+        message: 'Attach a clear image of your payment receipt before submitting the claim.',
       });
       return;
     }
@@ -98,6 +157,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       setSubmittedSuccess(true);
       setTransactionRef('');
       setUserNotes('');
+      clearScreenshot();
       setTimeout(() => setSubmittedSuccess(false), 5000);
     } catch {
       /* parent surfaces errors */
@@ -142,7 +202,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
             Plans and payment
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Pick a plan, pay with eSewa, Khalti, or bank transfer, then submit your transaction reference for verification.
+            Pick a plan, scan the Merchant QR to pay, then submit your transaction reference for verification.
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-1 text-sm">
             <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
@@ -411,63 +471,42 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                <div className="bg-slate-950 p-4 rounded-2xl text-center text-white space-y-2 border border-slate-800">
+                <div className="bg-slate-950 p-4 rounded-2xl text-center text-white space-y-3 border border-slate-800">
                   <div className="bg-white p-3 rounded-xl inline-block">
-                    <div className="w-32 h-32 bg-slate-900 p-2 rounded flex flex-col justify-between items-center text-[8px] font-mono text-cyan-400">
-                      <div className="w-full flex justify-between">
-                        <div className="w-6 h-6 border-2 border-cyan-400" />
-                        <div className="w-6 h-6 border-2 border-cyan-400" />
-                      </div>
-                      <div className="text-center font-bold text-white tracking-widest text-[10px]">
-                        PrepX QR
-                      </div>
-                      <div className="w-full flex justify-between">
-                        <div className="w-6 h-6 border-2 border-cyan-400" />
-                        <div className="w-6 h-6 border-2 border-cyan-400" />
-                      </div>
-                    </div>
+                    <img
+                      src={PAYMENT_QR_SRC}
+                      alt="PrepX Nepal merchant payment QR"
+                      width={160}
+                      height={160}
+                      className="w-40 h-40 object-contain"
+                      decoding="async"
+                    />
                   </div>
-                  <div className="text-[11px] font-bold text-slate-300">Scan via eSewa or Khalti</div>
+                  <div className="text-[11px] font-bold text-slate-300">
+                    Scan with any Fonepay-supported app
+                  </div>
+                  <a
+                    href={PAYMENT_QR_PNG_SRC}
+                    download="PrepX-Nepal-payment-QR.png"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white text-slate-900 text-[11px] font-bold hover:bg-slate-100 transition-colors"
+                  >
+                    <AppIcon icon={Download} size="btn" />
+                    Download QR (PNG)
+                  </a>
                 </div>
 
                 <div className="space-y-3 text-xs">
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                    <div className="text-slate-500 text-[10px] uppercase font-mono">eSewa ID:</div>
-                    <div className="font-mono font-bold text-slate-900 text-sm flex items-center justify-between">
-                      <span>9801234567</span>
-                      <button 
-                        onClick={() => handleCopy('9801234567')}
-                        className="text-blue-600 hover:underline text-[10px] font-bold cursor-pointer"
-                      >
-                        {copiedRef ? 'Copied!' : 'Copy'}
-                      </button>
-                    </div>
-                    <div className="text-[10px] text-slate-500">Name: PrepX Nepal Pvt Ltd</div>
+                    <div className="text-slate-500 text-[10px] uppercase font-mono">Merchant</div>
+                    <div className="font-bold text-slate-900 text-sm">OM SIDDHARTHA STORES</div>
+                    <div className="text-[10px] text-slate-500">Bhairawa Branch · NPR</div>
                   </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                    <div className="text-slate-500 text-[10px] uppercase font-mono">Khalti ID:</div>
-                    <div className="font-mono font-bold text-slate-900 text-sm flex items-center justify-between">
-                      <span>9801234567</span>
-                      <button 
-                        onClick={() => handleCopy('9801234567')}
-                        className="text-purple-600 hover:underline text-[10px] font-bold cursor-pointer"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <div className="text-[10px] text-slate-500">Name: PrepX Nepal</div>
-                  </div>
+                  <p className="text-[10px] text-slate-500 leading-relaxed px-0.5">
+                    Scan the Merchant QR to pay the selected plan amount. Then submit your transaction
+                    reference below for verification. No wallet phone numbers are required.
+                  </p>
                 </div>
-              </div>
-
-              {/* Gateway Placeholders */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-4 text-xs font-mono font-bold text-slate-400">
-                <span>Supported: eSewa</span>
-                <span>•</span>
-                <span>Khalti</span>
-                <span>•</span>
-                <span className="opacity-50">Fonepay (Coming Soon)</span>
               </div>
             </div>
           </div>
@@ -493,11 +532,10 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 <label className="block text-xs font-bold text-slate-700">Payment Gateway Used:</label>
                 <select
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
                 >
-                  <option value="eSewa">eSewa Mobile Wallet</option>
-                  <option value="Khalti">Khalti Digital Wallet</option>
+                  <option value="Fonepay">Fonepay (Merchant QR)</option>
                   <option value="Bank Transfer">Direct Bank Transfer</option>
                 </select>
               </div>
@@ -512,7 +550,59 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   onChange={(e) => setTransactionRef(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600"
                 />
-                <span className="text-[10px] text-slate-500">Copy exact transaction code from your eSewa/Khalti receipt</span>
+                <span className="text-[10px] text-slate-500">
+                  Copy the exact transaction / reference code from your payment receipt
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Payment screenshot *
+                </label>
+                <input
+                  ref={screenshotInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => void handleScreenshotSelected(e.target.files?.[0] ?? null)}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => screenshotInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-800 cursor-pointer"
+                  >
+                    <AppIcon icon={Upload} size="btn" />
+                    Attach payment screenshot
+                  </button>
+                  {screenshotUrl ? (
+                    <button
+                      type="button"
+                      onClick={clearScreenshot}
+                      className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 cursor-pointer"
+                    >
+                      <AppIcon icon={X} size="btn" />
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Required. PNG/JPG/WebP up to 1.5 MB — used by moderators to verify your payment.
+                </p>
+                {screenshotUrl ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    {screenshotName ? (
+                      <div className="text-[11px] font-mono font-semibold text-slate-700 truncate">
+                        {screenshotName}
+                      </div>
+                    ) : null}
+                    <img
+                      src={screenshotUrl}
+                      alt="Payment screenshot preview"
+                      className="max-h-40 rounded-lg border border-slate-200 object-contain bg-white"
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <div className="space-y-1.5">
@@ -594,7 +684,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           <p className="text-sm text-slate-500 text-center py-4">No payment claims yet.</p>
         ) : (
           <div className="overflow-x-auto scroll-x-safe">
-            <table className="w-full text-left text-xs border-collapse min-w-[560px]">
+            <table className="w-full text-left text-xs border-collapse min-w-[720px]">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                   <th className="p-3">Submitted At</th>
@@ -603,26 +693,42 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   <th className="p-3 font-mono">Reference ID</th>
                   <th className="p-3 text-right">Amount</th>
                   <th className="p-3 text-right">Status</th>
+                  <th className="p-3">Moderator note</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {claimsHistory.map((claim) => (
                   <tr key={claim.id} className="hover:bg-slate-50">
-                    <td className="p-3 text-slate-500 font-mono">{claim.submittedAt}</td>
+                    <td className="p-3 text-slate-500 font-mono whitespace-nowrap">
+                      {claim.submittedAt}
+                    </td>
                     <td className="p-3 font-bold text-slate-900">{claim.planCode}</td>
                     <td className="p-3 text-slate-600">{claim.paymentMethod}</td>
                     <td className="p-3 font-mono text-slate-800">{claim.transactionRef}</td>
                     <td className="p-3 text-right font-mono font-bold">NPR {claim.amountNpr}</td>
                     <td className="p-3 text-right">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold font-mono ${
-                        claim.status === 'approved'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : claim.status === 'rejected'
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}>
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold font-mono ${
+                          claim.status === 'approved'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : claim.status === 'rejected'
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
                         {claim.status.toUpperCase()}
                       </span>
+                    </td>
+                    <td className="p-3 text-slate-700 max-w-[220px]">
+                      {claim.status === 'rejected' && claim.moderatorNotes?.trim() ? (
+                        <span className="text-rose-700 font-medium leading-snug block">
+                          {claim.moderatorNotes}
+                        </span>
+                      ) : claim.status === 'approved' ? (
+                        <span className="text-slate-400">—</span>
+                      ) : (
+                        <span className="text-slate-400">Awaiting review</span>
+                      )}
                     </td>
                   </tr>
                 ))}

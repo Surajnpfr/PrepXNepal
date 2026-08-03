@@ -23,6 +23,7 @@ assert(!canModeratePaymentClaims('Moderator (Questions)'), 'q mod cannot');
 assert(!canModeratePaymentClaims('Student'), 'student cannot');
 
 assert(defaultEntitlementsForPlan('Unlimited').mocksGranted === null, 'unlimited mocks');
+assert(defaultEntitlementsForPlan('Unlimited').coinsGranted === 500, 'unlimited coins');
 assert(defaultEntitlementsForPlan('Premium').coinsGranted === 100, 'premium coins');
 
 const base = {
@@ -32,7 +33,7 @@ const base = {
   userEmail: 'a@ex.com',
   planCode: 'Premium',
   amountNpr: 149,
-  paymentMethod: 'eSewa' as const,
+  paymentMethod: 'Fonepay' as const,
   transactionRef: 'REF1',
   screenshotUrl: '',
   userNotes: null,

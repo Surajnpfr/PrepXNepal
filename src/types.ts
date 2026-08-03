@@ -211,7 +211,7 @@ export interface PaymentClaim {
   userEmail: string;
   planCode: string;
   amountNpr: number;
-  paymentMethod: 'eSewa' | 'Khalti' | 'Bank Transfer';
+  paymentMethod: 'Fonepay' | 'eSewa' | 'Khalti' | 'Bank Transfer';
   transactionRef: string;
   screenshotUrl: string;
   status: 'pending' | 'approved' | 'rejected';

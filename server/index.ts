@@ -1797,10 +1797,15 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
     if (!planCode) return res.status(400).json({ error: 'planCode is required' });
     if (!transactionRef) return res.status(400).json({ error: 'transactionRef is required' });
     if (!isPaymentMethod(paymentMethod)) {
-      return res.status(400).json({ error: 'paymentMethod must be eSewa, Khalti, or Bank Transfer' });
+      return res.status(400).json({ error: 'paymentMethod must be Fonepay, eSewa, Khalti, or Bank Transfer' });
     }
     if (!Number.isFinite(amountNpr) || amountNpr <= 0) {
       return res.status(400).json({ error: 'amountNpr must be a positive number' });
+    }
+    if (!screenshotUrl.startsWith('data:image/') && !/^https?:\/\//i.test(screenshotUrl)) {
+      return res.status(400).json({
+        error: 'Payment screenshot is required (attach an image of your payment receipt)',
+      });
     }
 
     const claim = await paymentClaimsRepo.insert({
@@ -1813,7 +1818,7 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
       amountNpr: Math.round(amountNpr),
       paymentMethod,
       transactionRef,
-      screenshotUrl: screenshotUrl || '',
+      screenshotUrl,
       userNotes: userNotes || null,
     });
 

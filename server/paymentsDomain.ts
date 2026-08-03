@@ -3,7 +3,7 @@
  */
 
 export type PaymentClaimStatus = 'pending' | 'approved' | 'rejected';
-export type PaymentMethod = 'eSewa' | 'Khalti' | 'Bank Transfer';
+export type PaymentMethod = 'Fonepay' | 'eSewa' | 'Khalti' | 'Bank Transfer';
 
 export type PaymentClaimRecord = {
   id: string;
@@ -25,7 +25,12 @@ export type PaymentClaimRecord = {
   verifiedByClerkId: string | null;
 };
 
-export const PAYMENT_METHODS = new Set<PaymentMethod>(['eSewa', 'Khalti', 'Bank Transfer']);
+export const PAYMENT_METHODS = new Set<PaymentMethod>([
+  'Fonepay',
+  'eSewa',
+  'Khalti',
+  'Bank Transfer',
+]);
 
 export function isPaymentMethod(value: unknown): value is PaymentMethod {
   return typeof value === 'string' && PAYMENT_METHODS.has(value as PaymentMethod);
@@ -57,7 +62,7 @@ export function defaultEntitlementsForPlan(planCode: string): {
 } {
   const code = planCode.trim().toLowerCase();
   if (code === 'unlimited' || code.includes('unlimited')) {
-    return { tier: 'Unlimited', mocksGranted: null, coinsGranted: 200 };
+    return { tier: 'Unlimited', mocksGranted: null, coinsGranted: 500 };
   }
   if (code === 'premium' || code.includes('premium') || code.includes('pro')) {
     return { tier: 'Premium', mocksGranted: 10, coinsGranted: 100 };
