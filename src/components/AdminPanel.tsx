@@ -1431,7 +1431,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   }
                   className="w-full p-2 border border-slate-300 rounded-lg"
                 >
-                  {['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT'].map((s) => (
+                  {['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT', 'Mixed'].map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>

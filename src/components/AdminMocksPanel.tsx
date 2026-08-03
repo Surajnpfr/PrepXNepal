@@ -5,7 +5,7 @@ import type { ChapterQuestionCount, SubjectQuestionCount } from '../lib/question
 import type { MockImportBatch } from '../lib/mocksApi';
 import { useFeedback } from './FeedbackProvider';
 import { AppIcon } from './ui';
-const SUBJECTS: SubjectName[] = ['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT'];
+const SUBJECTS: SubjectName[] = ['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT', 'Mixed'];
 
 const MOCK_IMPORT_PLACEHOLDER = `[
   {
@@ -103,6 +103,7 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
     Zoology: 40,
     Botany: 40,
     MAT: 20,
+    Mixed: 0,
   });
   const [chapterRuleSubject, setChapterRuleSubject] = useState<SubjectName>('Physics');
   const [chapterRuleName, setChapterRuleName] = useState('');

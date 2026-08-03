@@ -10,7 +10,7 @@ import {
 } from '../lib/ceeBlueprint';
 import { useFeedback } from './FeedbackProvider';
 import { AppIcon } from './ui';
-const SUBJECTS: SubjectName[] = ['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT'];
+const SUBJECTS: SubjectName[] = ['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT', 'Mixed'];
 
 const SUBJECT_META: Record<
   SubjectName,
@@ -45,6 +45,12 @@ const SUBJECT_META: Record<
     accent: 'text-slate-700 bg-slate-50 border-slate-200 hover:border-slate-400',
     selected: 'bg-slate-800 text-white border-slate-800 shadow-sm shadow-slate-300',
     ring: 'ring-slate-300',
+  },
+  Mixed: {
+    icon: Shuffle,
+    accent: 'text-violet-800 bg-violet-50 border-violet-200 hover:border-violet-400',
+    selected: 'bg-violet-700 text-white border-violet-700 shadow-sm shadow-violet-200',
+    ring: 'ring-violet-300',
   },
 };
 

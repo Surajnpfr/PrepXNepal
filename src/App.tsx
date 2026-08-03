@@ -148,6 +148,7 @@ const EMPTY_SUBJECT_STATS: SubjectQuestionCount[] = [
   'Zoology',
   'Botany',
   'MAT',
+  'Mixed',
 ].map((subject) => ({ subject, count: 0 }));
 
 export function App() {

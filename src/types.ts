@@ -40,7 +40,7 @@ export interface UserProfile {
   lastPercentile?: number;
 }
 
-export type SubjectName = 'Physics' | 'Chemistry' | 'Zoology' | 'Botany' | 'MAT';
+export type SubjectName = 'Physics' | 'Chemistry' | 'Zoology' | 'Botany' | 'MAT' | 'Mixed';
 
 export type MockMode = 'fixed' | 'dynamic';
 export type MockScope = 'full' | 'subject' | 'chapter';
@@ -93,7 +93,7 @@ export interface MockTest {
   scope?: MockScope;
   kind: 'Mock' | 'Chapter'; // derived from scope for catalog filters
   testCategory?: 'full' | 'chapter';
-  subject?: 'Physics' | 'Chemistry' | 'Zoology' | 'Botany' | 'MAT' | 'Combined';
+  subject?: 'Physics' | 'Chemistry' | 'Zoology' | 'Botany' | 'MAT' | 'Mixed' | 'Combined';
   chapterName?: string;
   durationSec: number; // e.g. 10800 (3 hrs) or 1800 (30 mins)
   totalQuestions: number;

@@ -233,11 +233,18 @@ function testQuestionBankSetFileWrapsAsOneMock() {
         correctAnswer: 'A',
       },
       {
-        subject: 'Chemistry',
-        chapter: 'Organic Chemistry',
-        question: 'Q2?',
-        options: { A: 'a', B: 'b', C: 'c', D: 'd' },
+        subject: 'Mixed',
+        chapter: 'GK',
+        question: 'Capital of Nepal?',
+        options: { A: 'Pokhara', B: 'Kathmandu', C: 'Lalitpur', D: 'Biratnagar' },
         correctAnswer: 'B',
+      },
+      {
+        subject: 'GK',
+        chapter: 'General',
+        question: 'Alias subject maps to Mixed?',
+        options: { A: 'a', B: 'b', C: 'c', D: 'd' },
+        correctAnswer: 'A',
       },
     ],
     { filename: 'SetA.json' }
@@ -246,7 +253,9 @@ function testQuestionBankSetFileWrapsAsOneMock() {
   assert.equal(result.mocks.length, 1);
   assert.equal(result.mocks[0].title, 'SetA');
   assert.equal(result.mocks[0].id, 'mock-set-seta');
-  assert.equal(result.mocks[0].totalQuestions, 2);
+  assert.equal(result.mocks[0].totalQuestions, 3);
+  assert.equal(result.mocks[0].questions[1].subject, 'Mixed');
+  assert.equal(result.mocks[0].questions[2].subject, 'Mixed');
 }
 
 async function main() {

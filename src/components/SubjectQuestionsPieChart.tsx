@@ -7,6 +7,7 @@ const SUBJECT_COLORS: Record<string, string> = {
   Zoology: '#ca8a04',
   Botany: '#16a34a',
   MAT: '#e11d48',
+  Mixed: '#7c3aed',
 };
 
 interface SubjectQuestionsPieChartProps {

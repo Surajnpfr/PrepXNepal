@@ -47,7 +47,7 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
 
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2 text-xs font-bold w-full sm:w-auto">
-          {['All', 'Physics', 'Chemistry', 'Botany', 'Zoology', 'MAT'].map((sub) => (
+          {['All', 'Physics', 'Chemistry', 'Botany', 'Zoology', 'MAT', 'Mixed'].map((sub) => (
             <button
               key={sub}
               type="button"

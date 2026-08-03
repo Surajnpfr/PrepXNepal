@@ -6,6 +6,7 @@ export const SUBJECTS = [
   'Zoology',
   'Botany',
   'MAT',
+  'Mixed',
 ] as const;
 
 export type SubjectName = (typeof SUBJECTS)[number];
@@ -63,8 +64,36 @@ export interface SubjectCount {
 const OPTION_KEYS: OptionKey[] = ['A', 'B', 'C', 'D'];
 const STATUSES: QuestionStatus[] = ['pending_review', 'published', 'flagged'];
 
+/** Map common aliases (GK / Biology labels) onto canonical subjects. */
+const SUBJECT_ALIASES: Record<string, SubjectName> = {
+  mixed: 'Mixed',
+  gk: 'Mixed',
+  'g.k.': 'Mixed',
+  'g.k': 'Mixed',
+  'general knowledge': 'Mixed',
+  general: 'Mixed',
+  aptitude: 'MAT',
+  'mental ability': 'MAT',
+  'mental ability test': 'MAT',
+  biology: 'Zoology',
+  zoology: 'Zoology',
+  botany: 'Botany',
+  physics: 'Physics',
+  chemistry: 'Chemistry',
+  mat: 'MAT',
+};
+
 export function isSubject(value: unknown): value is SubjectName {
   return typeof value === 'string' && (SUBJECTS as readonly string[]).includes(value);
+}
+
+/** Resolve raw subject string to a canonical SubjectName, or null. */
+export function normalizeSubject(value: unknown): SubjectName | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (isSubject(trimmed)) return trimmed;
+  const aliased = SUBJECT_ALIASES[trimmed.toLowerCase()];
+  return aliased ?? null;
 }
 
 export function isOptionKey(value: unknown): value is OptionKey {
@@ -132,10 +161,11 @@ export function parseImportItem(
   }
   const row = item as Record<string, unknown>;
 
-  if (!isSubject(row.subject)) {
+  const subject = normalizeSubject(row.subject);
+  if (!subject) {
     return {
       ok: false,
-      error: `Item #${idx + 1}: Invalid or missing subject (expected one of ${SUBJECTS.join(', ')})`,
+      error: `Item #${idx + 1}: Invalid or missing subject (expected one of ${SUBJECTS.join(', ')}, or aliases like GK)`,
     };
   }
   if (!nonEmptyString(row.chapter)) {
@@ -186,7 +216,7 @@ export function parseImportItem(
     ok: true,
     question: {
       id: nonEmptyString(row.id) ? row.id.trim() : idFactory(idx),
-      subject: row.subject,
+      subject,
       chapter: row.chapter.trim(),
       stem,
       imageUrl,
