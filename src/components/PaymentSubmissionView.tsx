@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   CreditCard, 
   CheckCircle2, 
@@ -13,8 +13,11 @@ import {
   Download,
   Upload,
   X,
+  Tag,
 } from 'lucide-react';
+import { useAuth } from '@clerk/clerk-react';
 import { PaymentClaim, UserProfile, PricingPlan } from '../types';
+import { validatePromoCode, type PromoValidation } from '../lib/promoCodesApi';
 import { useFeedback } from './FeedbackProvider';
 import { AppIcon } from './ui';
 
@@ -38,6 +41,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   pricingPlans = [],
 }) => {
   const feedback = useFeedback();
+  const { getToken } = useAuth();
   const screenshotInputRef = useRef<HTMLInputElement>(null);
   const activePlans = (pricingPlans || []).filter((p) => p.status === 'active');
   const defaultPaidPlan = activePlans.find((p) => p.priceNpr > 0) || activePlans[0];
@@ -51,6 +55,9 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   const [screenshotUrl, setScreenshotUrl] = useState<string>('');
   const [screenshotName, setScreenshotName] = useState<string | null>(null);
   const [userNotes, setUserNotes] = useState('');
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<PromoValidation | null>(null);
+  const [promoBusy, setPromoBusy] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -61,11 +68,16 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     activePlans.find(
       (p) => p.code === selectedPlanCode || p.id === selectedPlanCode || p.tier === selectedPlanCode
     ) || defaultPaidPlan;
-  const amount = selectedPlanObj ? selectedPlanObj.priceNpr : 0;
+  const listAmount = selectedPlanObj ? selectedPlanObj.priceNpr : 0;
+  const payableAmount = appliedPromo?.payableNpr ?? listAmount;
   const selectedPlanLabel = selectedPlanObj?.name || selectedPlanObj?.code || 'Select a plan';
   const upgradeCtaPlan =
     activePlans.find((p) => p.isPopular && p.priceNpr > 0) ||
     activePlans.find((p) => p.priceNpr > 0);
+
+  useEffect(() => {
+    setAppliedPromo(null);
+  }, [selectedPlanCode]);
 
   const clearScreenshot = () => {
     setScreenshotUrl('');
@@ -113,6 +125,53 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     }
   };
 
+  const handleApplyPromo = async () => {
+    if (!selectedPlanObj || listAmount <= 0) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Select a paid plan',
+        message: 'Choose a plan before applying a promo code.',
+      });
+      return;
+    }
+    if (!promoInput.trim()) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Enter a promo code',
+        message: 'Type the code from your offer, then Apply.',
+      });
+      return;
+    }
+    setPromoBusy(true);
+    try {
+      const result = await validatePromoCode(getToken, {
+        code: promoInput.trim(),
+        planCode: selectedPlanObj.code,
+        amountNpr: listAmount,
+      });
+      setAppliedPromo(result);
+      setPromoInput(result.code);
+      feedback.toast({
+        variant: 'success',
+        message: `Promo applied — save NPR ${result.discountNpr}. Pay NPR ${result.payableNpr}.`,
+      });
+    } catch (err: any) {
+      setAppliedPromo(null);
+      await feedback.alert({
+        variant: 'error',
+        title: 'Promo not applied',
+        message: err?.message || 'This promo code is not valid for the selected plan.',
+      });
+    } finally {
+      setPromoBusy(false);
+    }
+  };
+
+  const clearPromo = () => {
+    setAppliedPromo(null);
+    setPromoInput('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlanObj || selectedPlanObj.priceNpr <= 0) {
@@ -147,7 +206,10 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         userName: userProfile.name,
         userEmail: userProfile.email,
         planCode: selectedPlanObj.code,
-        amountNpr: amount,
+        amountNpr: listAmount,
+        listAmountNpr: listAmount,
+        promoCode: appliedPromo?.code,
+        promoDiscountNpr: appliedPromo?.discountNpr,
         paymentMethod,
         transactionRef: transactionRef.trim(),
         screenshotUrl,
@@ -157,6 +219,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       setSubmittedSuccess(true);
       setTransactionRef('');
       setUserNotes('');
+      clearPromo();
       clearScreenshot();
       setTimeout(() => setSubmittedSuccess(false), 5000);
     } catch {
@@ -193,8 +256,10 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     }
   ];
 
+  const latestClaim = claimsHistory[0] || null;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-12 font-sans select-none">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-10 font-sans">
       
       <section className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 space-y-4">
         <div className="max-w-2xl space-y-2">
@@ -214,6 +279,73 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 {userProfile.mocksRemaining !== null ? userProfile.mocksRemaining : 'Unlimited'}
               </span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Eye-catching payment claim status */}
+      <section
+        className={`rounded-2xl border-2 p-5 sm:p-6 shadow-sm ${
+          !latestClaim
+            ? 'border-slate-200 bg-slate-50'
+            : latestClaim.status === 'approved'
+              ? 'border-emerald-400 bg-emerald-50'
+              : latestClaim.status === 'rejected'
+                ? 'border-rose-400 bg-rose-50'
+                : 'border-amber-400 bg-amber-50'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-1 min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Your payment status
+            </div>
+            {!latestClaim ? (
+              <p className="text-sm font-semibold text-slate-700">
+                No claims yet — pay via Merchant QR, then submit a verification claim below.
+              </p>
+            ) : (
+              <>
+                <p className="text-base sm:text-lg font-black text-slate-900">
+                  {latestClaim.planCode} · NPR {latestClaim.amountNpr}
+                  <span className="text-slate-500 font-semibold text-sm ml-2">
+                    ({latestClaim.paymentMethod})
+                  </span>
+                </p>
+                <p className="text-xs text-slate-600 font-mono truncate">
+                  Ref: {latestClaim.transactionRef}
+                </p>
+                {latestClaim.status === 'rejected' && latestClaim.moderatorNotes ? (
+                  <p className="text-sm font-semibold text-rose-800 pt-1">
+                    Rejection reason: {latestClaim.moderatorNotes}
+                  </p>
+                ) : null}
+                {latestClaim.userNotes?.trim() ? (
+                  <p className="text-xs text-slate-600 pt-0.5">
+                    Your remarks: {latestClaim.userNotes}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </div>
+          <div
+            className={`shrink-0 self-start sm:self-center px-4 py-2 rounded-xl text-sm font-black tracking-wide ${
+              !latestClaim
+                ? 'bg-slate-200 text-slate-700'
+                : latestClaim.status === 'approved'
+                  ? 'bg-emerald-600 text-white'
+                  : latestClaim.status === 'rejected'
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-amber-500 text-slate-950'
+            }`}
+          >
+            {!latestClaim
+              ? 'NO CLAIM'
+              : latestClaim.status === 'approved'
+                ? 'APPROVED'
+                : latestClaim.status === 'rejected'
+                  ? 'REJECTED'
+                  : 'PENDING REVIEW'}
           </div>
         </div>
       </section>
@@ -467,7 +599,10 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
             <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
               <h3 className="font-bold text-slate-900 text-sm pb-2 border-b border-slate-100 flex items-center justify-between">
                 <span>Scan Merchant QR</span>
-                <span className="text-xs font-mono text-emerald-600 font-bold">Selected Plan: {selectedPlanLabel} (NPR {amount})</span>
+                <span className="text-xs font-mono text-emerald-600 font-bold">
+                  Selected Plan: {selectedPlanLabel} (NPR {payableAmount}
+                  {appliedPromo ? ` · was ${listAmount}` : ''})
+                </span>
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
@@ -503,7 +638,8 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   </div>
 
                   <p className="text-[10px] text-slate-500 leading-relaxed px-0.5">
-                    Scan the Merchant QR to pay the selected plan amount. Then submit your transaction
+                    Scan the Merchant QR to pay NPR {payableAmount}
+                    {appliedPromo ? ` (promo ${appliedPromo.code})` : ''}. Then submit your transaction
                     reference below for verification. No wallet phone numbers are required.
                   </p>
                 </div>
@@ -538,6 +674,51 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   <option value="Fonepay">Fonepay (Merchant QR)</option>
                   <option value="Bank Transfer">Direct Bank Transfer</option>
                 </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <AppIcon icon={Tag} size="btn" className="text-emerald-600" />
+                  Promo code (optional)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={promoInput}
+                    onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                    placeholder="e.g. CEE20"
+                    disabled={Boolean(appliedPromo)}
+                    className="flex-1 min-w-[140px] px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-600 disabled:opacity-70"
+                  />
+                  {appliedPromo ? (
+                    <button
+                      type="button"
+                      onClick={clearPromo}
+                      className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void handleApplyPromo()}
+                      disabled={promoBusy}
+                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold"
+                    >
+                      {promoBusy ? 'Checking…' : 'Apply'}
+                    </button>
+                  )}
+                </div>
+                {appliedPromo ? (
+                  <p className="text-[11px] text-emerald-700 font-semibold">
+                    {appliedPromo.code}: save NPR {appliedPromo.discountNpr} · pay NPR{' '}
+                    {appliedPromo.payableNpr} (list NPR {appliedPromo.listAmountNpr})
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-500">
+                    Have an admin offer code? Apply it before paying so your claim matches the discounted amount.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -606,14 +787,20 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 font-sans">User Remarks (Optional):</label>
+                <label className="block text-xs font-bold text-slate-700 font-sans">
+                  User Remarks (Optional)
+                </label>
                 <textarea
-                  rows={2}
-                  placeholder="Add optional notes or remarks for moderator..."
+                  rows={3}
+                  name="userNotes"
+                  placeholder="Add notes for the moderator (e.g. paid from parent's eSewa, amount paid)…"
                   value={userNotes}
                   onChange={(e) => setUserNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-600 select-text"
                 />
+                <span className="text-[10px] text-slate-500">
+                  These remarks are sent with your claim and visible to billing moderators.
+                </span>
               </div>
 
               <button
@@ -623,7 +810,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
               >
                 {submitting
                   ? 'Submitting…'
-                  : `Submit Verification Claim (NPR ${amount})`}
+                  : `Submit Verification Claim (NPR ${payableAmount})`}
               </button>
             </form>
           </div>
@@ -693,6 +880,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   <th className="p-3 font-mono">Reference ID</th>
                   <th className="p-3 text-right">Amount</th>
                   <th className="p-3 text-right">Status</th>
+                  <th className="p-3">Your remarks</th>
                   <th className="p-3">Moderator note</th>
                 </tr>
               </thead>
@@ -705,7 +893,14 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                     <td className="p-3 font-bold text-slate-900">{claim.planCode}</td>
                     <td className="p-3 text-slate-600">{claim.paymentMethod}</td>
                     <td className="p-3 font-mono text-slate-800">{claim.transactionRef}</td>
-                    <td className="p-3 text-right font-mono font-bold">NPR {claim.amountNpr}</td>
+                    <td className="p-3 text-right font-mono font-bold">
+                      NPR {claim.amountNpr}
+                      {claim.promoCode ? (
+                        <div className="text-[10px] font-sans font-semibold text-emerald-700">
+                          {claim.promoCode}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="p-3 text-right">
                       <span
                         className={`px-2.5 py-1 rounded-full text-[10px] font-bold font-mono ${
@@ -718,6 +913,13 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                       >
                         {claim.status.toUpperCase()}
                       </span>
+                    </td>
+                    <td className="p-3 text-slate-700 max-w-[180px]">
+                      {claim.userNotes?.trim() ? (
+                        <span className="leading-snug block">{claim.userNotes}</span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
                     <td className="p-3 text-slate-700 max-w-[220px]">
                       {claim.status === 'rejected' && claim.moderatorNotes?.trim() ? (

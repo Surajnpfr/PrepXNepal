@@ -32,13 +32,24 @@ export async function submitPaymentClaim(
     transactionRef: string;
     screenshotUrl?: string;
     userNotes?: string;
+    promoCode?: string;
   }
 ): Promise<PaymentClaim> {
   const headers = await authHeaders(getToken);
+  // Put remarks first so they are never dropped if payload size is tight.
   const res = await fetch('/api/payment-claims', {
     method: 'POST',
     headers,
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      userNotes: input.userNotes ?? '',
+      remarks: input.userNotes ?? '',
+      planCode: input.planCode,
+      amountNpr: input.amountNpr,
+      paymentMethod: input.paymentMethod,
+      transactionRef: input.transactionRef,
+      screenshotUrl: input.screenshotUrl ?? '',
+      promoCode: input.promoCode?.trim() || undefined,
+    }),
   });
   if (!res.ok) throw new Error(await readError(res));
   const data = await res.json();

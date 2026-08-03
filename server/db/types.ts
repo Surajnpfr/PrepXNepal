@@ -16,6 +16,7 @@ import type {
   FormulaImportBatchRecord,
   FormulaSheetRecord,
 } from '../formulasDomain.ts';
+import type { PromoCodeRecord } from '../promoCodesDomain.ts';
 
 export interface CreateBatchInput {
   id: string;
@@ -178,6 +179,9 @@ export type CreatePaymentClaimInput = {
   userEmail: string;
   planCode: string;
   amountNpr: number;
+  listAmountNpr?: number;
+  promoCode?: string | null;
+  promoDiscountNpr?: number;
   paymentMethod: string;
   transactionRef: string;
   screenshotUrl: string;
@@ -201,6 +205,46 @@ export interface PaymentClaimsRepository {
       verifiedByClerkId: string;
     }
   ): Promise<PaymentClaimRecord | null>;
+  close(): Promise<void>;
+}
+
+export type CreatePromoCodeRepoInput = {
+  id: string;
+  code: string;
+  description?: string | null;
+  discountType: 'percent' | 'fixed';
+  discountValue: number;
+  applicablePlanCodes?: string[];
+  maxRedemptions?: number | null;
+  startsAt?: string | null;
+  expiresAt?: string | null;
+  active?: boolean;
+  createdByClerkId?: string | null;
+  createdByName?: string | null;
+};
+
+export type UpdatePromoCodeRepoInput = {
+  description?: string | null;
+  discountType?: 'percent' | 'fixed';
+  discountValue?: number;
+  applicablePlanCodes?: string[];
+  maxRedemptions?: number | null;
+  startsAt?: string | null;
+  expiresAt?: string | null;
+  active?: boolean;
+};
+
+export interface PromoCodesRepository {
+  readonly driver: 'mysql' | 'sqlite';
+  ensureSchema(): Promise<void>;
+  listAll(): Promise<PromoCodeRecord[]>;
+  getById(id: string): Promise<PromoCodeRecord | null>;
+  getByCode(code: string): Promise<PromoCodeRecord | null>;
+  insert(input: CreatePromoCodeRepoInput): Promise<PromoCodeRecord>;
+  update(id: string, patch: UpdatePromoCodeRepoInput): Promise<PromoCodeRecord | null>;
+  /** Atomically increment redemption_count when under max (or unlimited). */
+  tryIncrementRedemption(code: string): Promise<PromoCodeRecord | null>;
+  deleteById(id: string): Promise<boolean>;
   close(): Promise<void>;
 }
 

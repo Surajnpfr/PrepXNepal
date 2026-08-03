@@ -11,6 +11,10 @@ const STORAGE_KEY = 'prepx_notifications';
 const SEEN_MOCKS_KEY = 'prepx_seen_mock_ids';
 const MAX_NOTIFICATIONS = 50;
 
+function seenMocksKeyFor(userId: string): string {
+  return `${SEEN_MOCKS_KEY}:${userId}`;
+}
+
 export function loadNotifications(): AppNotification[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -121,6 +125,12 @@ export function bootstrapFromActivity(input: {
   });
 
   input.claims.slice(0, 3).forEach((c) => {
+    const statusRef =
+      c.status === 'approved'
+        ? `${c.id}-approved`
+        : c.status === 'rejected'
+          ? `${c.id}-rejected`
+          : `${c.id}-pending`;
     out.push(
       createNotification({
         userId: input.userId,
@@ -131,10 +141,13 @@ export function bootstrapFromActivity(input: {
             : c.status === 'rejected'
               ? 'Payment claim rejected'
               : 'Payment claim submitted',
-        desc: `${c.planCode} · Rs. ${c.amountNpr} · ${c.status}`,
+        desc:
+          c.status === 'rejected' && c.moderatorNotes
+            ? `${c.planCode} · Rs. ${c.amountNpr} · ${c.moderatorNotes}`
+            : `${c.planCode} · Rs. ${c.amountNpr} · ${c.status}`,
         hrefTab: 'payment',
-        refId: c.id,
-        createdAt: toIsoGuess(c.submittedAt),
+        refId: statusRef,
+        createdAt: toIsoGuess(c.verifiedAt || c.submittedAt),
         read: c.status !== 'pending',
       })
     );
@@ -150,10 +163,79 @@ function toIsoGuess(value: string): string {
   return Number.isNaN(parsed) ? new Date().toISOString() : new Date(parsed).toISOString();
 }
 
-export function loadSeenMockIds(): string[] {
+/**
+ * Derive payment notifications from server claims on the *student* device.
+ * Staff approve/reject cannot write into another browser's localStorage.
+ * Status transitions use distinct refIds so approve/reject still notify after submit.
+ */
+export function syncPaymentClaimNotifications(
+  list: AppNotification[],
+  input: {
+    userId: string;
+    clerkUserId?: string;
+    claims: PaymentClaim[];
+  }
+): AppNotification[] {
+  const mine = input.claims.filter(
+    (c) =>
+      c.userId === input.userId ||
+      (input.clerkUserId && c.clerkUserId === input.clerkUserId)
+  );
+  let next = list;
+  for (const claim of mine) {
+    const statusRef =
+      claim.status === 'approved'
+        ? `${claim.id}-approved`
+        : claim.status === 'rejected'
+          ? `${claim.id}-rejected`
+          : `${claim.id}-pending`;
+
+    const title =
+      claim.status === 'approved'
+        ? 'Payment claim approved'
+        : claim.status === 'rejected'
+          ? 'Payment claim rejected'
+          : 'Payment claim submitted';
+
+    const desc =
+      claim.status === 'rejected' && claim.moderatorNotes?.trim()
+        ? `${claim.planCode} · Rs. ${claim.amountNpr} · ${claim.moderatorNotes}`
+        : claim.status === 'approved'
+          ? `${claim.planCode} plan activated · Rs. ${claim.amountNpr}`
+          : `${claim.planCode} · Rs. ${claim.amountNpr} · pending review`;
+
+    next = prependNotification(
+      next,
+      createNotification({
+        userId: input.userId,
+        kind: 'payment',
+        title,
+        desc,
+        hrefTab: 'payment',
+        refId: statusRef,
+        createdAt: toIsoGuess(claim.verifiedAt || claim.submittedAt),
+        read: false,
+      })
+    );
+  }
+  return next;
+}
+
+export function loadSeenMockIds(userId?: string): string[] {
   try {
-    const raw = localStorage.getItem(SEEN_MOCKS_KEY);
-    if (!raw) return [];
+    const key = userId ? seenMocksKeyFor(userId) : SEEN_MOCKS_KEY;
+    const raw = localStorage.getItem(key);
+    if (!raw) {
+      // Migrate legacy global key once when a userId is provided.
+      if (userId) {
+        const legacy = localStorage.getItem(SEEN_MOCKS_KEY);
+        if (legacy) {
+          localStorage.setItem(key, legacy);
+          return JSON.parse(legacy) as string[];
+        }
+      }
+      return [];
+    }
     const parsed = JSON.parse(raw) as string[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -161,8 +243,9 @@ export function loadSeenMockIds(): string[] {
   }
 }
 
-export function saveSeenMockIds(ids: string[]): void {
-  localStorage.setItem(SEEN_MOCKS_KEY, JSON.stringify(ids));
+export function saveSeenMockIds(ids: string[], userId?: string): void {
+  const key = userId ? seenMocksKeyFor(userId) : SEEN_MOCKS_KEY;
+  localStorage.setItem(key, JSON.stringify(ids));
 }
 
 /** Returns notifications for newly appeared fixed mocks; updates seen-id set. */
@@ -172,7 +255,7 @@ export function detectNewCatalogMocks(
 ): { notifications: AppNotification[]; seenIds: string[] } {
   const fixed = mocks.filter((m) => m.mode === 'fixed' || !m.mode);
   const currentIds = fixed.map((m) => m.id);
-  const seen = loadSeenMockIds();
+  const seen = loadSeenMockIds(userId);
 
   if (seen.length === 0) {
     // First catalog load — remember without flooding inbox.

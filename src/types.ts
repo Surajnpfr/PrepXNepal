@@ -210,7 +210,12 @@ export interface PaymentClaim {
   userName: string;
   userEmail: string;
   planCode: string;
+  /** Payable amount after promo. */
   amountNpr: number;
+  /** Catalog / list price before promo. */
+  listAmountNpr?: number;
+  promoCode?: string;
+  promoDiscountNpr?: number;
   paymentMethod: 'Fonepay' | 'eSewa' | 'Khalti' | 'Bank Transfer';
   transactionRef: string;
   screenshotUrl: string;

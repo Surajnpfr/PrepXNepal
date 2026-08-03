@@ -25,6 +25,8 @@
     "test:support": "tsx scripts/test-support-issues.ts",
     "test:email-domains": "tsx scripts/test-email-domain-policy.ts",
     "test:formulas": "tsx scripts/test-formulas-import.ts",
+    "test:notifications": "tsx scripts/test-notifications-sync.ts",
+    "test:promos": "tsx scripts/test-promo-codes.ts",
     "db:seed": "tsx scripts/seed-questions.ts"
   },
   "main": "server.js",

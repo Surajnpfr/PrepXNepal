@@ -10,6 +10,9 @@ type ClaimRow = RowDataPacket & {
   user_email: string;
   plan_code: string;
   amount_npr: number;
+  list_amount_npr: number | null;
+  promo_code: string | null;
+  promo_discount_npr: number | null;
   payment_method: string;
   transaction_ref: string;
   screenshot_url: string;
@@ -29,6 +32,9 @@ function asIso(value: Date | string | null | undefined): string | null {
 }
 
 function mapRow(row: ClaimRow): PaymentClaimRecord {
+  const amountNpr = Number(row.amount_npr);
+  const listAmountNpr =
+    row.list_amount_npr == null ? amountNpr : Number(row.list_amount_npr);
   return {
     id: row.id,
     userId: row.user_id,
@@ -36,7 +42,10 @@ function mapRow(row: ClaimRow): PaymentClaimRecord {
     userName: row.user_name,
     userEmail: row.user_email,
     planCode: row.plan_code,
-    amountNpr: Number(row.amount_npr),
+    amountNpr,
+    listAmountNpr,
+    promoCode: row.promo_code,
+    promoDiscountNpr: Number(row.promo_discount_npr || 0),
     paymentMethod: row.payment_method as PaymentMethod,
     transactionRef: row.transaction_ref,
     screenshotUrl: row.screenshot_url,
@@ -64,6 +73,9 @@ export function createMysqlPaymentClaimsRepo(pool: Pool): PaymentClaimsRepositor
           user_email VARCHAR(255) NOT NULL,
           plan_code VARCHAR(64) NOT NULL,
           amount_npr INT NOT NULL,
+          list_amount_npr INT NULL,
+          promo_code VARCHAR(32) NULL,
+          promo_discount_npr INT NOT NULL DEFAULT 0,
           payment_method VARCHAR(32) NOT NULL,
           transaction_ref VARCHAR(191) NOT NULL,
           screenshot_url TEXT NOT NULL,
@@ -79,16 +91,32 @@ export function createMysqlPaymentClaimsRepo(pool: Pool): PaymentClaimsRepositor
           INDEX idx_payment_claims_user (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `);
+      for (const stmt of [
+        'ALTER TABLE payment_claims ADD COLUMN user_notes TEXT NULL',
+        'ALTER TABLE payment_claims ADD COLUMN moderator_notes TEXT NULL',
+        'ALTER TABLE payment_claims ADD COLUMN list_amount_npr INT NULL',
+        'ALTER TABLE payment_claims ADD COLUMN promo_code VARCHAR(32) NULL',
+        'ALTER TABLE payment_claims ADD COLUMN promo_discount_npr INT NOT NULL DEFAULT 0',
+      ]) {
+        try {
+          await pool.query(stmt);
+        } catch {
+          /* already exists */
+        }
+      }
     },
 
     async insert(input: CreatePaymentClaimInput) {
       const now = new Date();
+      const listAmountNpr = input.listAmountNpr ?? input.amountNpr;
+      const promoDiscountNpr = input.promoDiscountNpr ?? 0;
       await pool.query(
         `INSERT INTO payment_claims
           (id, user_id, clerk_user_id, user_name, user_email, plan_code, amount_npr,
+           list_amount_npr, promo_code, promo_discount_npr,
            payment_method, transaction_ref, screenshot_url, status, user_notes,
            moderator_notes, submitted_at, verified_at, verified_by, verified_by_clerk_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, NULL, NULL)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, NULL, NULL)`,
         [
           input.id,
           input.userId,
@@ -97,6 +125,9 @@ export function createMysqlPaymentClaimsRepo(pool: Pool): PaymentClaimsRepositor
           input.userEmail,
           input.planCode,
           input.amountNpr,
+          listAmountNpr,
+          input.promoCode ?? null,
+          promoDiscountNpr,
           input.paymentMethod,
           input.transactionRef,
           input.screenshotUrl,

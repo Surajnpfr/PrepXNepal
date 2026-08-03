@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import {
   LayoutDashboard,
@@ -12,6 +12,7 @@ import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { Footer } from './components/Footer';
 import { BrainLanding } from './components/BrainLanding';
+import { LandingSignInButton, LandingSignUpButton } from './components/ClerkAuthControls';
 import { HomeView } from './components/HomeView';
 import { CatalogView } from './components/CatalogView';
 import { MockEngineView } from './components/MockEngineView';
@@ -26,6 +27,8 @@ import { StudyPlannerView } from './components/StudyPlannerView';
 import { LeaderboardView } from './components/LeaderboardView';
 import { HelpSupportView } from './components/HelpSupportView';
 import { ClerkLoadGuard } from './components/ClerkLoadGuard';
+import { SeoHead } from './components/SeoHead';
+import { seoForTab } from './lib/siteSeo';
 
 import { 
   INITIAL_PAST_REPORTS, 
@@ -73,6 +76,7 @@ import {
   prependNotification,
   saveNotifications,
   saveSeenMockIds,
+  syncPaymentClaimNotifications,
 } from './lib/notifications';
 import {
   applyCompletionReward,
@@ -272,12 +276,24 @@ export function App() {
       setPaymentClaims(data.claims);
       setPaymentClaimsSyncedAt(data.syncedAt);
       setPaymentClaimsError(null);
+
+      // Student-side sync: derive approve/reject/pending notifs from server claims.
+      if (user) {
+        const profile = mapClerkUserToProfile(user);
+        setNotifications((prev) =>
+          syncPaymentClaimNotifications(prev, {
+            userId: profile.id,
+            clerkUserId: user.id,
+            claims: data.claims,
+          })
+        );
+      }
     } catch (err: any) {
       setPaymentClaimsError(err?.message || 'Failed to load payment claims');
     } finally {
       setPaymentClaimsLoading(false);
     }
-  }, [getToken, isSignedIn]);
+  }, [getToken, isSignedIn, user]);
 
   // Load + poll payment claims (dynamic shared queue).
   useEffect(() => {
@@ -350,7 +366,7 @@ export function App() {
           catalogUserId,
           list.mocks
         );
-        saveSeenMockIds(seenIds);
+        saveSeenMockIds(seenIds, catalogUserId);
         if (freshMocks.length > 0) {
           setNotifications((prev) =>
             freshMocks.reduce((acc, n) => prependNotification(acc, n), prev)
@@ -485,12 +501,41 @@ export function App() {
     [setHelpSubTab]
   );
 
+  // Signed-in users on `/` go to dashboard. Unsigned users may keep public SEO routes
+  // (/reports, /help) so crawlers and share links see indexable content; other app URLs
+  // still require sign-in.
+  const PUBLIC_SEO_TABS = useMemo(() => new Set(['reports', 'policies']), []);
+
   useEffect(() => {
-    if (isLoaded && isSignedIn && showLanding) {
+    if (!isLoaded) return;
+    if (isSignedIn && showLanding) {
       enterApp('home', true);
+      return;
     }
-  }, [isLoaded, isSignedIn, showLanding, enterApp]);
-  
+    if (!isSignedIn && !showLanding && !showNotFound && !PUBLIC_SEO_TABS.has(activeTab)) {
+      goToLanding(true);
+    }
+  }, [
+    isLoaded,
+    isSignedIn,
+    showLanding,
+    showNotFound,
+    activeTab,
+    enterApp,
+    goToLanding,
+    PUBLIC_SEO_TABS,
+  ]);
+
+  const showPublicSeo =
+    isLoaded && !isSignedIn && !showLanding && !showNotFound && PUBLIC_SEO_TABS.has(activeTab);
+  const showWelcome = !isLoaded || (!isSignedIn && !showPublicSeo) || (isSignedIn && showLanding);
+  const showAppShell = isLoaded && isSignedIn && !showLanding && !showNotFound;
+  const showAppNotFound = isLoaded && isSignedIn && showNotFound && !showLanding;
+  const pageSeo = seoForTab(
+    showPublicSeo || showAppShell ? activeTab : null,
+    Boolean(showWelcome && !showPublicSeo)
+  );
+
   // Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
@@ -554,7 +599,7 @@ export function App() {
     plannerDateKey
   );
   const announcementNotification =
-    currentUserNotifications.find((n) => !n.read) || currentUserNotifications[0] || null;
+    currentUserNotifications.find((n) => !n.read) || null;
 
   useEffect(() => {
     localStorage.setItem('prepx_reports', JSON.stringify(pastReports));
@@ -1061,7 +1106,8 @@ export function App() {
         paymentMethod: claimData.paymentMethod,
         transactionRef: claimData.transactionRef,
         screenshotUrl: claimData.screenshotUrl,
-        userNotes: claimData.userNotes,
+        userNotes: claimData.userNotes?.trim() || '',
+        promoCode: claimData.promoCode,
       });
       setPaymentClaims((prev) => {
         const without = prev.filter((c) => c.id !== claim.id);
@@ -1073,7 +1119,7 @@ export function App() {
         title: 'Payment claim submitted',
         desc: `${claim.planCode} · Rs. ${claim.amountNpr} · pending review`,
         hrefTab: 'payment',
-        refId: claim.id,
+        refId: `${claim.id}-pending`,
       });
       feedback.toast({
         variant: 'success',
@@ -1106,16 +1152,7 @@ export function App() {
           );
         });
       }
-      if (result.claim.userId) {
-        pushNotification({
-          userId: result.claim.userId,
-          kind: 'payment',
-          title: 'Payment claim approved',
-          desc: `${result.claim.planCode} plan activated`,
-          hrefTab: 'payment',
-          refId: `${claimId}-approved`,
-        });
-      }
+      // Payment status notifs are synced on the student's device via claim polling.
       if (result.referralCommission?.recorded) {
         feedback.toast({
           variant: 'success',
@@ -1139,16 +1176,7 @@ export function App() {
     try {
       const claim = await rejectPaymentClaim(getToken, claimId, reason);
       setPaymentClaims((prev) => prev.map((c) => (c.id === claimId ? claim : c)));
-      if (claim.userId) {
-        pushNotification({
-          userId: claim.userId,
-          kind: 'payment',
-          title: 'Payment claim rejected',
-          desc: reason || 'Your payment claim was not approved.',
-          hrefTab: 'payment',
-          refId: `${claimId}-rejected`,
-        });
-      }
+      // Student sees rejection via syncPaymentClaimNotifications on their next claims poll.
       feedback.toast({ variant: 'success', message: 'Payment claim rejected.' });
       void refreshPaymentClaims();
     } catch (err: any) {
@@ -1361,16 +1389,83 @@ export function App() {
   return (
     <div className="min-h-screen bg-[var(--px-bg)] text-[var(--px-body)] flex flex-col font-sans antialiased relative overflow-x-hidden">
       <ClerkLoadGuard />
-      {showLanding && (
-        <BrainLanding
-          onEnterApp={(initialCategory) => {
-            enterApp(initialCategory);
-          }}
-          onClose={() => enterApp('home')}
-        />
+      <SeoHead page={pageSeo} />
+      {showWelcome && <BrainLanding />}
+
+      {showPublicSeo && (
+        <div className="min-h-screen bg-[var(--px-bg)]">
+          <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <a href="/" className="font-bold text-slate-900 tracking-tight">
+              PrepX <span className="text-[#2563EB]">Nepal</span>
+            </a>
+            <div className="flex items-center gap-2 text-sm">
+              <a
+                href="/"
+                className="px-3 py-1.5 text-slate-600 hover:text-slate-900"
+                onClick={(e) => {
+                  e.preventDefault();
+                  goToLanding(true);
+                }}
+              >
+                Welcome
+              </a>
+              <LandingSignInButton />
+              <LandingSignUpButton>Sign Up</LandingSignUpButton>
+            </div>
+          </div>
+          {activeTab === 'reports' && (
+            <ProgressReportsView
+              pastReports={[]}
+              activeReport={null}
+              userProfile={GUEST_PROFILE}
+              onSelectReport={() => undefined}
+              onNavigate={(tab) => {
+                if (tab === 'policies' || tab === 'reports') {
+                  goToTab(tab);
+                  return;
+                }
+                goToLanding(false);
+              }}
+            />
+          )}
+          {activeTab === 'policies' && (
+            <div className="max-w-3xl mx-auto px-4 py-10 space-y-4 text-sm text-slate-700">
+              <h1 className="text-2xl font-bold text-slate-900">PrepX Nepal help and policies</h1>
+              <p>
+                Sign in to open the full help centre, FAQ, terms, privacy, and support ticket tools.
+                Official CEE context:{' '}
+                <a
+                  href="https://www.mec.gov.np/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-700 font-semibold underline"
+                >
+                  Medical Education Commission (MEC) Nepal
+                </a>
+                .
+              </p>
+              <p>
+                <a
+                  href="/"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    goToLanding(true);
+                  }}
+                  className="text-blue-700 font-semibold underline"
+                >
+                  Return to PrepX Nepal welcome
+                </a>
+                {' · '}
+                <a href="/reports" className="text-blue-700 font-semibold underline">
+                  CEE performance reports guide
+                </a>
+              </p>
+            </div>
+          )}
+        </div>
       )}
 
-      {showNotFound && !showLanding && (
+      {showAppNotFound && (
         <RouteStatePanel
           icon="not-found"
           title="Page not found"
@@ -1386,13 +1481,15 @@ export function App() {
         />
       )}
 
-      {!showLanding && !showNotFound && (
+      {showAppShell && (
       <>
         {activeTab !== 'mock-engine' && (
           <AnnouncementBar
             message={
               announcementNotification
-                ? announcementNotification.title
+                ? `${announcementNotification.title}${
+                    announcementNotification.desc ? ` — ${announcementNotification.desc}` : ''
+                  }`
                 : mockTests.length > 0
                   ? `${mockTests.filter((m) => m.isPublished !== false).length} mocks ready in your catalog`
                   : 'Sign in and open Mock Tests to start a timed CEE practice paper.'
@@ -1410,6 +1507,11 @@ export function App() {
                 handleMarkNotificationRead(announcementNotification.id);
               } else {
                 setActiveTab('catalog');
+              }
+            }}
+            onDismiss={() => {
+              if (announcementNotification) {
+                handleMarkNotificationRead(announcementNotification.id);
               }
             }}
           />

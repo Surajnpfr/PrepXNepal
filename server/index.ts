@@ -25,6 +25,7 @@ import type {
   FormulasRepository,
   MocksRepository,
   PaymentClaimsRepository,
+  PromoCodesRepository,
   QuestionsRepository,
   ReferralsRepository,
   SupportIssuesRepository,
@@ -60,6 +61,12 @@ import {
   sortIssuesForQueue,
 } from './supportDomain.ts';
 import { parseFormulaImportBatch } from './formulasDomain.ts';
+import {
+  canManagePromoCodes,
+  evaluatePromoForCheckout,
+  normalizePromoCode,
+  validatePromoCodeCreateInput,
+} from './promoCodesDomain.ts';
 import {
   emailDomainBlockedMessage,
   emailDomainPolicyFromEnv,
@@ -102,7 +109,7 @@ if (!SECRET_KEY) {
 const clerk = createClerkClient({ secretKey: SECRET_KEY });
 const app = express();
 app.disable('x-powered-by');
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '4mb' }));
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
@@ -115,6 +122,7 @@ let referralsRepo: ReferralsRepository;
 let paymentClaimsRepo: PaymentClaimsRepository;
 let supportIssuesRepo: SupportIssuesRepository;
 let formulasRepo: FormulasRepository;
+let promoCodesRepo: PromoCodesRepository;
 
 type AppMeta = {
   plan?: string;
@@ -1767,12 +1775,18 @@ function toClientPaymentClaim(c: Awaited<ReturnType<PaymentClaimsRepository['get
     userEmail: c.userEmail,
     planCode: c.planCode,
     amountNpr: c.amountNpr,
+    listAmountNpr: c.listAmountNpr,
+    promoCode: c.promoCode || undefined,
+    promoDiscountNpr: c.promoDiscountNpr || undefined,
     paymentMethod: c.paymentMethod,
     transactionRef: c.transactionRef,
     screenshotUrl: c.screenshotUrl,
     status: c.status,
-    userNotes: c.userNotes || undefined,
-    moderatorNotes: c.moderatorNotes || undefined,
+    userNotes: c.userNotes != null && String(c.userNotes).trim() ? String(c.userNotes).trim() : undefined,
+    moderatorNotes:
+      c.moderatorNotes != null && String(c.moderatorNotes).trim()
+        ? String(c.moderatorNotes).trim()
+        : undefined,
     submittedAt: c.submittedAt,
     verifiedAt: c.verifiedAt || undefined,
     verifiedBy: c.verifiedBy || undefined,
@@ -1788,24 +1802,61 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
       typeof req.body?.transactionRef === 'string' ? req.body.transactionRef.trim() : '';
     const screenshotUrl =
       typeof req.body?.screenshotUrl === 'string' ? req.body.screenshotUrl.trim() : '';
-    const userNotes =
-      typeof req.body?.userNotes === 'string' ? req.body.userNotes.trim() : '';
+    const userNotesRaw =
+      typeof req.body?.userNotes === 'string'
+        ? req.body.userNotes
+        : typeof req.body?.remarks === 'string'
+          ? req.body.remarks
+          : typeof req.body?.userRemarks === 'string'
+            ? req.body.userRemarks
+            : '';
+    const userNotes = userNotesRaw.trim();
     const amountRaw = req.body?.amountNpr;
-    const amountNpr = typeof amountRaw === 'number' ? amountRaw : Number(amountRaw);
+    const listAmountNpr = Math.round(
+      typeof amountRaw === 'number' ? amountRaw : Number(amountRaw)
+    );
     const paymentMethod = req.body?.paymentMethod;
+    const promoRaw =
+      typeof req.body?.promoCode === 'string'
+        ? req.body.promoCode
+        : typeof req.body?.couponCode === 'string'
+          ? req.body.couponCode
+          : '';
 
     if (!planCode) return res.status(400).json({ error: 'planCode is required' });
     if (!transactionRef) return res.status(400).json({ error: 'transactionRef is required' });
     if (!isPaymentMethod(paymentMethod)) {
       return res.status(400).json({ error: 'paymentMethod must be Fonepay, eSewa, Khalti, or Bank Transfer' });
     }
-    if (!Number.isFinite(amountNpr) || amountNpr <= 0) {
+    if (!Number.isFinite(listAmountNpr) || listAmountNpr <= 0) {
       return res.status(400).json({ error: 'amountNpr must be a positive number' });
     }
     if (!screenshotUrl.startsWith('data:image/') && !/^https?:\/\//i.test(screenshotUrl)) {
       return res.status(400).json({
         error: 'Payment screenshot is required (attach an image of your payment receipt)',
       });
+    }
+
+    let payableNpr = listAmountNpr;
+    let promoCode: string | null = null;
+    let promoDiscountNpr = 0;
+
+    const normalizedPromo = normalizePromoCode(promoRaw);
+    if (promoRaw.trim() && !normalizedPromo) {
+      return res.status(400).json({ error: 'Invalid promo code format' });
+    }
+    if (normalizedPromo) {
+      const promo = await promoCodesRepo.getByCode(normalizedPromo);
+      const applied = evaluatePromoForCheckout(promo, {
+        planCode,
+        listAmountNpr,
+      });
+      if (applied.ok === false) {
+        return res.status(400).json({ error: applied.reason });
+      }
+      promoCode = applied.code;
+      promoDiscountNpr = applied.discountNpr;
+      payableNpr = applied.payableNpr;
     }
 
     const claim = await paymentClaimsRepo.insert({
@@ -1815,7 +1866,10 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
       userName: profile.name,
       userEmail: profile.email,
       planCode,
-      amountNpr: Math.round(amountNpr),
+      amountNpr: payableNpr,
+      listAmountNpr,
+      promoCode,
+      promoDiscountNpr,
       paymentMethod,
       transactionRef,
       screenshotUrl,
@@ -1875,6 +1929,19 @@ app.post('/api/payment-claims/:id/approve', requireAuth, async (req, res) => {
     });
     if (!claim) {
       return res.status(409).json({ error: 'Claim was already resolved by another moderator' });
+    }
+
+    if (claim.promoCode) {
+      try {
+        const bumped = await promoCodesRepo.tryIncrementRedemption(claim.promoCode);
+        if (!bumped) {
+          console.warn(
+            `Approve claim ${claim.id}: promo ${claim.promoCode} redemption not incremented (exhausted or inactive)`
+          );
+        }
+      } catch (promoErr: any) {
+        console.error('Approve claim: promo redemption failed:', promoErr?.message || promoErr);
+      }
     }
 
     const entitlements = defaultEntitlementsForPlan(claim.planCode);
@@ -1985,6 +2052,213 @@ app.post('/api/payment-claims/:id/reject', requireAuth, async (req, res) => {
   } catch (err: any) {
     console.error('POST /api/payment-claims/:id/reject failed:', err);
     res.status(500).json({ error: publicErrorMessage(err, 'Failed to reject claim') });
+  }
+});
+
+function toClientPromoCode(p: NonNullable<Awaited<ReturnType<PromoCodesRepository['getById']>>>) {
+  return {
+    id: p.id,
+    code: p.code,
+    description: p.description || undefined,
+    discountType: p.discountType,
+    discountValue: p.discountValue,
+    applicablePlanCodes: p.applicablePlanCodes,
+    maxRedemptions: p.maxRedemptions,
+    redemptionCount: p.redemptionCount,
+    startsAt: p.startsAt || undefined,
+    expiresAt: p.expiresAt || undefined,
+    active: p.active,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    createdByName: p.createdByName || undefined,
+  };
+}
+
+/** Any signed-in user: preview / validate a promo for checkout. */
+app.post('/api/promo-codes/validate', requireAuth, async (req, res) => {
+  try {
+    const code = normalizePromoCode(typeof req.body?.code === 'string' ? req.body.code : '');
+    const planCode = typeof req.body?.planCode === 'string' ? req.body.planCode.trim() : '';
+    const listRaw = req.body?.amountNpr ?? req.body?.listAmountNpr;
+    const listAmountNpr = Math.round(typeof listRaw === 'number' ? listRaw : Number(listRaw));
+
+    if (!code) return res.status(400).json({ error: 'Enter a valid promo code' });
+    if (!planCode) return res.status(400).json({ error: 'planCode is required' });
+    if (!Number.isFinite(listAmountNpr) || listAmountNpr <= 0) {
+      return res.status(400).json({ error: 'amountNpr must be a positive number' });
+    }
+
+    const promo = await promoCodesRepo.getByCode(code);
+    const applied = evaluatePromoForCheckout(promo, { planCode, listAmountNpr });
+    if (applied.ok === false) {
+      return res.status(400).json({ error: applied.reason, valid: false });
+    }
+    res.json({ valid: true, ...applied });
+  } catch (err: any) {
+    console.error('POST /api/promo-codes/validate failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to validate promo') });
+  }
+});
+
+/** Admin only: list promo codes. */
+app.get('/api/promo-codes', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManagePromoCodes(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const rows = await promoCodesRepo.listAll();
+    res.json({ promoCodes: rows.map(toClientPromoCode) });
+  } catch (err: any) {
+    console.error('GET /api/promo-codes failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load promo codes') });
+  }
+});
+
+/** Admin only: create promo code. */
+app.post('/api/promo-codes', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    if (!canManagePromoCodes(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const parsed = validatePromoCodeCreateInput(req.body || {});
+    if (parsed.ok === false) return res.status(400).json({ error: parsed.reason });
+
+    const existing = await promoCodesRepo.getByCode(parsed.value.code);
+    if (existing) {
+      return res.status(409).json({ error: `Promo code ${parsed.value.code} already exists` });
+    }
+
+    const created = await promoCodesRepo.insert({
+      id: `promo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ...parsed.value,
+      createdByClerkId: userId,
+      createdByName: profile.name || profile.email || 'Admin',
+    });
+    res.status(201).json({ promoCode: toClientPromoCode(created) });
+  } catch (err: any) {
+    console.error('POST /api/promo-codes failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to create promo code') });
+  }
+});
+
+/** Admin only: update promo code. */
+app.patch('/api/promo-codes/:id', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManagePromoCodes(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing promo id' });
+
+    const existing = await promoCodesRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: 'Promo code not found' });
+
+    const body = req.body || {};
+    const patch: Parameters<PromoCodesRepository['update']>[1] = {};
+
+    if (body.description !== undefined) {
+      patch.description =
+        typeof body.description === 'string' && body.description.trim()
+          ? body.description.trim().slice(0, 500)
+          : null;
+    }
+    if (body.discountType !== undefined || body.discountValue !== undefined) {
+      const discountType = body.discountType ?? existing.discountType;
+      const discountValue =
+        body.discountValue !== undefined
+          ? typeof body.discountValue === 'number'
+            ? body.discountValue
+            : Number(body.discountValue)
+          : existing.discountValue;
+      const check = validatePromoCodeCreateInput({
+        code: existing.code,
+        discountType,
+        discountValue,
+        applicablePlanCodes:
+          body.applicablePlanCodes !== undefined
+            ? body.applicablePlanCodes
+            : existing.applicablePlanCodes,
+        maxRedemptions:
+          body.maxRedemptions !== undefined ? body.maxRedemptions : existing.maxRedemptions,
+        startsAt: body.startsAt !== undefined ? body.startsAt : existing.startsAt,
+        expiresAt: body.expiresAt !== undefined ? body.expiresAt : existing.expiresAt,
+        active: body.active !== undefined ? body.active : existing.active,
+        description: body.description !== undefined ? body.description : existing.description,
+      });
+      if (check.ok === false) return res.status(400).json({ error: check.reason });
+      patch.discountType = check.value.discountType;
+      patch.discountValue = check.value.discountValue;
+      patch.applicablePlanCodes = check.value.applicablePlanCodes;
+      patch.maxRedemptions = check.value.maxRedemptions ?? null;
+      patch.startsAt = check.value.startsAt ?? null;
+      patch.expiresAt = check.value.expiresAt ?? null;
+      patch.active = check.value.active !== false;
+      if (body.description !== undefined) patch.description = check.value.description ?? null;
+    } else {
+      if (body.applicablePlanCodes !== undefined) {
+        const check = validatePromoCodeCreateInput({
+          code: existing.code,
+          discountType: existing.discountType,
+          discountValue: existing.discountValue,
+          applicablePlanCodes: body.applicablePlanCodes,
+        });
+        if (check.ok === false) return res.status(400).json({ error: check.reason });
+        patch.applicablePlanCodes = check.value.applicablePlanCodes;
+      }
+      if (body.maxRedemptions !== undefined) {
+        if (body.maxRedemptions === null || body.maxRedemptions === '') {
+          patch.maxRedemptions = null;
+        } else {
+          const n =
+            typeof body.maxRedemptions === 'number'
+              ? body.maxRedemptions
+              : Number(body.maxRedemptions);
+          if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+            return res.status(400).json({ error: 'maxRedemptions must be a positive integer or empty' });
+          }
+          patch.maxRedemptions = n;
+        }
+      }
+      if (body.startsAt !== undefined) {
+        patch.startsAt =
+          typeof body.startsAt === 'string' && body.startsAt.trim() ? body.startsAt.trim() : null;
+      }
+      if (body.expiresAt !== undefined) {
+        patch.expiresAt =
+          typeof body.expiresAt === 'string' && body.expiresAt.trim() ? body.expiresAt.trim() : null;
+      }
+      if (body.active !== undefined) {
+        patch.active = Boolean(body.active);
+      }
+    }
+
+    const updated = await promoCodesRepo.update(id, patch);
+    if (!updated) return res.status(404).json({ error: 'Promo code not found' });
+    res.json({ promoCode: toClientPromoCode(updated) });
+  } catch (err: any) {
+    console.error('PATCH /api/promo-codes/:id failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to update promo code') });
+  }
+});
+
+/** Admin only: delete promo code. */
+app.delete('/api/promo-codes/:id', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManagePromoCodes(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing promo id' });
+    const ok = await promoCodesRepo.deleteById(id);
+    if (!ok) return res.status(404).json({ error: 'Promo code not found' });
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error('DELETE /api/promo-codes/:id failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to delete promo code') });
   }
 });
 
@@ -2226,9 +2500,11 @@ async function boot() {
     paymentClaimsRepo = repos.paymentClaims;
     supportIssuesRepo = repos.supportIssues;
     formulasRepo = repos.formulas;
+    promoCodesRepo = repos.promoCodes;
     const total = await questionsRepo.countAll();
     const mockTotal = (await mocksRepo.list()).length;
     const formulaTotal = await formulasRepo.countAll();
+    const promoTotal = (await promoCodesRepo.listAll()).length;
 
     // Serve Vite production build from the same Node process (Hostinger-friendly).
     const distDir = path.join(root, 'dist');
@@ -2246,7 +2522,7 @@ async function boot() {
     app.listen(PORT, API_BIND_HOST, () => {
       console.log(`PrepX API listening on http://${API_BIND_HOST}:${PORT}`);
       console.log(
-        `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets)`
+        `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets, ${promoTotal} promo codes)`
       );
       if (fs.existsSync(distDir)) {
         console.log(`Serving SPA from ${distDir}`);

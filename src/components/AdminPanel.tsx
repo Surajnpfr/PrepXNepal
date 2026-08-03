@@ -33,6 +33,7 @@ import { SubjectQuestionsPieChart } from './SubjectQuestionsPieChart';
 import { AppIcon } from './ui';
 import { ReferralPanel } from './ReferralPanel';
 import { AdminSupportIssuesPanel } from './AdminSupportIssuesPanel';
+import { AdminPromoCodesPanel } from './AdminPromoCodesPanel';
 
 interface AdminPanelProps {
   userProfile: UserProfile;
@@ -165,12 +166,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const feedback = useFeedback();
   const isQuestionsMod = userProfile.role === 'Moderator (Questions)';
   const isBillingMod = userProfile.role === 'Moderator (Billing)';
+  const isAdmin =
+    userProfile.role === 'Admin' || userProfile.email === BOOTSTRAP_ADMIN_EMAIL;
   const canEditQuestions =
     userProfile.role === 'Admin' ||
     userProfile.role === 'Moderator (Questions)' ||
     userProfile.email === BOOTSTRAP_ADMIN_EMAIL;
 
-  const [activeTab, setActiveTab] = useState<'payments' | 'questions' | 'import' | 'mocks' | 'formulas' | 'users' | 'pricing' | 'referrals' | 'issues'>(() => {
+  const [activeTab, setActiveTab] = useState<
+    | 'payments'
+    | 'questions'
+    | 'import'
+    | 'mocks'
+    | 'formulas'
+    | 'users'
+    | 'pricing'
+    | 'promos'
+    | 'referrals'
+    | 'issues'
+  >(() => {
     if (isQuestionsMod) return 'questions';
     return 'payments';
   });
@@ -633,8 +647,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               activeTab === 'pricing' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            <AppIcon icon={Tag} size="btn" />
+            <AppIcon icon={Sliders} size="btn" />
             <span>Pricing & Plans Manager</span>
+          </button>
+        )}
+
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('promos')}
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              activeTab === 'promos' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <AppIcon icon={Tag} size="btn" />
+            <span>Promo Codes</span>
           </button>
         )}
 
@@ -735,7 +762,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <td className="p-3 font-bold text-blue-600">{claim.planCode}</td>
                     <td className="p-3 text-slate-700">{claim.paymentMethod}</td>
                     <td className="p-3 font-mono text-slate-800">{claim.transactionRef}</td>
-                    <td className="p-3 text-right font-mono font-bold">NPR {claim.amountNpr}</td>
+                    <td className="p-3 text-right font-mono font-bold">
+                      NPR {claim.amountNpr}
+                      {claim.promoCode ? (
+                        <div className="text-[10px] font-sans font-semibold text-emerald-700">
+                          {claim.promoCode}
+                          {claim.promoDiscountNpr
+                            ? ` (−${claim.promoDiscountNpr})`
+                            : ''}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="p-3 text-right">
                       {claim.status === 'pending' ? (
                         <button
@@ -1306,6 +1343,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="font-bold text-slate-900 text-sm">
                     {inspectingClaim.planCode} Plan (NPR {inspectingClaim.amountNpr})
                   </div>
+                  {inspectingClaim.promoCode ? (
+                    <div className="text-emerald-700 font-semibold text-xs">
+                      Promo {inspectingClaim.promoCode}
+                      {inspectingClaim.listAmountNpr != null
+                        ? ` · list NPR ${inspectingClaim.listAmountNpr}`
+                        : ''}
+                      {inspectingClaim.promoDiscountNpr
+                        ? ` · saved NPR ${inspectingClaim.promoDiscountNpr}`
+                        : ''}
+                    </div>
+                  ) : null}
                   <div className="text-slate-500">Method: {inspectingClaim.paymentMethod}</div>
                 </div>
 
@@ -1962,6 +2010,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         </div>
       )}
+
+      {activeTab === 'promos' && isAdmin && <AdminPromoCodesPanel />}
 
       {activeTab === 'referrals' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">

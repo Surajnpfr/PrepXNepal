@@ -12,6 +12,9 @@ type ClaimRow = {
   user_email: string;
   plan_code: string;
   amount_npr: number;
+  list_amount_npr: number | null;
+  promo_code: string | null;
+  promo_discount_npr: number | null;
   payment_method: string;
   transaction_ref: string;
   screenshot_url: string;
@@ -25,6 +28,9 @@ type ClaimRow = {
 };
 
 function mapRow(row: ClaimRow): PaymentClaimRecord {
+  const amountNpr = Number(row.amount_npr);
+  const listAmountNpr =
+    row.list_amount_npr == null ? amountNpr : Number(row.list_amount_npr);
   return {
     id: row.id,
     userId: row.user_id,
@@ -32,7 +38,10 @@ function mapRow(row: ClaimRow): PaymentClaimRecord {
     userName: row.user_name,
     userEmail: row.user_email,
     planCode: row.plan_code,
-    amountNpr: Number(row.amount_npr),
+    amountNpr,
+    listAmountNpr,
+    promoCode: row.promo_code,
+    promoDiscountNpr: Number(row.promo_discount_npr || 0),
     paymentMethod: row.payment_method as PaymentMethod,
     transactionRef: row.transaction_ref,
     screenshotUrl: row.screenshot_url,
@@ -64,6 +73,9 @@ export function createSqlitePaymentClaimsRepo(dbFilePath: string): PaymentClaims
           user_email TEXT NOT NULL,
           plan_code TEXT NOT NULL,
           amount_npr INTEGER NOT NULL,
+          list_amount_npr INTEGER,
+          promo_code TEXT,
+          promo_discount_npr INTEGER DEFAULT 0,
           payment_method TEXT NOT NULL,
           transaction_ref TEXT NOT NULL,
           screenshot_url TEXT NOT NULL,
@@ -80,16 +92,32 @@ export function createSqlitePaymentClaimsRepo(dbFilePath: string): PaymentClaims
         CREATE INDEX IF NOT EXISTS idx_payment_claims_clerk
           ON payment_claims (clerk_user_id);
       `);
+      for (const col of [
+        'user_notes TEXT',
+        'moderator_notes TEXT',
+        'list_amount_npr INTEGER',
+        'promo_code TEXT',
+        'promo_discount_npr INTEGER DEFAULT 0',
+      ]) {
+        try {
+          db.exec(`ALTER TABLE payment_claims ADD COLUMN ${col}`);
+        } catch {
+          /* already exists */
+        }
+      }
     },
 
     async insert(input: CreatePaymentClaimInput) {
       const now = new Date().toISOString();
+      const listAmountNpr = input.listAmountNpr ?? input.amountNpr;
+      const promoDiscountNpr = input.promoDiscountNpr ?? 0;
       db.prepare(
         `INSERT INTO payment_claims
           (id, user_id, clerk_user_id, user_name, user_email, plan_code, amount_npr,
+           list_amount_npr, promo_code, promo_discount_npr,
            payment_method, transaction_ref, screenshot_url, status, user_notes,
            moderator_notes, submitted_at, verified_at, verified_by, verified_by_clerk_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, NULL, NULL)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, NULL, NULL)`
       ).run(
         input.id,
         input.userId,
@@ -98,6 +126,9 @@ export function createSqlitePaymentClaimsRepo(dbFilePath: string): PaymentClaims
         input.userEmail,
         input.planCode,
         input.amountNpr,
+        listAmountNpr,
+        input.promoCode ?? null,
+        promoDiscountNpr,
         input.paymentMethod,
         input.transactionRef,
         input.screenshotUrl,

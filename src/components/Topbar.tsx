@@ -93,9 +93,9 @@ export const Topbar: React.FC<TopbarProps> = ({
           </button>
 
           <div className="min-w-0">
-            <h1 className="font-display text-sm sm:text-lg font-bold text-[var(--px-heading)] tracking-tight leading-tight truncate">
+            <p className="font-display text-sm sm:text-lg font-bold text-[var(--px-heading)] tracking-tight leading-tight truncate">
               {getBreadcrumbTitle(activeTab)}
-            </h1>
+            </p>
             {clerkSyncAt && (
               <p className="text-[10px] text-[var(--px-muted)] hidden sm:block">
                 Synced {new Date(clerkSyncAt).toLocaleTimeString()}

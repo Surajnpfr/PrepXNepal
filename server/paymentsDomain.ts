@@ -12,7 +12,12 @@ export type PaymentClaimRecord = {
   userName: string;
   userEmail: string;
   planCode: string;
+  /** Payable amount after promo (what the student should have paid). */
   amountNpr: number;
+  /** List / catalog price before promo. Defaults to amountNpr when no promo. */
+  listAmountNpr: number;
+  promoCode: string | null;
+  promoDiscountNpr: number;
   paymentMethod: PaymentMethod;
   transactionRef: string;
   screenshotUrl: string;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Check,
   ArrowRight,
@@ -15,9 +15,16 @@ import {
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { AppIcon } from './ui';
-import { LandingSignInButton } from './ClerkAuthControls';
+import {
+  LandingSignInButton,
+  LandingSignUpButton,
+  useLandingAuthModals,
+} from './ClerkAuthControls';
+import { captureReferralCodeFromLocation } from '../lib/referralCapture';
+
 interface BrainLandingProps {
-  onEnterApp: (initialCategory?: string) => void;
+  /** @deprecated Guest dashboard entry is disabled; CTAs open Sign Up. */
+  onEnterApp?: (initialCategory?: string) => void;
   onClose?: () => void;
 }
 
@@ -35,13 +42,35 @@ const SUBJECT_READINESS = [
   { name: 'Botany & Zoology', pct: 74 },
 ];
 
-export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
+export const BrainLanding: React.FC<BrainLandingProps> = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const { promptSignIn, promptSignUp } = useLandingAuthModals();
+  const referralSignUpOpened = useRef(false);
+
+  // Referral links (?ref=) land on welcome and open Sign Up.
+  useEffect(() => {
+    if (referralSignUpOpened.current) return;
+    try {
+      const ref = new URLSearchParams(window.location.search).get('ref')?.trim();
+      if (!ref) return;
+      captureReferralCodeFromLocation();
+      referralSignUpOpened.current = true;
+      const id = window.setTimeout(() => promptSignUp(), 250);
+      return () => window.clearTimeout(id);
+    } catch {
+      /* ignore */
+    }
+  }, [promptSignUp]);
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const scrollToTop = () => {
+    setMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const navLinks = [
@@ -61,7 +90,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
           <button
             type="button"
             className="flex items-center gap-3 cursor-pointer group"
-            onClick={() => onEnterApp()}
+            onClick={scrollToTop}
           >
             <BrandLogo size={36} decorative className="shrink-0 group-hover:scale-105 transition-transform" />
             <div className="text-left">
@@ -87,18 +116,16 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
             ))}
           </nav>
 
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2">
             <LandingSignInButton />
-            <button
-              type="button"
-              onClick={() => onEnterApp()}
-              className="px-4 py-2 bg-[#2563EB]/90 hover:bg-[#2563EB] text-white font-semibold text-[14px] rounded-[14px] transition-all cursor-pointer shadow-[0_4px_16px_rgba(37,99,235,0.25)] border-t border-white/40 border-x border-b border-white/10 flex items-center gap-2 hover:-translate-y-0.5 active:translate-y-0"
-            >
-              <span>Take a Free Mock</span>
-              <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-                <AppIcon icon={ArrowRight} size="btn" className="text-white" />
+            <LandingSignUpButton>
+              <span className="inline-flex items-center gap-2">
+                Sign Up
+                <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                  <AppIcon icon={ArrowRight} size="btn" className="text-white" />
+                </span>
               </span>
-            </button>
+            </LandingSignUpButton>
           </div>
 
           <button
@@ -125,13 +152,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
             ))}
             <div className="pt-3 mt-2 border-t border-slate-200 flex flex-col gap-2">
               <LandingSignInButton fullWidth />
-              <button
-                type="button"
-                onClick={() => onEnterApp()}
-                className="w-full py-2.5 text-sm font-medium text-white bg-[#2563EB] rounded-lg cursor-pointer"
-              >
-                Take a Free Mock
-              </button>
+              <LandingSignUpButton fullWidth />
             </div>
           </div>
         )}
@@ -146,18 +167,18 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
             </p>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 leading-tight">
-              Prepare for Nepal CEE with a plan built around{' '}
-              <span className="text-blue-600">your performance.</span>
+              Prepare for Nepal CEE with timed mocks and chapter reports
             </h1>
 
             <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-lg">
-              Take realistic mock tests, review every mistake, and focus revision on chapters where you can gain the most marks.
+              PrepX Nepal is built for Nepal Medical Education Commission (MEC) CEE aspirants: take
+              realistic mocks, review every mistake, and focus revision where you can gain the most marks.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 type="button"
-                onClick={() => onEnterApp()}
+                onClick={promptSignUp}
                 className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl flex items-center justify-center gap-2"
               >
                 Start free mock
@@ -165,7 +186,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
               </button>
               <button
                 type="button"
-                onClick={() => onEnterApp('reports')}
+                onClick={promptSignIn}
                 className="px-5 py-3 bg-white hover:bg-slate-50 text-slate-900 font-medium text-sm rounded-xl border border-slate-200"
               >
                 View sample report
@@ -229,7 +250,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => onEnterApp('mock-tests')}
+                      onClick={promptSignUp}
                       className="w-full px-3 py-2 rounded-lg flex items-center gap-2 font-medium text-slate-600 hover:bg-white"
                     >
                       <AppIcon icon={FileCheck} size="btn" />
@@ -237,7 +258,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => onEnterApp('reports')}
+                      onClick={promptSignUp}
                       className="w-full px-3 py-2 rounded-lg flex items-center gap-2 font-medium text-slate-600 hover:bg-white"
                     >
                       <AppIcon icon={LineChart} size="btn" />
@@ -245,7 +266,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => onEnterApp('study-resources')}
+                      onClick={promptSignUp}
                       className="w-full px-3 py-2 rounded-lg flex items-center gap-2 font-medium text-slate-600 hover:bg-white"
                     >
                       <AppIcon icon={BookMarked} size="btn" />
@@ -266,7 +287,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => onEnterApp('mock-tests')}
+                      onClick={promptSignUp}
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg shrink-0"
                     >
                       Start mock
@@ -343,7 +364,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => onEnterApp('study-resources')}
+                        onClick={promptSignUp}
                         className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium rounded-lg"
                       >
                         Practice this chapter
@@ -405,7 +426,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
               </div>
               <button
                 type="button"
-                onClick={() => onEnterApp('mock-tests')}
+                onClick={promptSignUp}
                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl flex items-center justify-center gap-2"
               >
                 Open mock catalog
@@ -442,7 +463,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
               </div>
               <button
                 type="button"
-                onClick={() => onEnterApp('study-resources')}
+                onClick={promptSignUp}
                 className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-900 text-sm font-medium rounded-xl border border-slate-200 flex items-center justify-center gap-2"
               >
                 Open formula library
@@ -535,7 +556,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
               </div>
               <button
                 type="button"
-                onClick={() => onEnterApp('study-resources')}
+                onClick={promptSignUp}
                 className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-medium rounded-lg shrink-0"
               >
                 Review weak chapters
@@ -629,7 +650,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               type="button"
-              onClick={() => onEnterApp()}
+              onClick={promptSignUp}
               className="w-full sm:w-auto px-6 py-3 bg-white text-blue-600 hover:bg-slate-50 font-medium text-sm rounded-xl flex items-center justify-center gap-2"
             >
               Start free mock
@@ -637,7 +658,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
             </button>
             <button
               type="button"
-              onClick={() => onEnterApp('reports')}
+              onClick={promptSignIn}
               className="w-full sm:w-auto px-5 py-3 bg-blue-700 hover:bg-blue-800 text-white font-medium text-sm rounded-xl border border-blue-500"
             >
               View sample report
@@ -668,7 +689,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
                 <button
                   key={link}
                   type="button"
-                  onClick={() => onEnterApp()}
+                  onClick={promptSignUp}
                   className="hover:text-blue-600"
                 >
                   {link}
@@ -687,7 +708,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-sm p-2 flex justify-around items-center md:hidden">
         <button
           type="button"
-          onClick={() => onEnterApp()}
+          onClick={promptSignUp}
           className="flex flex-col items-center gap-0.5 text-[11px] font-medium text-blue-600 py-1"
         >
           <AppIcon icon={LayoutDashboard} size="nav" />
@@ -695,7 +716,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
         </button>
         <button
           type="button"
-          onClick={() => onEnterApp('mock-tests')}
+          onClick={promptSignUp}
           className="flex flex-col items-center gap-0.5 text-[11px] font-medium text-slate-600 py-1"
         >
           <AppIcon icon={FileCheck} size="nav" />
@@ -703,7 +724,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
         </button>
         <button
           type="button"
-          onClick={() => onEnterApp('reports')}
+          onClick={promptSignUp}
           className="flex flex-col items-center gap-0.5 text-[11px] font-medium text-slate-600 py-1"
         >
           <AppIcon icon={LineChart} size="nav" />
@@ -711,7 +732,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onEnterApp }) => {
         </button>
         <button
           type="button"
-          onClick={() => onEnterApp('study-resources')}
+          onClick={promptSignUp}
           className="flex flex-col items-center gap-0.5 text-[11px] font-medium text-slate-600 py-1"
         >
           <AppIcon icon={BookMarked} size="nav" />

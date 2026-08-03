@@ -47,9 +47,9 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
             <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600" />
             <span>Official Scored Report #{report.id.slice(-6)}</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             {report.mockTitle}
-          </h1>
+          </h2>
           <p className="text-xs text-slate-500 mt-1">
             Completed on {report.completedAt} • CEE Negative Marking (-0.25) Applied
           </p>

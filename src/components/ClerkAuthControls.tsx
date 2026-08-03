@@ -1,9 +1,16 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { SignInButton, SignUpButton, useClerk } from '@clerk/clerk-react';
 import { captureReferralCodeFromLocation } from '../lib/referralCapture';
 import { Button } from './ui';
 
 const REDIRECT = '/home';
+
+const CLERK_REDIRECT = {
+  fallbackRedirectUrl: REDIRECT,
+  forceRedirectUrl: REDIRECT,
+  signUpFallbackRedirectUrl: REDIRECT,
+  signUpForceRedirectUrl: REDIRECT,
+} as const;
 
 type ClerkAuthControlsProps = {
   layout?: 'topbar';
@@ -45,7 +52,7 @@ export const ClerkAuthControls: React.FC<ClerkAuthControlsProps> = () => {
   );
 };
 
-type LandingSignInProps = {
+type LandingAuthButtonProps = {
   className?: string;
   fullWidth?: boolean;
   children?: React.ReactNode;
@@ -57,30 +64,71 @@ const LANDING_DESKTOP_CLASS =
 const LANDING_MOBILE_CLASS =
   'w-full py-2.5 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg cursor-pointer';
 
+const LANDING_SIGNUP_DESKTOP_CLASS =
+  'px-4 py-2 bg-[#2563EB]/90 hover:bg-[#2563EB] text-white font-semibold text-[14px] rounded-[14px] transition-all cursor-pointer shadow-[0_4px_16px_rgba(37,99,235,0.25)] border-t border-white/40 border-x border-b border-white/10 hover:-translate-y-0.5 active:translate-y-0';
+
+const LANDING_SIGNUP_MOBILE_CLASS =
+  'w-full py-2.5 text-sm font-medium text-white bg-[#2563EB] rounded-lg cursor-pointer';
+
+/** Shared landing auth openers (Sign In / Sign Up modals). */
+export function useLandingAuthModals() {
+  const { openSignIn, openSignUp } = useClerk();
+
+  const promptSignIn = useCallback(() => {
+    captureReferralCodeFromLocation();
+    void openSignIn({ ...CLERK_REDIRECT });
+  }, [openSignIn]);
+
+  const promptSignUp = useCallback(() => {
+    captureReferralCodeFromLocation();
+    void openSignUp({
+      fallbackRedirectUrl: REDIRECT,
+      forceRedirectUrl: REDIRECT,
+    });
+  }, [openSignUp]);
+
+  return { promptSignIn, promptSignUp };
+}
+
 /**
  * Landing "Sign In" — always opens Clerk modal.
- * Uses openSignIn() so it cannot accidentally call onEnterApp / guest dashboard.
+ * Uses openSignIn() so it cannot accidentally enter the guest dashboard.
  */
-export const LandingSignInButton: React.FC<LandingSignInProps> = ({
+export const LandingSignInButton: React.FC<LandingAuthButtonProps> = ({
   className,
   fullWidth = false,
   children = 'Sign In',
 }) => {
-  const { openSignIn } = useClerk();
+  const { promptSignIn } = useLandingAuthModals();
 
   return (
     <button
       type="button"
       className={className || (fullWidth ? LANDING_MOBILE_CLASS : LANDING_DESKTOP_CLASS)}
-      onClick={() => {
-        captureReferralCodeFromLocation();
-        void openSignIn({
-          fallbackRedirectUrl: REDIRECT,
-          forceRedirectUrl: REDIRECT,
-          signUpFallbackRedirectUrl: REDIRECT,
-          signUpForceRedirectUrl: REDIRECT,
-        });
-      }}
+      onClick={promptSignIn}
+    >
+      {children}
+    </button>
+  );
+};
+
+/**
+ * Landing "Sign Up" — opens Clerk sign-up modal (used by nav + referral links).
+ */
+export const LandingSignUpButton: React.FC<LandingAuthButtonProps> = ({
+  className,
+  fullWidth = false,
+  children = 'Sign Up',
+}) => {
+  const { promptSignUp } = useLandingAuthModals();
+
+  return (
+    <button
+      type="button"
+      className={
+        className || (fullWidth ? LANDING_SIGNUP_MOBILE_CLASS : LANDING_SIGNUP_DESKTOP_CLASS)
+      }
+      onClick={promptSignUp}
     >
       {children}
     </button>
