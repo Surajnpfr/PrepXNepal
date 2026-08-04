@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { trackSpaPageView } from '../lib/analytics';
 import { absoluteUrl, buildGraph, getSiteOrigin, type PageSeoConfig } from '../lib/siteSeo';
 
 const JSON_LD_ID = 'prepx-jsonld';
@@ -33,7 +34,7 @@ export function SeoHead({ page }: { page: PageSeoConfig }) {
   useEffect(() => {
     const origin = getSiteOrigin();
     const url = absoluteUrl(page.path, origin);
-    const image = absoluteUrl('/og-image.png', origin);
+    const image = absoluteUrl('/og-image.png?v=20260804b', origin);
 
     document.title = page.title;
     upsertMeta('name', 'description', page.description);
@@ -48,8 +49,8 @@ export function SeoHead({ page }: { page: PageSeoConfig }) {
     upsertMeta('property', 'og:url', url);
     upsertMeta('property', 'og:image', image);
     upsertMeta('property', 'og:image:type', 'image/png');
-    upsertMeta('property', 'og:image:width', '1200');
-    upsertMeta('property', 'og:image:height', '630');
+    upsertMeta('property', 'og:image:width', '1024');
+    upsertMeta('property', 'og:image:height', '537');
     upsertMeta('property', 'og:image:alt', 'PrepX Nepal — Nepal CEE Online Mock Tests');
     upsertMeta('property', 'og:locale', 'en_NP');
 
@@ -66,6 +67,7 @@ export function SeoHead({ page }: { page: PageSeoConfig }) {
       document.head.appendChild(script);
     }
     script.textContent = JSON.stringify(buildGraph(page, origin));
+    trackSpaPageView(page.path, page.title);
   }, [page]);
 
   return null;

@@ -206,7 +206,7 @@ export function buildOrganizationSchema(origin = getSiteOrigin()) {
     slogan: 'Nepal CEE mock tests, reports, and revision in one place',
     url: origin,
     logo: absoluteUrl('/icon-512.png', origin),
-    image: absoluteUrl('/og-image.png', origin),
+    image: absoluteUrl('/og-image.png?v=20260804b', origin),
     email: SUPPORT_EMAIL,
     address: {
       '@type': 'PostalAddress',
