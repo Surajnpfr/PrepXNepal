@@ -277,9 +277,9 @@ export const AdminFormulasPanel: React.FC<AdminFormulasPanelProps> = ({
                 <div className="text-sm font-bold text-slate-900">Import from JSON file</div>
                 <div className="text-[11px] text-slate-500 mt-0.5">
                   Schema: subject, title, chapter, formulas[{'{'}name, formula, note?{'}'}]. Max 10
-                  MB. Full CEE pack:{" '}
-                  <code className="text-[10px] bg-slate-100 px-1 rounded">data/Formula.json</code>{" "}
-                  (17 sheets / 300+ formulas).
+                  MB. Full CEE pack:{' '}
+                  <code className="text-[10px] bg-slate-100 px-1 rounded">data/Formula.json</code>
+                  {' '}(17 sheets / 300+ formulas).
                 </div>
                 {importFileName && (
                   <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold text-emerald-700">
