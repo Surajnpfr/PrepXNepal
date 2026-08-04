@@ -30,8 +30,9 @@ Desktop.ini
 .env.test.local
 .env.production.local
 
-# Local SQLite question bank (never commit live DB)
-data/
+# Local SQLite question bank (never commit live DB).
+# Anchor to repo root so src/data/* (e.g. Formula.json) stays trackable.
+/data/
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal

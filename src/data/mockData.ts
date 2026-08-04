@@ -4,10 +4,8 @@ import {
   AttemptReport, 
   CoinTransaction, 
   PaymentClaim, 
-  FormulaSheet, 
   PricingPlan 
 } from '../types';
-import formulaLibrary from './Formula.json';
 
 // High-Yield Questions Bank for CEE
 const SAMPLE_QUESTIONS: Question[] = [
@@ -450,9 +448,6 @@ export const INITIAL_PAST_REPORTS: AttemptReport[] = [];
 export const INITIAL_COIN_TRANSACTIONS: CoinTransaction[] = [];
 
 export const INITIAL_PAYMENT_CLAIMS: PaymentClaim[] = [];
-
-/** Fallback formula library when API has no sheets yet. Source: Formula.json */
-export const FORMULA_SHEETS: FormulaSheet[] = formulaLibrary as FormulaSheet[];
 
 export const INITIAL_PRICING_PLANS: PricingPlan[] = [
   {

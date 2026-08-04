@@ -153,7 +153,6 @@ import type { PracticeGeneratePayload } from './components/UserPracticeGenerator
 import { RouteStatePanel } from './components/RouteStatePanel';
 import { useFeedback } from './components/FeedbackProvider';
 import { useAppNavigation } from './hooks/useAppNavigation';
-import { FORMULA_SHEETS } from './data/mockData';
 import type { HelpSubTab } from './lib/appRoutes';
 
 const USERS_POLL_MS = 5000;
@@ -1947,11 +1946,7 @@ export function App() {
                 )}
 
                 {activeTab === 'formulas' && (
-                  <FormulasView
-                    sheets={
-                      formulaSheets.length > 0 ? formulaSheets : FORMULA_SHEETS
-                    }
-                  />
+                  <FormulasView sheets={formulaSheets} />
                 )}
 
                 {activeTab === 'saved' && (

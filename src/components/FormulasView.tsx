@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Bookmark, Search, CheckCircle2, Download, Copy, Check, Lightbulb } from 'lucide-react';
-import { FORMULA_SHEETS } from '../data/mockData';
 import type { FormulaSheet } from '../types';
 import { downloadFormulaSheetPdf } from '../lib/downloadFormulaSheetPdf';
 import { useFeedback } from './FeedbackProvider';
@@ -13,7 +12,7 @@ interface FormulasViewProps {
 
 export const FormulasView: React.FC<FormulasViewProps> = ({ sheets }) => {
   const feedback = useFeedback();
-  const library = sheets && sheets.length > 0 ? sheets : FORMULA_SHEETS;
+  const library = sheets ?? [];
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedFormula, setCopiedFormula] = useState<string | null>(null);
@@ -126,6 +125,15 @@ export const FormulasView: React.FC<FormulasViewProps> = ({ sheets }) => {
 
       {/* Formulas Cards List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {library.length === 0 && (
+          <div className="md:col-span-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center space-y-2">
+            <p className="text-sm font-bold text-slate-800">No formula sheets yet</p>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              An admin can import a Formula.json file from the Admin → Formula Library panel.
+              Sheets load from the database after upload.
+            </p>
+          </div>
+        )}
         {filteredSheets.map((sheet) => {
           const formulasToRender = selectedSubject === 'Bookmarks'
             ? sheet.formulas.filter(f => savedFormulas.includes(`${sheet.id}-${f.name}`))
