@@ -91,7 +91,7 @@ export const FormulasView: React.FC<FormulasViewProps> = ({ sheets }) => {
       {/* Filter Tabs & Search */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex flex-wrap items-center gap-2 text-xs font-bold w-full md:w-auto">
-          {['All', 'Physics', 'Chemistry', 'Botany', 'Zoology', 'Bookmarks'].map((sub) => (
+          {['All', 'Physics', 'Chemistry', 'Botany', 'Zoology', 'MAT', 'Bookmarks'].map((sub) => (
             <button
               key={sub}
               onClick={() => setSelectedSubject(sub)}

@@ -7,6 +7,7 @@ import {
   FormulaSheet, 
   PricingPlan 
 } from '../types';
+import formulaLibrary from './Formula.json';
 
 // High-Yield Questions Bank for CEE
 const SAMPLE_QUESTIONS: Question[] = [
@@ -450,41 +451,8 @@ export const INITIAL_COIN_TRANSACTIONS: CoinTransaction[] = [];
 
 export const INITIAL_PAYMENT_CLAIMS: PaymentClaim[] = [];
 
-export const FORMULA_SHEETS: FormulaSheet[] = [
-  {
-    id: 'fs-phy-01',
-    subject: 'Physics',
-    title: 'Mechanics & SHM High-Yield Formula Sheet',
-    chapter: 'Mechanics',
-    formulas: [
-      { name: 'Centripetal Acceleration', formula: 'a_c = v² / r = ω² r', note: 'Directed towards center of circle' },
-      { name: 'Time Period of Simple Pendulum', formula: 'T = 2π √(L / g)', note: 'Independent of mass of bob' },
-      { name: 'Velocity in SHM', formula: 'v = ω √(A² - x²)', note: 'Maximum at x=0 (mean position)' },
-      { name: 'Escape Velocity', formula: 'v_e = √(2 g R) ≈ 11.2 km/s', note: 'Earth surface value' }
-    ]
-  },
-  {
-    id: 'fs-chem-01',
-    subject: 'Chemistry',
-    title: 'Physical Chemistry & Thermodynamics Formulas',
-    chapter: 'Physical Chemistry',
-    formulas: [
-      { name: 'Ideal Gas Equation', formula: 'P V = n R T', note: 'R = 8.314 J/(mol·K)' },
-      { name: 'First Law of Thermodynamics', formula: 'ΔU = q + w', note: 'w = -P ΔV for expansion' },
-      { name: 'Nernst Equation', formula: 'E_cell = E°_cell - (0.0591 / n) log Q', note: 'At 298 K temperature' }
-    ]
-  },
-  {
-    id: 'fs-bot-01',
-    subject: 'Botany',
-    title: 'Photosynthesis & Plant Physiology Key Summary',
-    chapter: 'Plant Physiology',
-    formulas: [
-      { name: 'Overall Photosynthesis', formula: '6CO₂ + 12H₂O + Light -> C₆H₁₂O₆ + 6O₂ + 6H₂O', note: 'Occurs in Chloroplasts' },
-      { name: 'ATP Yield per Glucose (Aerobic)', formula: '38 ATP (or 36 ATP depending on shuttle system)', note: 'Glycolysis + Krebs Cycle' }
-    ]
-  }
-];
+/** Fallback formula library when API has no sheets yet. Source: Formula.json */
+export const FORMULA_SHEETS: FormulaSheet[] = formulaLibrary as FormulaSheet[];
 
 export const INITIAL_PRICING_PLANS: PricingPlan[] = [
   {
