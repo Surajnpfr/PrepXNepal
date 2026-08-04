@@ -17,6 +17,7 @@
     "lint": "tsc --noEmit",
     "test:routes": "tsx scripts/test-app-routes.ts",
     "test:mapper": "tsx scripts/test-clerk-mapper.ts",
+    "test:entitlements": "tsx scripts/test-plan-entitlements.ts",
     "test:questions": "tsx scripts/test-questions-db.ts",
     "test:mocks": "tsx scripts/test-mocks-domain.ts",
     "test:security": "tsx scripts/verify-security-attempt-session.ts && tsx scripts/verify-security-policies.ts",

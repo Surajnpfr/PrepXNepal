@@ -20,6 +20,7 @@ import { PaymentClaim, UserProfile, PricingPlan } from '../types';
 import { validatePromoCode, type PromoValidation } from '../lib/promoCodesApi';
 import { useFeedback } from './FeedbackProvider';
 import { AppIcon } from './ui';
+import { LandingSignInButton, LandingSignUpButton } from './ClerkAuthControls';
 
 const PAYMENT_QR_SRC = '/payment-qr.svg';
 const PAYMENT_QR_PNG_SRC = '/payment-qr.png';
@@ -32,6 +33,8 @@ interface PaymentSubmissionViewProps {
     claim: Omit<PaymentClaim, 'id' | 'status' | 'submittedAt'>
   ) => void | Promise<void>;
   pricingPlans: PricingPlan[];
+  /** Public / unsigned: show plans only; hide claim submit & history. */
+  guestMode?: boolean;
 }
 
 export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
@@ -39,6 +42,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   claimsHistory,
   onSubmitClaim,
   pricingPlans = [],
+  guestMode = false,
 }) => {
   const feedback = useFeedback();
   const { getToken } = useAuth();
@@ -267,23 +271,34 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
             Plans and payment
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Pick a plan, scan the Merchant QR to pay, then submit your transaction reference for verification.
+            {guestMode
+              ? 'Compare PrepX Nepal plans for Nepal CEE mocks. Sign in to pay via merchant QR and submit a verification claim.'
+              : 'Pick a plan, scan the Merchant QR to pay, then submit your transaction reference for verification.'}
           </p>
-          <div className="flex flex-wrap items-center gap-3 pt-1 text-sm">
-            <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
-              Current plan: <span className="font-semibold text-slate-900">{userProfile.plan}</span>
+          {!guestMode && (
+            <div className="flex flex-wrap items-center gap-3 pt-1 text-sm">
+              <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                Current plan: <span className="font-semibold text-slate-900">{userProfile.plan}</span>
+              </div>
+              <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                Mocks left:{' '}
+                <span className="font-semibold font-mono text-slate-900">
+                  {userProfile.mocksRemaining !== null ? userProfile.mocksRemaining : 'Unlimited'}
+                </span>
+              </div>
             </div>
-            <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
-              Mocks left:{' '}
-              <span className="font-semibold font-mono text-slate-900">
-                {userProfile.mocksRemaining !== null ? userProfile.mocksRemaining : 'Unlimited'}
-              </span>
+          )}
+          {guestMode && (
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <LandingSignUpButton className="px-4 py-2.5 text-sm font-semibold rounded-xl" />
+              <LandingSignInButton className="px-4 py-2.5 text-sm font-semibold rounded-xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50" />
             </div>
-          </div>
+          )}
         </div>
       </section>
 
       {/* Eye-catching payment claim status */}
+      {!guestMode && (
       <section
         className={`rounded-2xl border-2 p-5 sm:p-6 shadow-sm ${
           !latestClaim
@@ -349,6 +364,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           </div>
         </div>
       </section>
+      )}
 
       {/* 2. DYNAMIC PRICING CARDS (from Admin-managed pricingPlans) */}
       {activePlans.length === 0 ? (
@@ -432,8 +448,12 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   disabled 
                   className="w-full py-2.5 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl cursor-not-allowed text-center border border-slate-200"
                 >
-                  {isCurrent ? 'Active Free Tier' : 'Default Tier'}
+                  {guestMode ? 'Included free' : isCurrent ? 'Active Free Tier' : 'Default Tier'}
                 </button>
+              ) : guestMode ? (
+                <LandingSignUpButton className="w-full py-2.5 text-xs font-black rounded-xl shadow-md cursor-pointer text-center bg-blue-600 hover:bg-blue-700 text-white">
+                  {`Sign up to subscribe · Rs. ${plan.priceNpr}`}
+                </LandingSignUpButton>
               ) : (
                 <button 
                   disabled={isCurrent}
@@ -590,6 +610,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       </section>
 
       {/* 5. PAYMENT METHODS & QR VERIFICATION */}
+      {!guestMode && (
       <section id="claim-form-section" className="space-y-6">
         <h3 className="font-black text-slate-900 text-lg text-center">3. Secure checkout options</h3>
         
@@ -816,6 +837,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           </div>
         </div>
       </section>
+      )}
 
       {/* 6. FAQ SECTION */}
       <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs space-y-6">
@@ -844,9 +866,15 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         <div className="max-w-xl space-y-3">
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Need more mock attempts?</h2>
           <p className="text-sm text-blue-100 leading-relaxed">
-            Choose a paid plan above, complete payment, then submit your transaction reference for verification.
+            {guestMode
+              ? 'Create a free PrepX Nepal account, then choose a paid plan and submit payment for verification.'
+              : 'Choose a paid plan above, complete payment, then submit your transaction reference for verification.'}
           </p>
-          {upgradeCtaPlan ? (
+          {guestMode ? (
+            <LandingSignUpButton className="px-5 py-2.5 bg-white text-[#2563EB] hover:bg-slate-50 text-sm font-semibold rounded-xl transition-colors cursor-pointer">
+              Sign up to upgrade
+            </LandingSignUpButton>
+          ) : upgradeCtaPlan ? (
             <button 
               type="button"
               onClick={() => {
@@ -861,6 +889,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         </div>
       </section>
 
+      {!guestMode && (
       <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
         <h3 className="font-semibold text-slate-900 text-base pb-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
           <span>Payment claims</span>
@@ -941,6 +970,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           </div>
         )}
       </div>
+      )}
 
     </div>
   );

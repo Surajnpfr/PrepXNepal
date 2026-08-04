@@ -31,7 +31,7 @@ export const ClerkLoadGuard: React.FC = () => {
       <p className="mt-1 text-rose-800/90 text-xs leading-relaxed max-w-3xl">
         Authentication could not load from Clerk. On production this usually means the Clerk
         Frontend API host in your publishable key (custom domain) is unreachable, or{' '}
-        <span className="font-mono">coffeehubnepal.com</span> is not allowed on that Clerk
+        <span className="font-mono">prepxnepal.com</span> is not allowed on that Clerk
         instance. Fix DNS / Clerk Domains, then rebuild with matching{' '}
         <span className="font-mono">VITE_CLERK_PUBLISHABLE_KEY</span> and{' '}
         <span className="font-mono">CLERK_SECRET_KEY</span>.

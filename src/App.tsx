@@ -52,8 +52,13 @@ import {
   StudyPlanTask,
   FormulaSheet,
 } from './types';
-import { GUEST_PROFILE, isStaffRole, mapClerkUserToProfile, buildPublicMetadataPatch, buildStudentSelfPatch } from './lib/clerkUserMapper';
+import { GUEST_PROFILE, isStaffRole, mapClerkUserToProfile, buildPublicMetadataPatch, buildStudentSelfPatch, BOOTSTRAP_ADMIN_EMAIL } from './lib/clerkUserMapper';
 import { fetchClerkUsers, patchClerkUser } from './lib/clerkApi';
+import {
+  PLAN_ENTITLEMENTS_SEED,
+  type PlanEntitlements,
+} from './lib/planEntitlements';
+import { fetchPlanEntitlements, putPlanEntitlements } from './lib/planEntitlementsApi';
 import { claimPlannerReward, redeemCatalogItem } from './lib/coinsApi';
 import {
   attributeReferral,
@@ -195,6 +200,34 @@ export function App() {
         console.warn('Referral attribute failed:', msg);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, isLoaded, isSignedIn, user]);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user) return;
+    const profile = mapClerkUserToProfile(user);
+    const isAdmin =
+      profile.role === 'Admin' ||
+      profile.email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
+    if (!isAdmin) return;
+    let cancelled = false;
+    void fetchPlanEntitlements(getToken)
+      .then((entitlements) => {
+        if (cancelled) return;
+        setPlanEntitlements(entitlements);
+        setPricingPlans((prev) =>
+          prev.map((p) => {
+            if (p.tier === 'Free') return { ...p, mocksGranted: entitlements.freeMocks };
+            if (p.tier === 'Premium') return { ...p, mocksGranted: entitlements.premiumMocks };
+            return p;
+          })
+        );
+      })
+      .catch((err: any) => {
+        console.warn('Failed to load plan entitlements:', err?.message || err);
+      });
     return () => {
       cancelled = true;
     };
@@ -512,9 +545,9 @@ export function App() {
   );
 
   // Signed-in users on `/` go to dashboard. Unsigned users may keep public SEO routes
-  // (/reports, /help) so crawlers and share links see indexable content; other app URLs
-  // still require sign-in.
-  const PUBLIC_SEO_TABS = useMemo(() => new Set(['reports', 'policies']), []);
+  // (/reports, /help, /payment, /contact) so crawlers and share links see indexable content;
+  // other app URLs still require sign-in.
+  const PUBLIC_SEO_TABS = useMemo(() => new Set(['reports', 'policies', 'payment']), []);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -585,6 +618,8 @@ export function App() {
     const saved = localStorage.getItem('prepx_pricing_plans');
     return saved ? JSON.parse(saved) : INITIAL_PRICING_PLANS;
   });
+  const [planEntitlements, setPlanEntitlements] =
+    useState<PlanEntitlements>(PLAN_ENTITLEMENTS_SEED);
 
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [questionBatches, setQuestionBatches] = useState<ImportBatch[]>([]);
@@ -828,7 +863,38 @@ export function App() {
   }, [pricingPlans]);
 
   const handleUpdatePricingPlan = (updatedPlan: PricingPlan) => {
-    setPricingPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
+    setPricingPlans((prev) => {
+      const next = prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p));
+      if (updatedPlan.tier === 'Free' || updatedPlan.tier === 'Premium') {
+        const free = next.find((p) => p.tier === 'Free');
+        const premium = next.find((p) => p.tier === 'Premium');
+        const entitlements: PlanEntitlements = {
+          freeMocks:
+            typeof free?.mocksGranted === 'number'
+              ? free.mocksGranted
+              : planEntitlements.freeMocks,
+          premiumMocks:
+            typeof premium?.mocksGranted === 'number'
+              ? premium.mocksGranted
+              : planEntitlements.premiumMocks,
+        };
+        void putPlanEntitlements(getToken, entitlements)
+          .then((saved) => {
+            setPlanEntitlements(saved);
+            setPricingPlans((plans) =>
+              plans.map((p) => {
+                if (p.tier === 'Free') return { ...p, mocksGranted: saved.freeMocks };
+                if (p.tier === 'Premium') return { ...p, mocksGranted: saved.premiumMocks };
+                return p;
+              })
+            );
+          })
+          .catch((err: any) => {
+            console.warn('Failed to persist plan entitlements:', err?.message || err);
+          });
+      }
+      return next;
+    });
   };
 
   const handleAddPricingPlan = (newPlan: PricingPlan) => {
@@ -850,10 +916,23 @@ export function App() {
     const target = usersList.find((u) => u.id === userId);
     if (!target?.clerkId) return;
     const mocksRemaining =
-      plan === 'Unlimited' ? null : plan === 'Premium' ? (target.mocksRemaining ?? 0) + 10 : 3;
+      plan === 'Unlimited'
+        ? null
+        : plan === 'Premium'
+          ? (target.mocksRemaining ?? 0) + planEntitlements.premiumMocks
+          : planEntitlements.freeMocks;
     const updated = { ...target, plan, mocksRemaining };
     setUsersList((prev) => prev.map((u) => (u.id === userId ? updated : u)));
     void persistProfileToClerk(target.clerkId, { plan, mocksRemaining });
+  };
+
+  const handleUpdateUserMocks = (userId: string, mocksRemaining: number | null) => {
+    const target = usersList.find((u) => u.id === userId);
+    if (!target?.clerkId) return;
+    setUsersList((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, mocksRemaining } : u))
+    );
+    void persistProfileToClerk(target.clerkId, { mocksRemaining });
   };
 
   const handleUpdateTargetScore = (newScore: number) => {
@@ -1508,7 +1587,21 @@ export function App() {
     <div className="min-h-screen bg-[var(--px-bg)] text-[var(--px-body)] flex flex-col font-sans antialiased relative overflow-x-hidden">
       <ClerkLoadGuard />
       <SeoHead page={pageSeo} />
-      {showWelcome && <BrainLanding />}
+      {showWelcome && (
+        <BrainLanding
+          onNavigatePublic={(tab, subTab) => {
+            if (tab === 'contact') {
+              goToTab('policies', { helpSubTab: 'contact' });
+              return;
+            }
+            if (tab === 'policies' && subTab) {
+              goToTab('policies', { helpSubTab: subTab as HelpSubTab });
+              return;
+            }
+            goToTab(tab);
+          }}
+        />
+      )}
 
       {showPublicSeo && (
         <div className="min-h-screen bg-[var(--px-bg)]">
@@ -1516,7 +1609,7 @@ export function App() {
             <a href="/" className="font-bold text-slate-900 tracking-tight">
               PrepX <span className="text-[#2563EB]">Nepal</span>
             </a>
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex items-center gap-2 text-sm flex-wrap justify-end">
               <a
                 href="/"
                 className="px-3 py-1.5 text-slate-600 hover:text-slate-900"
@@ -1526,6 +1619,58 @@ export function App() {
                 }}
               >
                 Welcome
+              </a>
+              <a
+                href="/payment"
+                className={`px-3 py-1.5 ${
+                  activeTab === 'payment' ? 'text-[#2563EB] font-semibold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  goToTab('payment');
+                }}
+              >
+                Pricing
+              </a>
+              <a
+                href="/contact"
+                className={`px-3 py-1.5 ${
+                  activeTab === 'policies' && helpActiveSubTab === 'contact'
+                    ? 'text-[#2563EB] font-semibold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  goToTab('policies', { helpSubTab: 'contact' });
+                }}
+              >
+                Contact
+              </a>
+              <a
+                href="/help"
+                className={`px-3 py-1.5 ${
+                  activeTab === 'policies' && helpActiveSubTab !== 'contact'
+                    ? 'text-[#2563EB] font-semibold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  goToTab('policies', { helpSubTab: 'faq' });
+                }}
+              >
+                Help
+              </a>
+              <a
+                href="/reports"
+                className={`px-3 py-1.5 ${
+                  activeTab === 'reports' ? 'text-[#2563EB] font-semibold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  goToTab('reports');
+                }}
+              >
+                Reports
               </a>
               <LandingSignInButton />
               <LandingSignUpButton>Sign Up</LandingSignUpButton>
@@ -1538,7 +1683,7 @@ export function App() {
               userProfile={GUEST_PROFILE}
               onSelectReport={() => undefined}
               onNavigate={(tab) => {
-                if (tab === 'policies' || tab === 'reports') {
+                if (tab === 'policies' || tab === 'reports' || tab === 'payment') {
                   goToTab(tab);
                   return;
                 }
@@ -1547,38 +1692,19 @@ export function App() {
             />
           )}
           {activeTab === 'policies' && (
-            <div className="max-w-3xl mx-auto px-4 py-10 space-y-4 text-sm text-slate-700">
-              <h1 className="text-2xl font-bold text-slate-900">PrepX Nepal help and policies</h1>
-              <p>
-                Sign in to open the full help centre, FAQ, terms, privacy, and support ticket tools.
-                Official CEE context:{' '}
-                <a
-                  href="https://www.mec.gov.np/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-700 font-semibold underline"
-                >
-                  Medical Education Commission (MEC) Nepal
-                </a>
-                .
-              </p>
-              <p>
-                <a
-                  href="/"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    goToLanding(true);
-                  }}
-                  className="text-blue-700 font-semibold underline"
-                >
-                  Return to PrepX Nepal welcome
-                </a>
-                {' · '}
-                <a href="/reports" className="text-blue-700 font-semibold underline">
-                  CEE performance reports guide
-                </a>
-              </p>
-            </div>
+            <HelpSupportView
+              activeSubTab={helpActiveSubTab}
+              setActiveSubTab={setHelpActiveSubTab}
+            />
+          )}
+          {activeTab === 'payment' && (
+            <PaymentSubmissionView
+              userProfile={GUEST_PROFILE}
+              claimsHistory={[]}
+              onSubmitClaim={async () => undefined}
+              pricingPlans={pricingPlans}
+              guestMode
+            />
           )}
         </div>
       )}
@@ -1866,6 +1992,7 @@ export function App() {
                     onUpdateUserRole={handleUpdateUserRole}
                     onUpdateUserPlan={handleUpdateUserPlan}
                     onUpdateUserCoins={handleUpdateUserCoins}
+                    onUpdateUserMocks={handleUpdateUserMocks}
                     pricingPlans={pricingPlans}
                     onUpdatePricingPlan={handleUpdatePricingPlan}
                     onAddPricingPlan={handleAddPricingPlan}

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://coffeehubnepal.com/sitemap.xml
+Sitemap: https://prepxnepal.com/sitemap.xml

@@ -2,6 +2,11 @@
  * Payment claims domain — pure helpers for the dynamic moderation queue.
  */
 
+import {
+  PLAN_ENTITLEMENTS_SEED,
+  type PlanEntitlements,
+} from './planEntitlementsDomain.ts';
+
 export type PaymentClaimStatus = 'pending' | 'approved' | 'rejected';
 export type PaymentMethod = 'Fonepay' | 'eSewa' | 'Khalti' | 'Bank Transfer';
 
@@ -60,7 +65,10 @@ export function sortClaimsForQueue(claims: PaymentClaimRecord[]): PaymentClaimRe
   return [...pending, ...rest];
 }
 
-export function defaultEntitlementsForPlan(planCode: string): {
+export function defaultEntitlementsForPlan(
+  planCode: string,
+  entitlements: PlanEntitlements = PLAN_ENTITLEMENTS_SEED
+): {
   tier: 'Free' | 'Premium' | 'Unlimited';
   mocksGranted: number | null;
   coinsGranted: number;
@@ -70,7 +78,10 @@ export function defaultEntitlementsForPlan(planCode: string): {
     return { tier: 'Unlimited', mocksGranted: null, coinsGranted: 500 };
   }
   if (code === 'premium' || code.includes('premium') || code.includes('pro')) {
-    return { tier: 'Premium', mocksGranted: 10, coinsGranted: 100 };
+    return { tier: 'Premium', mocksGranted: entitlements.premiumMocks, coinsGranted: 100 };
   }
-  return { tier: 'Premium', mocksGranted: 10, coinsGranted: 100 };
+  if (code === 'free' || code.includes('free')) {
+    return { tier: 'Free', mocksGranted: entitlements.freeMocks, coinsGranted: 20 };
+  }
+  return { tier: 'Premium', mocksGranted: entitlements.premiumMocks, coinsGranted: 100 };
 }

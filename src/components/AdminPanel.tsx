@@ -8,6 +8,7 @@ import {
   Users, 
   Coins, 
   FileCode, 
+  FileCheck,
   Sliders, 
   AlertCircle,
   Search,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 import { PaymentClaim, Question, UserProfile, UserRole, PlanTier, PricingPlan, MockTest, MockScope, FormulaSheet } from '../types';
 import { BOOTSTRAP_ADMIN_EMAIL, ROLE_CONFIRM_PHRASE } from '../lib/clerkUserMapper';
+import { MOCKS_QUOTA_MAX, MOCKS_QUOTA_MIN } from '../lib/planEntitlements';
 import type { PaymentClaimEditInput } from '../lib/paymentClaimsApi';
 import type { MockImportBatch } from '../lib/mocksApi';
 import type { ChapterQuestionCount, ImportBatch, SubjectQuestionCount } from '../lib/questionsApi';
@@ -130,6 +132,7 @@ interface AdminPanelProps {
   onUpdateUserRole: (userId: string, role: UserRole) => void;
   onUpdateUserPlan: (userId: string, plan: PlanTier) => void;
   onUpdateUserCoins: (userId: string, newAmount: number) => void;
+  onUpdateUserMocks: (userId: string, mocksRemaining: number | null) => void;
   pricingPlans: PricingPlan[];
   onUpdatePricingPlan: (plan: PricingPlan) => void;
   onAddPricingPlan: (plan: PricingPlan) => void;
@@ -183,6 +186,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateUserRole,
   onUpdateUserPlan,
   onUpdateUserCoins,
+  onUpdateUserMocks,
   pricingPlans,
   onUpdatePricingPlan,
   onAddPricingPlan,
@@ -250,6 +254,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [confirmCoinsInput, setConfirmCoinsInput] = useState<string>('');
   const [coinUpdateSuccessMsg, setCoinUpdateSuccessMsg] = useState<string | null>(null);
 
+  const [editingMocksUser, setEditingMocksUser] = useState<UserProfile | null>(null);
+  const [targetMocksInput, setTargetMocksInput] = useState<string>('');
+  const [confirmMocksUsernameInput, setConfirmMocksUsernameInput] = useState<string>('');
+  const [confirmMocksInput, setConfirmMocksInput] = useState<string>('');
+  const [mockUpdateSuccessMsg, setMockUpdateSuccessMsg] = useState<string | null>(null);
+
   const [pendingRoleChange, setPendingRoleChange] = useState<{
     user: UserProfile;
     nextRole: UserRole;
@@ -281,6 +291,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setCoinUpdateSuccessMsg(`Study Coins balance for ${editingCoinsUser.name} successfully set to ${parsedAmount} Coins.`);
     setEditingCoinsUser(null);
     setTimeout(() => setCoinUpdateSuccessMsg(null), 5000);
+  };
+
+  const handleOpenMocksModal = (targetUser: UserProfile) => {
+    setEditingMocksUser(targetUser);
+    setTargetMocksInput(
+      targetUser.mocksRemaining === null ? 'unlimited' : String(targetUser.mocksRemaining)
+    );
+    setConfirmMocksUsernameInput('');
+    setConfirmMocksInput('');
+    setMockUpdateSuccessMsg(null);
+  };
+
+  const parseMocksTarget = (raw: string): number | null | undefined => {
+    const trimmed = raw.trim().toLowerCase();
+    if (trimmed === '' || trimmed === 'unlimited' || trimmed === 'null') return null;
+    const n = parseInt(trimmed, 10);
+    if (Number.isNaN(n) || n < MOCKS_QUOTA_MIN || n > MOCKS_QUOTA_MAX) return undefined;
+    return n;
+  };
+
+  const handleSaveMocksModal = () => {
+    if (!editingMocksUser) return;
+    const parsed = parseMocksTarget(targetMocksInput);
+    if (parsed === undefined) return;
+
+    onUpdateUserMocks(editingMocksUser.id, parsed);
+    setMockUpdateSuccessMsg(
+      parsed === null
+        ? `Mock quota for ${editingMocksUser.name} set to Unlimited.`
+        : `Mock quota for ${editingMocksUser.name} set to ${parsed}.`
+    );
+    setEditingMocksUser(null);
+    setTimeout(() => setMockUpdateSuccessMsg(null), 5000);
   };
 
   const requestRoleChange = (target: UserProfile, nextRole: UserRole) => {
@@ -2245,6 +2288,141 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
+      {/* Double Confirmation Security Modal for Setting Mock Quota */}
+      {editingMocksUser && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 border border-slate-200 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-rose-600">
+                <AppIcon icon={AlertCircle} size="card" className="shrink-0" />
+                <h3 className="text-base font-black text-slate-900 tracking-tight">
+                  Security Protocol: Admin Set Mock Quota
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingMocksUser(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg"
+              >
+                <AppIcon icon={X} size="btn" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono space-y-1">
+              <div className="flex justify-between text-slate-500 text-[10px] uppercase font-bold">
+                <span>Target Account</span>
+                <span>Current Mocks</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <div className="font-bold text-slate-900 text-sm">
+                  {editingMocksUser.name}{' '}
+                  <span className="text-slate-400 text-xs font-normal">({editingMocksUser.email})</span>
+                </div>
+                <div className="font-black text-slate-800 text-sm">
+                  {editingMocksUser.mocksRemaining === null
+                    ? 'Unlimited'
+                    : `${editingMocksUser.mocksRemaining} left`}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-xs font-sans">
+              <label className="block font-bold text-slate-800">
+                1. Set mock quota ({MOCKS_QUOTA_MIN}–{MOCKS_QUOTA_MAX}, or type unlimited):
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 1, 7, or unlimited"
+                value={targetMocksInput}
+                onChange={(e) => setTargetMocksInput(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-500"
+              />
+            </div>
+
+            <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-xl space-y-3 text-xs font-sans">
+              <div className="flex items-start gap-2 text-rose-900 font-semibold text-[11px] leading-relaxed">
+                <AppIcon icon={ShieldCheck} size="btn" className="text-rose-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Required Double Confirmation:</strong> Re-type the user name and target quota below.
+                </span>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-[11px]">
+                  <label className="font-bold text-slate-700">
+                    Type User Name:{' '}
+                    <span className="font-mono text-rose-700 bg-white px-1.5 py-0.5 rounded border border-rose-200">
+                      {editingMocksUser.name}
+                    </span>
+                  </label>
+                  {confirmMocksUsernameInput.trim().toLowerCase() ===
+                    editingMocksUser.name.trim().toLowerCase() && (
+                    <span className="text-emerald-600 font-bold flex items-center gap-1 text-[10px]">
+                      <AppIcon icon={CheckCircle2} size="btn" /> Name Verified
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder={`Type "${editingMocksUser.name}" to verify`}
+                  value={confirmMocksUsernameInput}
+                  onChange={(e) => setConfirmMocksUsernameInput(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-900 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-[11px]">
+                  <label className="font-bold text-slate-700">
+                    Type Target Quota:{' '}
+                    <span className="font-mono text-rose-700 bg-white px-1.5 py-0.5 rounded border border-rose-200">
+                      {targetMocksInput || '0'}
+                    </span>
+                  </label>
+                  {targetMocksInput.trim() !== '' &&
+                    confirmMocksInput.trim().toLowerCase() === targetMocksInput.trim().toLowerCase() && (
+                      <span className="text-emerald-600 font-bold flex items-center gap-1 text-[10px]">
+                        <AppIcon icon={CheckCircle2} size="btn" /> Quota Verified
+                      </span>
+                    )}
+                </div>
+                <input
+                  type="text"
+                  placeholder={`Type "${targetMocksInput || '0'}" to verify`}
+                  value={confirmMocksInput}
+                  onChange={(e) => setConfirmMocksInput(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-medium text-slate-900 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEditingMocksUser(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={
+                  parseMocksTarget(targetMocksInput) === undefined ||
+                  confirmMocksUsernameInput.trim().toLowerCase() !==
+                    editingMocksUser.name.trim().toLowerCase() ||
+                  confirmMocksInput.trim().toLowerCase() !== targetMocksInput.trim().toLowerCase()
+                }
+                onClick={handleSaveMocksModal}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <AppIcon icon={FileCheck} size="btn" />
+                <span>Confirm & Update Mocks</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Role change confirmation for Admin / Moderators */}
       {pendingRoleChange && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -2371,6 +2549,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center gap-2 shadow-xs animate-in fade-in">
               <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0" />
               <span>{coinUpdateSuccessMsg}</span>
+            </div>
+          )}
+
+          {mockUpdateSuccessMsg && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center gap-2 shadow-xs animate-in fade-in">
+              <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0" />
+              <span>{mockUpdateSuccessMsg}</span>
             </div>
           )}
 
@@ -2515,13 +2700,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </td>
 
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => handleOpenCoinsModal(user)}
-                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[11px] rounded-lg transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1"
-                        >
-                          <AppIcon icon={Coins} size="btn" />
-                          <span>Adjust Coins</span>
-                        </button>
+                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenMocksModal(user)}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-[11px] rounded-lg transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1"
+                          >
+                            <AppIcon icon={FileCheck} size="btn" />
+                            <span>Adjust Mocks</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCoinsModal(user)}
+                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[11px] rounded-lg transition-colors cursor-pointer shadow-2xs inline-flex items-center gap-1"
+                          >
+                            <AppIcon icon={Coins} size="btn" />
+                            <span>Adjust Coins</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

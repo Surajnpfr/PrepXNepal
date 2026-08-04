@@ -23,6 +23,7 @@ export type AppTab = (typeof APP_TABS)[number];
 
 export const HELP_SUBTABS = [
   'info',
+  'contact',
   'policies',
   'workflow',
   'terms',
@@ -117,7 +118,14 @@ export function resolveAppTab(input?: string | null, fallback: AppTab = 'home'):
   return TAB_ALIASES[key] ?? fallback;
 }
 
-export function buildAppPath(tab: AppTab, helpSubTab?: HelpSubTab): string {
+export function buildAppPath(
+  tab: AppTab,
+  helpSubTab?: HelpSubTab,
+  opts?: { asContact?: boolean }
+): string {
+  if (tab === 'policies' && (helpSubTab === 'contact' || opts?.asContact)) {
+    return '/contact';
+  }
   const base = PATH_BY_TAB[tab];
   if (tab === 'policies' && helpSubTab && helpSubTab !== 'info') {
     return `${base}/${helpSubTab}`;
@@ -139,6 +147,14 @@ export function parseAppLocation(pathname = window.location.pathname): AppLocati
 
   if (root === 'welcome' || root === 'landing') {
     return { surface: 'landing' };
+  }
+
+  // /contact → dedicated contact desk (not CEE Rules)
+  if (root === 'contact') {
+    if (segments.length > 1) {
+      return { surface: 'not-found', attemptedPath: raw };
+    }
+    return { surface: 'app', tab: 'policies', helpSubTab: 'contact' };
   }
 
   // /help or /policies[/:sub]
@@ -184,6 +200,8 @@ export type NavigateOptions = {
   helpSubTab?: HelpSubTab;
   /** Skip history write (internal sync only). */
   silent?: boolean;
+  /** Emit /contact instead of /help when opening the contact desk. */
+  asContact?: boolean;
 };
 
 export function writeAppHistory(
@@ -191,7 +209,7 @@ export function writeAppHistory(
   opts: NavigateOptions = {}
 ): void {
   if (opts.silent || typeof window === 'undefined') return;
-  const path = buildAppPath(tab, opts.helpSubTab);
+  const path = buildAppPath(tab, opts.helpSubTab, { asContact: opts.asContact });
   const method = opts.replace ? 'replaceState' : 'pushState';
   const current = `${window.location.pathname}${window.location.search}`;
   if (current === path || current.startsWith(`${path}?`)) {

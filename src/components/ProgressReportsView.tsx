@@ -6,6 +6,7 @@ import { ReportView } from './ReportView';
 import { AppIcon } from './ui';
 import { BrandLogo } from './BrandLogo';
 import { REPORTS_FAQS } from '../lib/siteSeo';
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '../lib/supportContacts';
 
 interface ProgressReportsViewProps {
   pastReports: AttemptReport[];
@@ -59,10 +60,10 @@ export const ProgressReportsView: React.FC<ProgressReportsViewProps> = ({
         <p className="text-xs text-slate-500">
           Published by PrepX Nepal · Kathmandu, Nepal · Last reviewed {LAST_REVIEWED} · Contact{' '}
           <a
-            href="mailto:support@prepxnepal.edu.np"
+            href={SUPPORT_MAILTO}
             className="text-blue-700 font-semibold underline underline-offset-2"
           >
-            support@prepxnepal.edu.np
+            {SUPPORT_EMAIL}
           </a>
         </p>
       </header>

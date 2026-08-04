@@ -44,7 +44,27 @@ assert.deepEqual(parseAppLocation('/policies/terms'), {
   tab: 'policies',
   helpSubTab: 'terms',
 });
+assert.deepEqual(parseAppLocation('/contact'), {
+  surface: 'app',
+  tab: 'policies',
+  helpSubTab: 'contact',
+});
+assert.deepEqual(parseAppLocation('/payment'), {
+  surface: 'app',
+  tab: 'payment',
+  helpSubTab: 'info',
+});
+assert.equal(buildAppPath('policies', 'contact'), '/contact');
+assert.equal(buildAppPath('policies', 'info', { asContact: true }), '/contact');
+{
+  const helpContact = parseAppLocation('/help/contact');
+  assert.equal(helpContact.surface, 'app');
+  if (helpContact.surface === 'app') {
+    assert.equal(helpContact.helpSubTab, 'contact');
+  }
+}
 assert.equal(parseAppLocation('/nope').surface, 'not-found');
 assert.equal(parseAppLocation('/catalog/extra').surface, 'not-found');
+assert.equal(parseAppLocation('/contact/extra').surface, 'not-found');
 
 console.log('appRoutes OK');

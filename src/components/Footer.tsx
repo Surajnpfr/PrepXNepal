@@ -27,6 +27,7 @@ const EXPLORE_LINKS: FooterLink[] = [
 
 const HELP_LINKS: FooterLink[] = [
   { label: 'Help Centre', tab: 'policies', subTab: 'info' },
+  { label: 'Contact', tab: 'policies', subTab: 'contact' },
   { label: 'Frequently Asked Questions', tab: 'policies', subTab: 'faq' },
   { label: 'Payment Reference Claim', tab: 'payment' },
   { label: 'Report a Problem', tab: 'policies', subTab: 'issue', tone: 'danger' },
@@ -181,7 +182,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
                 <button
                   type="button"
-                  onClick={() => onNavigate('policies', 'issue')}
+                  onClick={() => onNavigate('policies', 'contact')}
                   className="h-11 px-4 w-full sm:w-auto min-w-[200px] bg-[var(--px-primary)] hover:opacity-90 text-white font-bold text-[13px] rounded-[14px] shadow-[var(--px-shadow)] inline-flex items-center justify-center gap-2 transition-opacity cursor-pointer"
                 >
                   <AppIcon icon={HelpCircle} size="btn" className="text-white/90" />

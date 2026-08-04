@@ -3,8 +3,10 @@
  * Canonical host defaults to production HTTPS (override with VITE_SITE_URL).
  */
 
+import { SUPPORT_EMAIL, SUPPORT_INSTAGRAM_URL } from './supportContacts';
+
 export const SITE_NAME = 'PrepX Nepal';
-export const SITE_DEFAULT_ORIGIN = 'https://coffeehubnepal.com';
+export const SITE_DEFAULT_ORIGIN = 'https://prepxnepal.com';
 
 export function getSiteOrigin(): string {
   const fromEnv = (import.meta.env.VITE_SITE_URL as string | undefined)?.trim();
@@ -127,7 +129,7 @@ export function buildOrganizationSchema(origin = getSiteOrigin()) {
     alternateName: ['PrepX', 'Prep X Nepal'],
     url: origin,
     logo: absoluteUrl('/icon-512.png', origin),
-    email: 'support@prepxnepal.edu.np',
+    email: SUPPORT_EMAIL,
     address: {
       '@type': 'PostalAddress',
       addressLocality: 'Kathmandu',
@@ -137,7 +139,7 @@ export function buildOrganizationSchema(origin = getSiteOrigin()) {
       '@type': 'Country',
       name: 'Nepal',
     },
-    sameAs: ['https://www.mec.gov.np/'],
+    sameAs: ['https://www.mec.gov.np/', SUPPORT_INSTAGRAM_URL],
   };
 }
 

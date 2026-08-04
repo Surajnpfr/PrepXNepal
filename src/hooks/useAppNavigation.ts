@@ -91,6 +91,7 @@ export function useAppNavigation() {
       replace: opts.replace,
       helpSubTab: tab === 'policies' ? helpSubTab : undefined,
       silent: opts.silent,
+      asContact: opts.asContact,
     });
     if (!opts.silent) {
       window.scrollTo(0, 0);

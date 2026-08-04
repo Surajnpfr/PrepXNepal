@@ -1,33 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://coffeehubnepal.com/</loc>
+    <loc>https://prepxnepal.com/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://coffeehubnepal.com/reports</loc>
+    <loc>https://prepxnepal.com/reports</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://coffeehubnepal.com/catalog</loc>
+    <loc>https://prepxnepal.com/catalog</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://coffeehubnepal.com/formulas</loc>
+    <loc>https://prepxnepal.com/formulas</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://coffeehubnepal.com/payment</loc>
+    <loc>https://prepxnepal.com/payment</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://coffeehubnepal.com/help</loc>
+    <loc>https://prepxnepal.com/help</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://prepxnepal.com/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
 </urlset>

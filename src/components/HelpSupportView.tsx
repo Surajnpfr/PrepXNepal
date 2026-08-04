@@ -3,7 +3,6 @@ import { useAuth } from '@clerk/clerk-react';
 import { 
   HelpCircle, 
   ShieldCheck, 
-  PhoneCall, 
   Mail, 
   FileText, 
   Lock, 
@@ -12,7 +11,8 @@ import {
   ChevronDown, 
   ChevronUp,
   Bug,
-  Send
+  Send,
+  Instagram,
 } from 'lucide-react';
 import { PoliciesView } from './PoliciesView';
 import { WorkflowView } from './WorkflowView';
@@ -20,9 +20,30 @@ import { useFeedback } from './FeedbackProvider';
 import { AppIcon } from './ui';
 import { submitSupportIssue, type SupportIssueCategory } from '../lib/supportIssuesApi';
 import { LandingSignInButton } from './ClerkAuthControls';
+import {
+  SUPPORT_EMAIL,
+  SUPPORT_INSTAGRAM_LABEL,
+  SUPPORT_INSTAGRAM_URL,
+  SUPPORT_MAILTO,
+} from '../lib/supportContacts';
+import type { HelpSubTab } from '../lib/appRoutes';
+
+const HELP_SECTIONS: { id: HelpSubTab; label: string }[] = [
+  { id: 'contact', label: 'Contact' },
+  { id: 'info', label: 'CEE Rules' },
+  { id: 'workflow', label: 'Student Journey' },
+  { id: 'policies', label: 'Legal SLA' },
+  { id: 'faq', label: 'FAQs' },
+  { id: 'terms', label: 'Terms' },
+  { id: 'privacy', label: 'Privacy' },
+  { id: 'coins-policy', label: 'Coins Rule' },
+  { id: 'refund', label: 'Refunds' },
+  { id: 'issue', label: 'Report Issue' },
+];
+
 interface HelpSupportViewProps {
-  activeSubTab: 'info' | 'policies' | 'workflow' | 'terms' | 'privacy' | 'coins-policy' | 'refund' | 'faq' | 'issue';
-  setActiveSubTab: (subTab: 'info' | 'policies' | 'workflow' | 'terms' | 'privacy' | 'coins-policy' | 'refund' | 'faq' | 'issue') => void;
+  activeSubTab: HelpSubTab;
+  setActiveSubTab: (subTab: HelpSubTab) => void;
 }
 
 export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
@@ -106,47 +127,129 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6 font-sans select-none">
       
       {/* Top Header Tab Switcher */}
-      <div className="border-b border-slate-200 pb-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="border-b border-slate-200 pb-4 space-y-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <AppIcon icon={HelpCircle} size="lg" className="text-[#2563EB]" />
-            <span>Help & support</span>
+            <AppIcon
+              icon={activeSubTab === 'contact' ? Mail : HelpCircle}
+              size="lg"
+              className="text-[#2563EB]"
+            />
+            <span>{activeSubTab === 'contact' ? 'Contact PrepX Nepal' : 'Help & support'}</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            MEC CEE rules, terms, privacy, Study Coins policy, and support tickets.
+            {activeSubTab === 'contact'
+              ? 'Email or Instagram — the fastest ways to reach the PrepX team.'
+              : 'MEC CEE rules, terms, privacy, Study Coins policy, and support tickets.'}
           </p>
         </div>
 
-        {/* Tab Items */}
-        <div className="scroll-x-safe flex flex-nowrap sm:flex-wrap bg-slate-100 p-1 rounded-xl text-[11px] font-bold border border-slate-200 gap-1 max-w-full">
-          {[
-            { id: 'info', label: 'CEE Rules' },
-            { id: 'workflow', label: 'Student Journey' },
-            { id: 'policies', label: 'Legal SLA' },
-            { id: 'faq', label: 'FAQs' },
-            { id: 'terms', label: 'Terms' },
-            { id: 'privacy', label: 'Privacy' },
-            { id: 'coins-policy', label: 'Coins Rule' },
-            { id: 'refund', label: 'Refunds' },
-            { id: 'issue', label: 'Report Issue' }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveSubTab(tab.id as any)}
-              className={`px-3 py-2.5 min-h-11 rounded-lg cursor-pointer transition-all whitespace-nowrap shrink-0 ${
-                activeSubTab === tab.id 
-                  ? 'bg-white text-slate-900 shadow-2xs font-bold' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+        {/* Mobile: full-width section picker (avoids cramped multi-row chips) */}
+        <label className="block md:hidden space-y-1.5">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            Section
+          </span>
+          <div className="relative">
+            <select
+              value={activeSubTab}
+              onChange={(e) => setActiveSubTab(e.target.value as HelpSubTab)}
+              className="w-full appearance-none min-h-12 pl-4 pr-11 py-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/25 focus:border-[#2563EB]"
+              aria-label="Help section"
             >
-              {tab.label}
-            </button>
-          ))}
+              {HELP_SECTIONS.map((tab) => (
+                <option key={tab.id} value={tab.id}>
+                  {tab.label}
+                </option>
+              ))}
+            </select>
+            <AppIcon
+              icon={ChevronDown}
+              size="btn"
+              className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+          </div>
+        </label>
+
+        {/* Desktop / tablet: single-row scrollable chips */}
+        <div
+          className="hidden md:block -mx-1 px-1"
+          role="tablist"
+          aria-label="Help sections"
+        >
+          <div className="scroll-x-safe flex flex-nowrap gap-1.5 overflow-x-auto pb-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+            {HELP_SECTIONS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeSubTab === tab.id}
+                onClick={() => setActiveSubTab(tab.id)}
+                className={`px-3.5 py-2.5 min-h-10 rounded-lg cursor-pointer transition-colors whitespace-nowrap shrink-0 text-xs font-bold ${
+                  activeSubTab === tab.id
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* RENDER DYNAMIC SUB-TABS */}
+
+      {/* Contact desk — primary actions first */}
+      {activeSubTab === 'contact' && (
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-5">
+            <div className="space-y-2">
+              <h2 className="text-lg font-bold text-slate-900">Get in touch</h2>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                For payment verification, mock errors, or account help, use email or Instagram.
+                We reply from Kathmandu during daytime hours.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <a
+                href={SUPPORT_MAILTO}
+                className="inline-flex items-center justify-center gap-2 min-h-12 px-5 py-3 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-bold transition-colors"
+              >
+                <AppIcon icon={Mail} size="btn" />
+                <span>Email {SUPPORT_EMAIL}</span>
+              </a>
+              <a
+                href={SUPPORT_INSTAGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 min-h-12 px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold transition-colors"
+              >
+                <AppIcon icon={Instagram} size="btn" />
+                <span>Instagram {SUPPORT_INSTAGRAM_LABEL}</span>
+              </a>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Prefer self-serve? Check{' '}
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('faq')}
+                className="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer"
+              >
+                FAQs
+              </button>{' '}
+              or{' '}
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('issue')}
+                className="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer"
+              >
+                report an issue
+              </button>
+              .
+            </p>
+          </div>
+        </div>
+      )}
       
       {/* 1. CEE RULES */}
       {activeSubTab === 'info' && (
@@ -258,24 +361,6 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
                   </tbody>
                 </table>
               </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-900 text-white p-6 rounded-2xl space-y-3">
-            <h3 className="font-bold text-white text-base">Direct platform contact desk</h3>
-            <p className="text-xs text-slate-300 font-semibold leading-relaxed">
-              Our support operators are online in Kathmandu for payment verifications, mock test errors, or login queries.
-            </p>
-            <div className="flex flex-wrap items-center gap-4 pt-2 text-xs font-mono">
-              <a href="mailto:support@prepxnepal.edu.np" className="text-cyan-300 font-bold hover:underline flex items-center gap-1.5">
-                <AppIcon icon={Mail} size="btn" />
-                <span>support@prepxnepal.edu.np</span>
-              </a>
-              <span className="text-slate-600">|</span>
-              <span className="text-slate-300 flex items-center gap-1.5">
-                <AppIcon icon={PhoneCall} size="btn" className="text-emerald-400" />
-                <span>+977 9801234567</span>
-              </span>
             </div>
           </div>
         </>

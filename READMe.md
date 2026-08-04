@@ -32,14 +32,14 @@ Nepal CEE prep app with **Clerk as the only user source of truth**.
 - Plan / role / coins / mock quota live in Clerk `publicMetadata` (written via the API).
 - There is no mock/seed user list and no guest “switch mock user” impersonation.
 
-## Production Sign-In checklist (coffeehubnepal.com)
+## Production Sign-In checklist (prepxnepal.com)
 
 Sign-in fails when `clerk-js` cannot load from the Frontend API host encoded in `VITE_CLERK_PUBLISHABLE_KEY`.
 
-1. In Clerk Dashboard → **Configure → Domains**, ensure `https://coffeehubnepal.com` (and `www` if used) is allowed.
+1. In Clerk Dashboard → **Configure → Domains**, ensure `https://prepxnepal.com` (and `www` if used) is allowed.
 2. If you use a **custom Clerk domain** (e.g. `clerk.learn.hamroniti.com`), its DNS **CNAME must resolve** to Clerk. A broken/timeout DNS means Sign In does nothing.
 3. Prefer rebuilding with a working instance key (`*.clerk.accounts.dev` or a healthy custom domain) and matching `CLERK_SECRET_KEY`.
-4. Set `CLERK_AUTHORIZED_PARTIES=https://coffeehubnepal.com` on the server.
+4. Set `CLERK_AUTHORIZED_PARTIES=https://prepxnepal.com` on the server.
 5. Rebuild/redeploy after changing `VITE_*` keys (they are baked into the Vite bundle).
 6. After deploy, open DevTools → Network and confirm `clerk.browser.js` returns **200** (not failed/DNS error).
 

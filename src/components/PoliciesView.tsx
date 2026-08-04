@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldCheck, FileText, Lock, Clock, Mail } from 'lucide-react';
 import { AppIcon } from './ui';
+import { SUPPORT_EMAIL, SUPPORT_MAILTO } from '../lib/supportContacts';
 
 export const PoliciesView: React.FC = () => {
   return (
@@ -75,10 +76,13 @@ export const PoliciesView: React.FC = () => {
             <h4 className="font-bold text-white text-xs">PrepX Nepal Academic Operations Team</h4>
             <p className="text-[11px] text-slate-300">Kathmandu, Nepal</p>
           </div>
-          <div className="flex items-center space-x-2 text-xs font-semibold bg-[#2563EB] px-3 py-1.5 rounded-lg">
+          <a
+            href={SUPPORT_MAILTO}
+            className="flex items-center space-x-2 text-xs font-semibold bg-[#2563EB] hover:bg-blue-600 px-3 py-1.5 rounded-lg transition-colors"
+          >
             <AppIcon icon={Mail} size="btn" />
-            <span>support@prepxnepal.edu.np</span>
-          </div>
+            <span>{SUPPORT_EMAIL}</span>
+          </a>
         </div>
       </div>
     </div>

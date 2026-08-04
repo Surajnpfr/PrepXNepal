@@ -71,6 +71,11 @@ import {
   validatePromoCodeCreateInput,
 } from './promoCodesDomain.ts';
 import {
+  defaultMocksForPlan,
+  parsePlanEntitlements,
+} from './planEntitlementsDomain.ts';
+import { getPlanEntitlements, setPlanEntitlements } from './planEntitlementsStore.ts';
+import {
   emailDomainBlockedMessage,
   emailDomainPolicyFromEnv,
   evaluateEmailDomain,
@@ -156,11 +161,7 @@ function mapUser(user: Awaited<ReturnType<typeof clerk.users.getUser>>) {
   const mocksRemaining =
     meta.mocksRemaining !== undefined
       ? meta.mocksRemaining
-      : plan === 'Unlimited'
-        ? null
-        : plan === 'Premium'
-          ? 10
-          : 3;
+      : defaultMocksForPlan(plan, getPlanEntitlements());
   const studyCoinBalance =
     typeof meta.studyCoinBalance === 'number' ? meta.studyCoinBalance : isBootstrapAdmin ? 9999 : 0;
   const fullName =
@@ -265,7 +266,7 @@ function resolvePlanQuota(meta: PublicMeta): {
   }
   return {
     plan,
-    mocksRemaining: plan === 'Premium' ? 10 : 3,
+    mocksRemaining: defaultMocksForPlan(plan, getPlanEntitlements()),
   };
 }
 
@@ -1752,6 +1753,44 @@ app.post('/api/mocks/score', requireAuth, async (req, res) => {
   }
 });
 
+/** Global Free/Premium mock quota defaults (Admin only). */
+app.get('/api/plan-entitlements', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!isBootstrapAdminEmail(profile.email) && profile.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin role required' });
+    }
+    res.json({
+      entitlements: getPlanEntitlements(),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('GET /api/plan-entitlements failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load plan entitlements') });
+  }
+});
+
+app.put('/api/plan-entitlements', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!isBootstrapAdminEmail(profile.email) && profile.role !== 'Admin') {
+      return res.status(403).json({ error: 'Admin role required' });
+    }
+    const parsed = parsePlanEntitlements(req.body);
+    if (parsed.ok === false) {
+      return res.status(400).json({ error: parsed.error });
+    }
+    const entitlements = setPlanEntitlements(parsed.value);
+    res.json({
+      entitlements,
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('PUT /api/plan-entitlements failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to save plan entitlements') });
+  }
+});
+
 /** List all Clerk users (staff only). Near-realtime via client polling. */
 app.get('/api/users', requireAuth, async (req, res) => {
   try {
@@ -2359,7 +2398,7 @@ app.post('/api/payment-claims/:id/approve', requireAuth, async (req, res) => {
       }
     }
 
-    const entitlements = defaultEntitlementsForPlan(claim.planCode);
+    const entitlements = defaultEntitlementsForPlan(claim.planCode, getPlanEntitlements());
     let activatedUser = null as ReturnType<typeof mapUser> | null;
     try {
       const updated = await updatePublicMetadataAtomic({

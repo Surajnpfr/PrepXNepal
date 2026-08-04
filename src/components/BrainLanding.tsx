@@ -12,6 +12,9 @@ import {
   BookMarked,
   Bell,
   Clock,
+  CreditCard,
+  HelpCircle,
+  PhoneCall,
 } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { AppIcon } from './ui';
@@ -26,6 +29,8 @@ interface BrainLandingProps {
   /** @deprecated Guest dashboard entry is disabled; CTAs open Sign Up. */
   onEnterApp?: (initialCategory?: string) => void;
   onClose?: () => void;
+  /** Navigate to public Pricing / Help / Contact without forcing Sign Up. */
+  onNavigatePublic?: (tab: string, subTab?: string) => void;
 }
 
 const SCORE_TREND = [
@@ -42,7 +47,7 @@ const SUBJECT_READINESS = [
   { name: 'Botany & Zoology', pct: 74 },
 ];
 
-export const BrainLanding: React.FC<BrainLandingProps> = () => {
+export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const { promptSignIn, promptSignUp } = useLandingAuthModals();
@@ -73,12 +78,21 @@ export const BrainLanding: React.FC<BrainLandingProps> = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const goPublic = (tab: string, subTab?: string) => {
+    setMobileMenuOpen(false);
+    if (onNavigatePublic) {
+      onNavigatePublic(tab, subTab);
+      return;
+    }
+    promptSignUp();
+  };
+
   const navLinks = [
     { label: 'Mock Tests', id: 'split-brain-section' },
     { label: 'Resources', id: 'split-brain-section' },
     { label: 'Performance', id: 'performance-section' },
     { label: 'Study Plan', id: 'how-it-works-section' },
-    { label: 'Pricing', id: 'coins-section' },
+    { label: 'Pricing', action: 'payment' as const },
   ];
 
   return (
@@ -108,7 +122,11 @@ export const BrainLanding: React.FC<BrainLandingProps> = () => {
               <button
                 key={link.label}
                 type="button"
-                onClick={() => scrollToSection(link.id)}
+                onClick={() =>
+                  'action' in link && link.action === 'payment'
+                    ? goPublic('payment')
+                    : scrollToSection(link.id!)
+                }
                 className="px-4 py-1.5 rounded-full hover:bg-white/90 hover:text-[#0F172A] hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all cursor-pointer"
               >
                 {link.label}
@@ -144,7 +162,11 @@ export const BrainLanding: React.FC<BrainLandingProps> = () => {
               <button
                 key={link.label}
                 type="button"
-                onClick={() => scrollToSection(link.id)}
+                onClick={() =>
+                  'action' in link && link.action === 'payment'
+                    ? goPublic('payment')
+                    : scrollToSection(link.id!)
+                }
                 className="block w-full text-left px-3 py-2.5 text-sm font-medium text-slate-900 rounded-lg hover:bg-slate-100"
               >
                 {link.label}
@@ -636,6 +658,81 @@ export const BrainLanding: React.FC<BrainLandingProps> = () => {
         </div>
       </section>
 
+      {/* Plans, help, and contact — public destinations */}
+      <section
+        id="plans-help-contact-section"
+        className="py-14 px-4 sm:px-6 lg:px-8 max-w-[1280px] mx-auto"
+        aria-labelledby="plans-help-contact-heading"
+      >
+        <div className="max-w-2xl space-y-2 mb-8">
+          <h2
+            id="plans-help-contact-heading"
+            className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900"
+          >
+            Plans, help, and contact
+          </h2>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Browse pricing, FAQs, and how to reach PrepX Nepal — no account required.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <a
+            href="/payment"
+            onClick={(e) => {
+              e.preventDefault();
+              goPublic('payment');
+            }}
+            className="group block bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-6 space-y-3 transition-colors shadow-sm hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <AppIcon icon={CreditCard} size="card" className="text-blue-600" />
+            <h3 className="font-bold text-slate-900 text-base group-hover:text-blue-700">Pricing</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Compare Free, Premium, and Unlimited mock plans before you sign up.
+            </p>
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600">
+              View plans
+              <AppIcon icon={ArrowRight} size="btn" />
+            </span>
+          </a>
+          <a
+            href="/help/faq"
+            onClick={(e) => {
+              e.preventDefault();
+              goPublic('policies', 'faq');
+            }}
+            className="group block bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-6 space-y-3 transition-colors shadow-sm hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <AppIcon icon={HelpCircle} size="card" className="text-blue-600" />
+            <h3 className="font-bold text-slate-900 text-base group-hover:text-blue-700">Support</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              FAQs, CEE rules, terms, privacy, and Study Coins policy in one help centre.
+            </p>
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600">
+              Open help
+              <AppIcon icon={ArrowRight} size="btn" />
+            </span>
+          </a>
+          <a
+            href="/contact"
+            onClick={(e) => {
+              e.preventDefault();
+              goPublic('contact');
+            }}
+            className="group block bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-6 space-y-3 transition-colors shadow-sm hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <AppIcon icon={PhoneCall} size="card" className="text-blue-600" />
+            <h3 className="font-bold text-slate-900 text-base group-hover:text-blue-700">Contact</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Email support@prepxnepal.com or Instagram @PrepxNepal for payment questions and account help.
+            </p>
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600">
+              Contact desk
+              <AppIcon icon={ArrowRight} size="btn" />
+            </span>
+          </a>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-14 px-4 sm:px-6 lg:px-8 max-w-[1280px] mx-auto">
         <div className="bg-blue-600 rounded-2xl p-8 sm:p-10 text-white text-center space-y-5">
@@ -676,25 +773,72 @@ export const BrainLanding: React.FC<BrainLandingProps> = () => {
               <span className="font-semibold text-slate-900">PrepX Nepal</span>
             </div>
             <div className="flex flex-wrap items-center gap-4 font-medium text-sm">
-              {[
-                'Mock Tests',
-                'Resources',
-                'Performance Reports',
-                'Pricing',
-                'Help Centre',
-                'Privacy Policy',
-                'Terms of Service',
-                'Contact',
-              ].map((link) => (
-                <button
-                  key={link}
-                  type="button"
-                  onClick={promptSignUp}
-                  className="hover:text-blue-600"
-                >
-                  {link}
-                </button>
-              ))}
+              <button type="button" onClick={promptSignUp} className="hover:text-blue-600">
+                Mock Tests
+              </button>
+              <button type="button" onClick={promptSignUp} className="hover:text-blue-600">
+                Resources
+              </button>
+              <a
+                href="/reports"
+                onClick={(e) => {
+                  e.preventDefault();
+                  goPublic('reports');
+                }}
+                className="hover:text-blue-600"
+              >
+                Performance Reports
+              </a>
+              <a
+                href="/payment"
+                onClick={(e) => {
+                  e.preventDefault();
+                  goPublic('payment');
+                }}
+                className="hover:text-blue-600"
+              >
+                Pricing
+              </a>
+              <a
+                href="/help"
+                onClick={(e) => {
+                  e.preventDefault();
+                  goPublic('policies', 'faq');
+                }}
+                className="hover:text-blue-600"
+              >
+                Help Centre
+              </a>
+              <a
+                href="/help/privacy"
+                onClick={(e) => {
+                  e.preventDefault();
+                  goPublic('policies', 'privacy');
+                }}
+                className="hover:text-blue-600"
+              >
+                Privacy Policy
+              </a>
+              <a
+                href="/help/terms"
+                onClick={(e) => {
+                  e.preventDefault();
+                  goPublic('policies', 'terms');
+                }}
+                className="hover:text-blue-600"
+              >
+                Terms of Service
+              </a>
+              <a
+                href="/contact"
+                onClick={(e) => {
+                  e.preventDefault();
+                  goPublic('contact');
+                }}
+                className="hover:text-blue-600"
+              >
+                Contact
+              </a>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
