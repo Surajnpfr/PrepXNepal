@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   SEO_CACHE_CONTROL,
   SITEMAP_CONTENT_TYPE,
@@ -9,19 +6,16 @@ import {
   sitemapHeaders,
   robotsHeaders,
 } from '../server/seoStaticFiles.ts';
+import { buildRobotsTxt, buildSitemapXml } from '../server/seoDocuments.ts';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const sitemapPath = path.join(root, 'public', 'sitemap.xml');
-const robotsPath = path.join(root, 'public', 'robots.txt');
-
-const sitemapXml = fs.readFileSync(sitemapPath, 'utf8');
+const sitemapXml = buildSitemapXml('2026-08-04');
 assert.ok(sitemapXml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'));
 assert.match(sitemapXml, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
 assert.match(sitemapXml, /<loc>https:\/\/prepxnepal\.com\/<\/loc>/);
-assert.match(sitemapXml, /<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
-assert.doesNotMatch(sitemapXml, /\uFEFF/); // no BOM — Google is picky
+assert.match(sitemapXml, /<lastmod>2026-08-04<\/lastmod>/);
+assert.doesNotMatch(sitemapXml, /\uFEFF/);
 
-const robotsTxt = fs.readFileSync(robotsPath, 'utf8');
+const robotsTxt = buildRobotsTxt();
 assert.match(robotsTxt, /^User-agent:\s*\*/m);
 assert.match(robotsTxt, /^Allow:\s*\//m);
 assert.match(robotsTxt, /^Sitemap:\s*https:\/\/prepxnepal\.com\/sitemap\.xml$/m);

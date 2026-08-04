@@ -1,19 +1,29 @@
 /**
  * Live harness: SEO routes must return 200 + XML even with If-Modified-Since.
- * Fails (exit 1) on the old express.static 304 behavior.
+ * Also asserts no public/sitemap.xml (Hostinger would short-circuit Node).
  */
 import assert from 'node:assert/strict';
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerSeoStaticRoutes } from '../server/seoStaticFiles.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const publicDir = path.join(root, 'public');
+assert.equal(
+  fs.existsSync(path.join(root, 'public', 'sitemap.xml')),
+  false,
+  'public/sitemap.xml must not exist — Hostinger CDN serves it before Express'
+);
+assert.equal(
+  fs.existsSync(path.join(root, 'public', 'robots.txt')),
+  false,
+  'public/robots.txt must not exist — served from Express bundle'
+);
 
 const app = express();
-registerSeoStaticRoutes(app, publicDir);
-// Simulate previous buggy path: static after SEO routes must not win for /sitemap.xml
+registerSeoStaticRoutes(app);
+const publicDir = path.join(root, 'public');
 app.use(express.static(publicDir, { index: false, maxAge: '1h' }));
 
 const server = await new Promise((resolve) => {
@@ -47,7 +57,7 @@ try {
   assert.equal(alt.status, 200);
   assert.match(await alt.text(), /<urlset/);
 
-  console.log('seo sitemap harness OK (always-200, no 304)');
+  console.log('seo sitemap harness OK (always-200, no static short-circuit)');
 } finally {
   await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 }

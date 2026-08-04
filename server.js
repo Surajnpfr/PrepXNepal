@@ -4,8 +4,8 @@
 // server/index.ts
 import express from "express";
 import dotenv from "dotenv";
-import fs10 from "fs";
-import path11 from "path";
+import fs9 from "fs";
+import path10 from "path";
 import { fileURLToPath as fileURLToPath3 } from "url";
 import { createClerkClient, verifyToken } from "@clerk/backend";
 
@@ -3527,9 +3527,42 @@ async function createAppRepositories() {
   };
 }
 
+// server/seoDocuments.ts
+var ORIGIN = "https://prepxnepal.com";
+var SITEMAP_ENTRIES = [
+  { path: "/", changefreq: "weekly", priority: "1.0" },
+  { path: "/about", changefreq: "monthly", priority: "0.9" },
+  { path: "/reports", changefreq: "weekly", priority: "0.8" },
+  { path: "/catalog", changefreq: "weekly", priority: "0.8" },
+  { path: "/formulas", changefreq: "weekly", priority: "0.7" },
+  { path: "/payment", changefreq: "monthly", priority: "0.8" },
+  { path: "/help", changefreq: "monthly", priority: "0.7" },
+  { path: "/contact", changefreq: "monthly", priority: "0.7" }
+];
+function buildSitemapXml(lastmod = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)) {
+  const urls = SITEMAP_ENTRIES.map(
+    (e) => `  <url>
+    <loc>${ORIGIN}${e.path === "/" ? "/" : e.path}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>${e.changefreq}</changefreq>
+    <priority>${e.priority}</priority>
+  </url>`
+  ).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}
+</urlset>
+`;
+}
+function buildRobotsTxt() {
+  return `User-agent: *
+Allow: /
+
+Sitemap: ${ORIGIN}/sitemap.xml
+`;
+}
+
 // server/seoStaticFiles.ts
-import fs8 from "node:fs";
-import path9 from "node:path";
 var SITEMAP_CONTENT_TYPE = "application/xml; charset=utf-8";
 var ROBOTS_CONTENT_TYPE = "text/plain; charset=utf-8";
 var SEO_CACHE_CONTROL = "public, max-age=3600";
@@ -3560,21 +3593,13 @@ function sendAlwaysFresh(res, body, headers) {
   }
   res.end(buf);
 }
-function sendDistFile(res, distDir, fileName, headers, missingLabel) {
-  const filePath = path9.join(distDir, fileName);
-  if (!fs8.existsSync(filePath)) {
-    res.status(404).type("text/plain; charset=utf-8").send(`${missingLabel} not found`);
-    return;
-  }
-  sendAlwaysFresh(res, fs8.readFileSync(filePath), headers);
-}
-function registerSeoStaticRoutes(app2, distDir) {
+function registerSeoStaticRoutes(app2, _distDir) {
   const sitemapHandler = (_req, res) => {
-    sendDistFile(res, distDir, "sitemap.xml", sitemapHeaders(), "Sitemap");
+    sendAlwaysFresh(res, buildSitemapXml(), sitemapHeaders());
   };
   app2.get(["/sitemap.xml", "/sitemap"], sitemapHandler);
   app2.get("/robots.txt", (_req, res) => {
-    sendDistFile(res, distDir, "robots.txt", robotsHeaders(), "robots.txt");
+    sendAlwaysFresh(res, buildRobotsTxt(), robotsHeaders());
   });
 }
 
@@ -4836,35 +4861,35 @@ function assertFreePlanPracticeAccess(plan, opts) {
 }
 
 // server/planEntitlementsStore.ts
-import fs9 from "node:fs";
-import path10 from "node:path";
+import fs8 from "node:fs";
+import path9 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-var __dirname2 = path10.dirname(fileURLToPath2(import.meta.url));
-var root2 = path10.resolve(__dirname2, "..");
+var __dirname2 = path9.dirname(fileURLToPath2(import.meta.url));
+var root2 = path9.resolve(__dirname2, "..");
 function entitlementsPath() {
-  const dataDir = path10.dirname(
-    process.env.SQLITE_PATH || path10.join(root2, "data", "prepx-questions.sqlite")
+  const dataDir = path9.dirname(
+    process.env.SQLITE_PATH || path9.join(root2, "data", "prepx-questions.sqlite")
   );
-  return path10.join(dataDir, "plan-entitlements.json");
+  return path9.join(dataDir, "plan-entitlements.json");
 }
 var cache = null;
 function ensureDir(filePath) {
-  fs9.mkdirSync(path10.dirname(filePath), { recursive: true });
+  fs8.mkdirSync(path9.dirname(filePath), { recursive: true });
 }
 function writeSeed(filePath) {
   ensureDir(filePath);
-  fs9.writeFileSync(filePath, JSON.stringify(PLAN_ENTITLEMENTS_SEED, null, 2), "utf8");
+  fs8.writeFileSync(filePath, JSON.stringify(PLAN_ENTITLEMENTS_SEED, null, 2), "utf8");
   return { ...PLAN_ENTITLEMENTS_SEED };
 }
 function getPlanEntitlements() {
   if (cache) return cache;
   const filePath = entitlementsPath();
   try {
-    if (!fs9.existsSync(filePath)) {
+    if (!fs8.existsSync(filePath)) {
       cache = writeSeed(filePath);
       return cache;
     }
-    const raw = JSON.parse(fs9.readFileSync(filePath, "utf8"));
+    const raw = JSON.parse(fs8.readFileSync(filePath, "utf8"));
     const parsed = parsePlanEntitlements(raw);
     if (parsed.ok === false) {
       console.warn("[plan-entitlements] invalid file, reseeding:", parsed.error);
@@ -4886,7 +4911,7 @@ function setPlanEntitlements(next) {
   }
   const filePath = entitlementsPath();
   ensureDir(filePath);
-  fs9.writeFileSync(filePath, JSON.stringify(parsed.value, null, 2), "utf8");
+  fs8.writeFileSync(filePath, JSON.stringify(parsed.value, null, 2), "utf8");
   cache = parsed.value;
   return cache;
 }
@@ -5004,10 +5029,10 @@ function emailDomainBlockedMessage(decision) {
 }
 
 // server/index.ts
-var __dirname3 = path11.dirname(fileURLToPath3(import.meta.url));
-var root3 = fs10.existsSync(path11.join(__dirname3, "package.json")) ? __dirname3 : path11.resolve(__dirname3, "..");
-dotenv.config({ path: path11.join(root3, ".env.local") });
-dotenv.config({ path: path11.join(root3, ".env") });
+var __dirname3 = path10.dirname(fileURLToPath3(import.meta.url));
+var root3 = fs9.existsSync(path10.join(__dirname3, "package.json")) ? __dirname3 : path10.resolve(__dirname3, "..");
+dotenv.config({ path: path10.join(root3, ".env.local") });
+dotenv.config({ path: path10.join(root3, ".env") });
 var PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 var SECRET_KEY = process.env.CLERK_SECRET_KEY;
 var BOOTSTRAP_ADMIN_EMAIL = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase() || "surajnepal2058@gmail.com";
@@ -7511,14 +7536,14 @@ async function boot() {
     const mockTotal = (await mocksRepo.list()).length;
     const formulaTotal = await formulasRepo.countAll();
     const promoTotal = (await promoCodesRepo.listAll()).length;
-    const distDir = path11.join(root3, "dist");
-    if (fs10.existsSync(distDir)) {
+    const distDir = path10.join(root3, "dist");
+    if (fs9.existsSync(distDir)) {
       registerSeoStaticRoutes(app, distDir);
       app.use(express.static(distDir, { index: false, maxAge: "1h" }));
       app.get("*", (req, res, next) => {
         if (req.path.startsWith("/api")) return next();
         if (req.method !== "GET" && req.method !== "HEAD") return next();
-        res.sendFile(path11.join(distDir, "index.html"), (err) => {
+        res.sendFile(path10.join(distDir, "index.html"), (err) => {
           if (err) next(err);
         });
       });
@@ -7528,7 +7553,7 @@ async function boot() {
       console.log(
         `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets, ${promoTotal} promo codes)`
       );
-      if (fs10.existsSync(distDir)) {
+      if (fs9.existsSync(distDir)) {
         console.log(`Serving SPA from ${distDir}`);
       } else {
         console.warn(

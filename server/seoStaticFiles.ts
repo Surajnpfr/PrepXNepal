@@ -1,18 +1,16 @@
 /**
- * SEO static file routes for Googlebot / Search Console.
+ * SEO document routes for Googlebot / Search Console.
  *
- * Root issue we fix here:
- * express.static serves sitemap.xml with Last-Modified/ETag, so conditional
- * requests (If-Modified-Since) return 304 with an empty body. Bing often
- * tolerates that; Google Search Console frequently reports
- * "Sitemap could not be read" when it gets 304 instead of XML.
+ * Hostinger's CDN serves files that exist as *.xml / *.txt from disk BEFORE
+ * Node. That static path emits Last-Modified → conditional 304 (empty body),
+ * which GSC reports as "Sitemap could not be read" while Bing still works.
  *
- * These routes always return 200 + full body with Google-safe headers.
+ * Fix: embed sitemap/robots in the server bundle and always return 200 + body
+ * with Google-safe headers. Do not ship sitemap.xml under public/dist.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
 import type { Express, Request, Response } from 'express';
+import { buildRobotsTxt, buildSitemapXml } from './seoDocuments.ts';
 
 export const SITEMAP_CONTENT_TYPE = 'application/xml; charset=utf-8';
 export const ROBOTS_CONTENT_TYPE = 'text/plain; charset=utf-8';
@@ -34,8 +32,8 @@ export function robotsHeaders(): Record<string, string> {
 }
 
 /**
- * Send a file as a full 200 response without Last-Modified / ETag so
- * conditional GETs cannot collapse into empty 304 bodies.
+ * Send a full 200 response without Last-Modified / ETag so conditional GETs
+ * cannot collapse into empty 304 bodies.
  */
 export function sendAlwaysFresh(
   res: Response,
@@ -48,7 +46,6 @@ export function sendAlwaysFresh(
     res.setHeader(key, value);
   }
   res.setHeader('Content-Length', String(buf.byteLength));
-  // Explicitly clear validators Express/static may have set earlier.
   res.removeHeader('ETag');
   res.removeHeader('Last-Modified');
   if (res.req?.method === 'HEAD') {
@@ -58,33 +55,18 @@ export function sendAlwaysFresh(
   res.end(buf);
 }
 
-function sendDistFile(
-  res: Response,
-  distDir: string,
-  fileName: string,
-  headers: Record<string, string>,
-  missingLabel: string
-): void {
-  const filePath = path.join(distDir, fileName);
-  if (!fs.existsSync(filePath)) {
-    res.status(404).type('text/plain; charset=utf-8').send(`${missingLabel} not found`);
-    return;
-  }
-  sendAlwaysFresh(res, fs.readFileSync(filePath), headers);
-}
-
 /**
- * Register before express.static / SPA fallback so Google never hits
- * conditional static middleware for these paths.
+ * Register before express.static / SPA fallback.
+ * Paths must not collide with real files in dist/ (Hostinger static short-circuit).
  */
-export function registerSeoStaticRoutes(app: Express, distDir: string): void {
+export function registerSeoStaticRoutes(app: Express, _distDir?: string): void {
   const sitemapHandler = (_req: Request, res: Response) => {
-    sendDistFile(res, distDir, 'sitemap.xml', sitemapHeaders(), 'Sitemap');
+    sendAlwaysFresh(res, buildSitemapXml(), sitemapHeaders());
   };
 
   app.get(['/sitemap.xml', '/sitemap'], sitemapHandler);
 
   app.get('/robots.txt', (_req: Request, res: Response) => {
-    sendDistFile(res, distDir, 'robots.txt', robotsHeaders(), 'robots.txt');
+    sendAlwaysFresh(res, buildRobotsTxt(), robotsHeaders());
   });
 }
