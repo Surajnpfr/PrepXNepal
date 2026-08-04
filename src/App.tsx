@@ -52,10 +52,11 @@ import {
   StudyPlanTask,
   FormulaSheet,
 } from './types';
-import { GUEST_PROFILE, isStaffRole, mapClerkUserToProfile, buildPublicMetadataPatch, buildStudentSelfPatch, BOOTSTRAP_ADMIN_EMAIL } from './lib/clerkUserMapper';
+import { GUEST_PROFILE, isStaffRole, mapClerkUserToProfile, buildPublicMetadataPatch, buildStudentSelfPatch } from './lib/clerkUserMapper';
 import { fetchClerkUsers, patchClerkUser } from './lib/clerkApi';
 import {
   PLAN_ENTITLEMENTS_SEED,
+  applyEntitlementsToPlans,
   type PlanEntitlements,
 } from './lib/planEntitlements';
 import { fetchPlanEntitlements, putPlanEntitlements } from './lib/planEntitlementsApi';
@@ -206,24 +207,12 @@ export function App() {
   }, [getToken, isLoaded, isSignedIn, user]);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) return;
-    const profile = mapClerkUserToProfile(user);
-    const isAdmin =
-      profile.role === 'Admin' ||
-      profile.email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
-    if (!isAdmin) return;
     let cancelled = false;
-    void fetchPlanEntitlements(getToken)
+    void fetchPlanEntitlements()
       .then((entitlements) => {
         if (cancelled) return;
         setPlanEntitlements(entitlements);
-        setPricingPlans((prev) =>
-          prev.map((p) => {
-            if (p.tier === 'Free') return { ...p, mocksGranted: entitlements.freeMocks };
-            if (p.tier === 'Premium') return { ...p, mocksGranted: entitlements.premiumMocks };
-            return p;
-          })
-        );
+        setPricingPlans((prev) => applyEntitlementsToPlans(prev, entitlements));
       })
       .catch((err: any) => {
         console.warn('Failed to load plan entitlements:', err?.message || err);
@@ -231,7 +220,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [getToken, isLoaded, isSignedIn, user]);
+  }, []);
 
   // Clear legacy local mock/user caches once — Clerk is the only user source.
   useEffect(() => {
@@ -616,7 +605,9 @@ export function App() {
 
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>(() => {
     const saved = localStorage.getItem('prepx_pricing_plans');
-    return saved ? JSON.parse(saved) : INITIAL_PRICING_PLANS;
+    const parsed = saved ? (JSON.parse(saved) as PricingPlan[]) : INITIAL_PRICING_PLANS;
+    // Migrate stale Free=3 (and feature copy) from older localStorage seeds.
+    return applyEntitlementsToPlans(parsed, PLAN_ENTITLEMENTS_SEED);
   });
   const [planEntitlements, setPlanEntitlements] =
     useState<PlanEntitlements>(PLAN_ENTITLEMENTS_SEED);
@@ -881,13 +872,7 @@ export function App() {
         void putPlanEntitlements(getToken, entitlements)
           .then((saved) => {
             setPlanEntitlements(saved);
-            setPricingPlans((plans) =>
-              plans.map((p) => {
-                if (p.tier === 'Free') return { ...p, mocksGranted: saved.freeMocks };
-                if (p.tier === 'Premium') return { ...p, mocksGranted: saved.premiumMocks };
-                return p;
-              })
-            );
+            setPricingPlans((plans) => applyEntitlementsToPlans(plans, saved));
           })
           .catch((err: any) => {
             console.warn('Failed to persist plan entitlements:', err?.message || err);

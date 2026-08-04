@@ -1753,13 +1753,9 @@ app.post('/api/mocks/score', requireAuth, async (req, res) => {
   }
 });
 
-/** Global Free/Premium mock quota defaults (Admin only). */
-app.get('/api/plan-entitlements', requireAuth, async (req, res) => {
+/** Global Free/Premium mock quota defaults (public read for Pricing UI). */
+app.get('/api/plan-entitlements', (_req, res) => {
   try {
-    const { profile } = (req as any).auth;
-    if (!isBootstrapAdminEmail(profile.email) && profile.role !== 'Admin') {
-      return res.status(403).json({ error: 'Admin role required' });
-    }
     res.json({
       entitlements: getPlanEntitlements(),
       syncedAt: new Date().toISOString(),

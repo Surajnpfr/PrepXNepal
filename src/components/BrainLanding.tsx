@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   LineChart,
   BookMarked,
-  Bell,
   Clock,
   CreditCard,
   HelpCircle,
@@ -33,23 +32,8 @@ interface BrainLandingProps {
   onNavigatePublic?: (tab: string, subTab?: string) => void;
 }
 
-const SCORE_TREND = [
-  { mock: 'M1', score: 122 },
-  { mock: 'M2', score: 128 },
-  { mock: 'M3', score: 135 },
-  { mock: 'M4', score: 138 },
-  { mock: 'Latest', score: 142, active: true },
-];
-
-const SUBJECT_READINESS = [
-  { name: 'Physics', pct: 64 },
-  { name: 'Chemistry', pct: 58 },
-  { name: 'Botany & Zoology', pct: 74 },
-];
-
 export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
   const { promptSignIn, promptSignUp } = useLandingAuthModals();
   const referralSignUpOpened = useRef(false);
 
@@ -231,171 +215,24 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
             </ul>
           </div>
 
-          {/* Product preview mock */}
+          {/* Real product preview */}
           <div className="lg:col-span-7">
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-              <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-600" />
-                  <span className="font-medium text-slate-900">PrepX Dashboard</span>
-                  <span className="text-slate-400">·</span>
-                  <span className="text-slate-600">Nepal CEE 2026</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700">
-                    <AppIcon icon={Coins} size="btn" className="text-amber-600" />
-                    245 coins
-                  </div>
-                  <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500">
-                    <AppIcon icon={Bell} size="btn" />
-                  </div>
-                  <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-semibold text-[10px]">
-                    CA
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-12 min-h-[380px]">
-                <div className="hidden md:flex md:col-span-3 border-r border-slate-200 bg-slate-50 p-3 flex-col justify-between text-xs">
-                  <div className="space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('overview')}
-                      className={`w-full px-3 py-2 rounded-lg flex items-center gap-2 font-medium ${
-                        activeTab === 'overview'
-                          ? 'bg-white border border-slate-200 text-blue-600'
-                          : 'text-slate-600 hover:bg-white'
-                      }`}
-                    >
-                      <AppIcon icon={LayoutDashboard} size="btn" />
-                      Overview
-                    </button>
-                    <button
-                      type="button"
-                      onClick={promptSignUp}
-                      className="w-full px-3 py-2 rounded-lg flex items-center gap-2 font-medium text-slate-600 hover:bg-white"
-                    >
-                      <AppIcon icon={FileCheck} size="btn" />
-                      Mock Tests
-                    </button>
-                    <button
-                      type="button"
-                      onClick={promptSignUp}
-                      className="w-full px-3 py-2 rounded-lg flex items-center gap-2 font-medium text-slate-600 hover:bg-white"
-                    >
-                      <AppIcon icon={LineChart} size="btn" />
-                      Analytics
-                    </button>
-                    <button
-                      type="button"
-                      onClick={promptSignUp}
-                      className="w-full px-3 py-2 rounded-lg flex items-center gap-2 font-medium text-slate-600 hover:bg-white"
-                    >
-                      <AppIcon icon={BookMarked} size="btn" />
-                      Revision
-                    </button>
-                  </div>
-                  <div className="p-3 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-600">
-                    <div className="font-medium text-slate-900">Target score</div>
-                    <div className="font-mono font-semibold text-blue-600 mt-0.5">165 / 200</div>
-                  </div>
-                </div>
-
-                <div className="col-span-1 md:col-span-9 p-4 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                    <div>
-                      <h2 className="text-sm font-semibold text-slate-900">Good Morning, CEE Aspirant</h2>
-                      <p className="text-xs text-slate-500">Your next mock is scheduled for today.</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={promptSignUp}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg shrink-0"
-                    >
-                      Start mock
-                    </button>
-                  </div>
-
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-slate-500 uppercase tracking-wide">Latest CEE mock</span>
-                      <span className="text-emerald-700 font-medium">+12 marks</span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="text-2xl font-bold font-mono text-slate-900">
-                        142 <span className="text-xs text-slate-500 font-normal">/ 200</span>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-[10px] text-slate-500 uppercase block">Accuracy</span>
-                        <span className="font-mono font-semibold text-sm">74%</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-slate-500 uppercase block">Time used</span>
-                        <span className="font-mono font-semibold text-sm">2h 41m</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-200">
-                      <div className="text-[10px] text-slate-500 font-medium mb-2 flex justify-between">
-                        <span>Score trend (last 5 mocks)</span>
-                        <span className="text-blue-600 font-mono">122 → 142</span>
-                      </div>
-                      <div className="h-9 flex items-end justify-between gap-2">
-                        {SCORE_TREND.map((item) => (
-                          <div key={item.mock} className="flex-1 flex flex-col items-center gap-1">
-                            <div
-                              className={`w-full rounded-t-sm ${item.active ? 'bg-blue-600' : 'bg-slate-200'}`}
-                              style={{ height: `${(item.score / 200) * 32}px` }}
-                            />
-                            <span className="text-[9px] font-mono text-slate-500">{item.mock}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
-                      <div className="text-[10px] font-semibold text-slate-900 uppercase tracking-wide">
-                        Subject readiness
-                      </div>
-                      {SUBJECT_READINESS.map((subject) => (
-                        <div key={subject.name} className="space-y-1">
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-slate-600">{subject.name}</span>
-                            <span className="font-mono font-semibold text-blue-600">{subject.pct}%</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                            <div
-                              className="bg-blue-600 h-full rounded-full"
-                              style={{ width: `${subject.pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl flex flex-col justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] font-medium text-slate-500 uppercase">Suggested next step</p>
-                        <h3 className="font-semibold text-sm text-slate-900 mt-1">Revise Chemical Bonding</h3>
-                        <p className="text-[11px] text-slate-600 mt-0.5">
-                          You lost 6 marks in this chapter during your latest mock.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={promptSignUp}
-                        className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium rounded-lg"
-                      >
-                        Practice this chapter
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={promptSignUp}
+              className="block w-full text-left bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              aria-label="Open PrepX Mock Tests preview — Sign up"
+            >
+              <img
+                src="/landing-dashboard.webp"
+                alt="PrepX Nepal Mock Tests dashboard with full CEE papers"
+                width={1024}
+                height={507}
+                className="w-full h-auto block"
+                loading="eager"
+                decoding="async"
+              />
+            </button>
           </div>
         </div>
       </section>

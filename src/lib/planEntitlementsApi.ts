@@ -1,5 +1,16 @@
 import type { PlanEntitlements } from './planEntitlements';
 
+/** Public read — no auth required (display quotas on Pricing). */
+export async function fetchPlanEntitlements(): Promise<PlanEntitlements> {
+  const res = await fetch('/api/plan-entitlements');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to fetch plan entitlements (${res.status})`);
+  }
+  const data = await res.json();
+  return data.entitlements as PlanEntitlements;
+}
+
 async function authHeaders(getToken: () => Promise<string | null>): Promise<HeadersInit> {
   const token = await getToken();
   if (!token) throw new Error('Not signed in');
@@ -7,19 +18,6 @@ async function authHeaders(getToken: () => Promise<string | null>): Promise<Head
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
   };
-}
-
-export async function fetchPlanEntitlements(
-  getToken: () => Promise<string | null>
-): Promise<PlanEntitlements> {
-  const headers = await authHeaders(getToken);
-  const res = await fetch('/api/plan-entitlements', { headers });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Failed to fetch plan entitlements (${res.status})`);
-  }
-  const data = await res.json();
-  return data.entitlements as PlanEntitlements;
 }
 
 export async function putPlanEntitlements(

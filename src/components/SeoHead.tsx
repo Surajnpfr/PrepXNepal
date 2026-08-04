@@ -33,7 +33,7 @@ export function SeoHead({ page }: { page: PageSeoConfig }) {
   useEffect(() => {
     const origin = getSiteOrigin();
     const url = absoluteUrl(page.path, origin);
-    const image = absoluteUrl('/icon-512.png', origin);
+    const image = absoluteUrl('/og-image.png', origin);
 
     document.title = page.title;
     upsertMeta('name', 'description', page.description);
@@ -47,6 +47,10 @@ export function SeoHead({ page }: { page: PageSeoConfig }) {
     upsertMeta('property', 'og:description', page.description);
     upsertMeta('property', 'og:url', url);
     upsertMeta('property', 'og:image', image);
+    upsertMeta('property', 'og:image:type', 'image/png');
+    upsertMeta('property', 'og:image:width', '1200');
+    upsertMeta('property', 'og:image:height', '630');
+    upsertMeta('property', 'og:image:alt', 'PrepX Nepal — Nepal CEE Online Mock Tests');
     upsertMeta('property', 'og:locale', 'en_NP');
 
     upsertMeta('name', 'twitter:card', 'summary_large_image');
