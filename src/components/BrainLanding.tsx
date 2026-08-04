@@ -617,6 +617,16 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
                 Resources
               </button>
               <a
+                href="/about"
+                onClick={(e) => {
+                  e.preventDefault();
+                  goPublic('about');
+                }}
+                className="hover:text-blue-600"
+              >
+                About
+              </a>
+              <a
                 href="/reports"
                 onClick={(e) => {
                   e.preventDefault();

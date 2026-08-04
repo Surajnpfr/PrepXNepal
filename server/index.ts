@@ -177,7 +177,7 @@ function mapUser(user: Awaited<ReturnType<typeof clerk.users.getUser>>) {
     role,
     targetScore: typeof meta.targetScore === 'number' ? meta.targetScore : 160,
     targetExam: meta.targetExam || 'Nepal CEE',
-    examDate: typeof meta.examDate === 'string' ? meta.examDate : '2026-09-15',
+    examDate: typeof meta.examDate === 'string' ? meta.examDate : '',
     plan,
     mocksRemaining,
     studyCoinBalance,

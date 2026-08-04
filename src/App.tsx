@@ -29,6 +29,7 @@ import { LeaderboardView } from './components/LeaderboardView';
 import { HelpSupportView } from './components/HelpSupportView';
 import { ClerkLoadGuard } from './components/ClerkLoadGuard';
 import { SeoHead } from './components/SeoHead';
+import { AboutView } from './components/AboutView';
 import { seoForTab } from './lib/siteSeo';
 
 import { 
@@ -536,7 +537,7 @@ export function App() {
   // Signed-in users on `/` go to dashboard. Unsigned users may keep public SEO routes
   // (/reports, /help, /payment, /contact) so crawlers and share links see indexable content;
   // other app URLs still require sign-in.
-  const PUBLIC_SEO_TABS = useMemo(() => new Set(['reports', 'policies', 'payment']), []);
+  const PUBLIC_SEO_TABS = useMemo(() => new Set(['reports', 'policies', 'payment', 'about']), []);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -1606,6 +1607,18 @@ export function App() {
                 Welcome
               </a>
               <a
+                href="/about"
+                className={`px-3 py-1.5 ${
+                  activeTab === 'about' ? 'text-[#2563EB] font-semibold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  goToTab('about');
+                }}
+              >
+                About
+              </a>
+              <a
                 href="/payment"
                 className={`px-3 py-1.5 ${
                   activeTab === 'payment' ? 'text-[#2563EB] font-semibold' : 'text-slate-600 hover:text-slate-900'
@@ -1681,6 +1694,9 @@ export function App() {
               activeSubTab={helpActiveSubTab}
               setActiveSubTab={setHelpActiveSubTab}
             />
+          )}
+          {activeTab === 'about' && (
+            <AboutView onContact={() => goToTab('policies', { helpSubTab: 'contact' })} />
           )}
           {activeTab === 'payment' && (
             <PaymentSubmissionView
@@ -1929,6 +1945,10 @@ export function App() {
                     activeSubTab={helpActiveSubTab}
                     setActiveSubTab={setHelpActiveSubTab}
                   />
+                )}
+
+                {activeTab === 'about' && (
+                  <AboutView onContact={() => goToTab('policies', { helpSubTab: 'contact' })} />
                 )}
 
                 {activeTab === 'admin' && canAccessAdmin && (

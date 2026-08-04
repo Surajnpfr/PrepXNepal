@@ -10,6 +10,12 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { UserProfile, MockTest, AttemptReport, StudyPlanTask } from '../types';
+import {
+  TENTATIVE_EXAM_LABEL,
+  daysUntilExamDate,
+  formatExamDateShort,
+  isExamDateSet,
+} from '../lib/examSchedule';
 import { useFeedback } from './FeedbackProvider';
 import { Badge, Button, Card, PageHeader, ProgressBar, AppIcon } from './ui';
 
@@ -109,15 +115,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return { label: 'Needs Attention', badge: 'bg-amber-50 text-amber-800 border-amber-200', bar: 'bg-amber-600' };
   };
 
-  // Dynamic Countdown calculation
-  const examDateStr = userProfile.examDate || '2026-09-15';
-  const getDaysRemaining = () => {
-    const examDate = new Date(examDateStr);
-    const now = new Date();
-    const diffTime = examDate.getTime() - now.getTime();
-    return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-  };
-  const daysRemaining = getDaysRemaining();
+  const examDateSet = isExamDateSet(userProfile.examDate);
+  const daysRemaining = examDateSet ? daysUntilExamDate(userProfile.examDate) : null;
 
   const handleScoreUpdate = async () => {
     const target = await feedback.prompt({
@@ -149,7 +148,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
         subtitle={
           latestReport
             ? `Latest mock: ${latestReport.overallScore}/200. Target ${userProfile.targetScore}/200.`
-            : `Target ${userProfile.targetScore}/200 · ${daysRemaining} days until exam.`
+            : examDateSet
+              ? `Target ${userProfile.targetScore}/200 · ${daysRemaining} days until exam.`
+              : `Target ${userProfile.targetScore}/200 · ${TENTATIVE_EXAM_LABEL}.`
         }
         actions={
           <>
@@ -222,19 +223,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <span>Days to exam</span>
             <AppIcon icon={Calendar} size="btn" className="text-[var(--px-muted)]" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-display font-bold tabular-nums text-[var(--px-heading)]">{daysRemaining}</span>
-            <span className="text-xs text-[var(--px-muted)]">days</span>
-          </div>
-          <div className="text-[11px] text-[var(--px-muted)]">
-            {userProfile.examDate
-              ? new Date(userProfile.examDate).toLocaleDateString(undefined, {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })
-              : 'Exam date not set'}
-          </div>
+          {examDateSet ? (
+            <>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-display font-bold tabular-nums text-[var(--px-heading)]">
+                  {daysRemaining}
+                </span>
+                <span className="text-xs text-[var(--px-muted)]">days</span>
+              </div>
+              <div className="text-[11px] text-[var(--px-muted)]">
+                {formatExamDateShort(userProfile.examDate)}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-display font-bold text-[var(--px-heading)] tracking-tight">
+                  TBA
+                </span>
+              </div>
+              <div className="text-[11px] text-[var(--px-muted)]">{TENTATIVE_EXAM_LABEL}</div>
+            </>
+          )}
         </Card>
 
       </div>

@@ -26,6 +26,7 @@ const EXPLORE_LINKS: FooterLink[] = [
 ];
 
 const HELP_LINKS: FooterLink[] = [
+  { label: 'About PrepX Nepal', tab: 'about' },
   { label: 'Help Centre', tab: 'policies', subTab: 'info' },
   { label: 'Contact', tab: 'policies', subTab: 'contact' },
   { label: 'Frequently Asked Questions', tab: 'policies', subTab: 'faq' },
@@ -120,9 +121,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </div>
             </div>
 
-            <p className="text-[var(--px-muted)] text-[13px] leading-relaxed max-w-[28ch]">
-              Personalized mock tests, chapter-level analytics, and focused revision tools for Nepal
-              CEE preparation.
+            <p className="text-[var(--px-muted)] text-[13px] leading-relaxed max-w-[36ch]">
+              PrepX Nepal is Nepal’s online CEE prep platform for MBBS entrance—MEC-style timed
+              mocks, chapter reports, and Study Coins revision.
             </p>
 
             <p className="text-[11px] text-[var(--px-muted)] font-medium flex items-start gap-2 max-w-[32ch]">

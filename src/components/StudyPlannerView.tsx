@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { StudyPlanTask, UserProfile } from '../types';
 import { DAILY_REWARD_COINS, daysUntilExam } from '../lib/studyPlanner';
+import { TENTATIVE_EXAM_LABEL, isExamDateSet } from '../lib/examSchedule';
 import { AppIcon } from './ui';
 const SUBJECTS = ['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT', 'CEE'] as const;
 
@@ -43,7 +44,8 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
   const completedCount = tasks.filter((t) => t.completed).length;
   const progressPercent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
   const totalMins = tasks.reduce((s, t) => s + t.durationMin, 0);
-  const examDays = daysUntilExam(userProfile.examDate || '2026-09-15');
+  const examDateSet = isExamDateSet(userProfile.examDate);
+  const examDays = examDateSet ? daysUntilExam(userProfile.examDate) : 0;
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,8 +74,10 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
           <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Study plan</h1>
           <p className="text-sm text-slate-300 max-w-xl leading-relaxed">
             {sourceLabel}. Target {userProfile.targetScore}/200
-            {examDays > 0 ? ` · ${examDays} days to exam` : ''}.
-            Finish all tasks for +{DAILY_REWARD_COINS} coins.
+            {examDateSet && examDays > 0
+              ? ` · ${examDays} days to exam`
+              : ` · ${TENTATIVE_EXAM_LABEL}`}
+            . Finish all tasks for +{DAILY_REWARD_COINS} coins.
           </p>
           <div className="flex flex-wrap gap-2 pt-1 text-xs">
             <span className="inline-flex items-center gap-1 font-medium px-2 py-1 rounded-md bg-slate-800 border border-slate-700">

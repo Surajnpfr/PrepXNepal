@@ -25,7 +25,7 @@ export interface UserProfile {
   role: UserRole;
   targetScore: number;
   targetExam: ExamType;
-  examDate: string; // ISO date e.g. "2026-10-15"
+  examDate: string; // ISO date when set; empty = tentative Ashoj–Kartik (official TBA)
   plan: PlanTier;
   mocksRemaining: number | null; // null = unlimited
   studyCoinBalance: number;

@@ -16,6 +16,7 @@ export const APP_TABS = [
   'planner',
   'leaderboard',
   'policies',
+  'about',
   'admin',
 ] as const;
 
@@ -77,6 +78,8 @@ const TAB_ALIASES: Record<string, AppTab> = {
   help: 'policies',
   support: 'policies',
   info: 'policies',
+  about: 'about',
+  'about-us': 'about',
   admin: 'admin',
   desk: 'admin',
 };
@@ -94,6 +97,7 @@ const PATH_BY_TAB: Record<AppTab, string> = {
   planner: '/planner',
   leaderboard: '/leaderboard',
   policies: '/help',
+  about: '/about',
   admin: '/admin',
 };
 

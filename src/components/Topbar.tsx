@@ -64,6 +64,7 @@ export const Topbar: React.FC<TopbarProps> = ({
       case 'coins': return 'Study Coins';
       case 'admin': return 'Admin Operations';
       case 'policies': return 'Help & Support';
+      case 'about': return 'About PrepX Nepal';
       default: return 'Dashboard';
     }
   };
