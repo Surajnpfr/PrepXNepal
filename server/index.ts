@@ -2,9 +2,9 @@ import express from 'express';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { createClerkClient, verifyToken } from '@clerk/backend';
-import { createAppRepositories, resolveDbMode } from './db/index.ts';
+import { createAppRepositories, resolveDbMode, resolveSqlitePath } from './db/index.ts';
+import { resolveAppRoot } from './appRoot.ts';
 import { registerSeoStaticRoutes } from './seoStaticFiles.ts';
 import { parseImportBatch, parseQuestionUpdate } from './questionsDomain.ts';
 import {
@@ -87,11 +87,7 @@ import {
   evaluateEmailDomain,
 } from './emailDomainPolicy.ts';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-/** Bundled `server.js` lives at repo root; source `server/index.ts` lives in /server. */
-const root = fs.existsSync(path.join(__dirname, 'package.json'))
-  ? __dirname
-  : path.resolve(__dirname, '..');
+const root = resolveAppRoot(import.meta.url);
 
 dotenv.config({ path: path.join(root, '.env.local') });
 dotenv.config({ path: path.join(root, '.env') });
@@ -557,12 +553,29 @@ async function requireAuth(req: express.Request, res: express.Response, next: ex
   }
 }
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
+  const mode = resolveDbMode();
+  let mockCount: number | null = null;
+  let questionCount: number | null = null;
+  try {
+    if (mocksRepo) mockCount = (await mocksRepo.list()).length;
+  } catch {
+    mockCount = null;
+  }
+  try {
+    if (questionsRepo) questionCount = await questionsRepo.countAll();
+  } catch {
+    questionCount = null;
+  }
   res.json({
     ok: true,
     source: 'clerk-backend',
     realtime: true,
-    questionsDb: resolveDbMode(),
+    questionsDb: mode,
+    mockCount,
+    questionCount,
+    // Basename only — confirms which file is open without leaking full host paths.
+    sqliteFile: mode === 'sqlite' ? path.basename(resolveSqlitePath()) : null,
   });
 });
 

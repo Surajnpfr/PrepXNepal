@@ -1,14 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolveAppRoot } from './appRoot.ts';
 import {
   PLAN_ENTITLEMENTS_SEED,
   parsePlanEntitlements,
   type PlanEntitlements,
 } from './planEntitlementsDomain.ts';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, '..');
+const root = resolveAppRoot(import.meta.url);
 
 function entitlementsPath(): string {
   const dataDir = path.dirname(

@@ -1,5 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveAppRoot } from '../appRoot.ts';
 import { createMysqlPoolFromEnv, createMysqlQuestionsRepo } from './mysqlQuestions.ts';
 import { createMysqlMocksRepo } from './mysqlMocks.ts';
 import { createMysqlReferralsRepo } from './mysqlReferrals.ts';
@@ -24,8 +25,7 @@ import type {
   SupportIssuesRepository,
 } from './types.ts';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(__dirname, '../..');
+const root = resolveAppRoot(import.meta.url);
 
 export type DbMode = 'mysql' | 'sqlite';
 
@@ -37,10 +37,15 @@ export function resolveDbMode(): DbMode {
   return host ? 'mysql' : 'sqlite';
 }
 
-function sqlitePath() {
+/** Absolute SQLite file path (override with SQLITE_PATH). */
+export function resolveSqlitePath(): string {
   return (
     process.env.SQLITE_PATH || path.join(root, 'data', 'prepx-questions.sqlite')
   );
+}
+
+function sqlitePath() {
+  return resolveSqlitePath();
 }
 
 export async function createQuestionsRepository(): Promise<QuestionsRepository> {

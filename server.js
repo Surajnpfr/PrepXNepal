@@ -4,14 +4,27 @@
 // server/index.ts
 import express from "express";
 import dotenv from "dotenv";
-import fs9 from "fs";
-import path10 from "path";
-import { fileURLToPath as fileURLToPath3 } from "url";
+import fs10 from "fs";
+import path11 from "path";
 import { createClerkClient, verifyToken } from "@clerk/backend";
 
 // server/db/index.ts
-import path8 from "path";
-import { fileURLToPath } from "url";
+import path9 from "path";
+
+// server/appRoot.ts
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+function resolveAppRoot(importMetaUrl) {
+  let dir = path.dirname(fileURLToPath(importMetaUrl));
+  for (let i = 0; i < 4; i += 1) {
+    if (fs.existsSync(path.join(dir, "package.json"))) return dir;
+    const parent = path.resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return path.dirname(fileURLToPath(importMetaUrl));
+}
 
 // server/db/mysqlQuestions.ts
 import mysql from "mysql2/promise";
@@ -1925,8 +1938,8 @@ function createMysqlPromoCodesRepo(pool) {
 }
 
 // server/db/sqliteQuestions.ts
-import fs from "fs";
-import path from "path";
+import fs2 from "fs";
+import path2 from "path";
 import { DatabaseSync } from "node:sqlite";
 function mapRow6(row) {
   let optionImages;
@@ -1974,8 +1987,8 @@ function columnExists(db, table, column) {
   return cols.some((c) => c.name === column);
 }
 function createSqliteQuestionsRepo(dbFilePath) {
-  const dir = path.dirname(dbFilePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const dir = path2.dirname(dbFilePath);
+  if (!fs2.existsSync(dir)) fs2.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync(dbFilePath);
   return {
     driver: "sqlite",
@@ -2285,8 +2298,8 @@ function createSqliteQuestionsRepo(dbFilePath) {
 }
 
 // server/db/sqliteMocks.ts
-import fs2 from "fs";
-import path2 from "path";
+import fs3 from "fs";
+import path3 from "path";
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 function mapSubject2(value) {
   if (!value) return void 0;
@@ -2340,8 +2353,8 @@ function mapBatch5(row) {
   };
 }
 function createSqliteMocksRepo(dbFilePath) {
-  const dir = path2.dirname(dbFilePath);
-  if (!fs2.existsSync(dir)) fs2.mkdirSync(dir, { recursive: true });
+  const dir = path3.dirname(dbFilePath);
+  if (!fs3.existsSync(dir)) fs3.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync2(dbFilePath);
   function loadQuestionIds(mockId) {
     const rows = db.prepare("SELECT question_id FROM mock_questions WHERE mock_id = ? ORDER BY position ASC").all(mockId);
@@ -2634,8 +2647,8 @@ function createSqliteMocksRepo(dbFilePath) {
 }
 
 // server/db/sqliteReferrals.ts
-import fs3 from "fs";
-import path3 from "path";
+import fs4 from "fs";
+import path4 from "path";
 import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
 function mapLink2(row) {
   return {
@@ -2673,8 +2686,8 @@ function mapComm2(row) {
   };
 }
 function createSqliteReferralsRepo(dbFilePath) {
-  const dir = path3.dirname(dbFilePath);
-  if (!fs3.existsSync(dir)) fs3.mkdirSync(dir, { recursive: true });
+  const dir = path4.dirname(dbFilePath);
+  if (!fs4.existsSync(dir)) fs4.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync3(dbFilePath);
   return {
     driver: "sqlite",
@@ -2852,8 +2865,8 @@ function createSqliteReferralsRepo(dbFilePath) {
 }
 
 // server/db/sqlitePaymentClaims.ts
-import fs4 from "fs";
-import path4 from "path";
+import fs5 from "fs";
+import path5 from "path";
 import { DatabaseSync as DatabaseSync4 } from "node:sqlite";
 function mapRow8(row) {
   const amountNpr = Number(row.amount_npr);
@@ -2882,8 +2895,8 @@ function mapRow8(row) {
   };
 }
 function createSqlitePaymentClaimsRepo(dbFilePath) {
-  const dir = path4.dirname(dbFilePath);
-  if (!fs4.existsSync(dir)) fs4.mkdirSync(dir, { recursive: true });
+  const dir = path5.dirname(dbFilePath);
+  if (!fs5.existsSync(dir)) fs5.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync4(dbFilePath);
   return {
     driver: "sqlite",
@@ -3045,8 +3058,8 @@ function createSqlitePaymentClaimsRepo(dbFilePath) {
 }
 
 // server/db/sqliteSupportIssues.ts
-import fs5 from "fs";
-import path5 from "path";
+import fs6 from "fs";
+import path6 from "path";
 import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
 function mapRow9(row) {
   return {
@@ -3065,8 +3078,8 @@ function mapRow9(row) {
   };
 }
 function createSqliteSupportIssuesRepo(dbFilePath) {
-  const dir = path5.dirname(dbFilePath);
-  if (!fs5.existsSync(dir)) fs5.mkdirSync(dir, { recursive: true });
+  const dir = path6.dirname(dbFilePath);
+  if (!fs6.existsSync(dir)) fs6.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync5(dbFilePath);
   return {
     driver: "sqlite",
@@ -3150,8 +3163,8 @@ function createSqliteSupportIssuesRepo(dbFilePath) {
 }
 
 // server/db/sqliteFormulas.ts
-import fs6 from "fs";
-import path6 from "path";
+import fs7 from "fs";
+import path7 from "path";
 import { DatabaseSync as DatabaseSync6 } from "node:sqlite";
 function mapBatch6(row) {
   return {
@@ -3186,8 +3199,8 @@ function mapSheet2(row) {
   };
 }
 function createSqliteFormulasRepo(dbFilePath) {
-  const dir = path6.dirname(dbFilePath);
-  if (!fs6.existsSync(dir)) fs6.mkdirSync(dir, { recursive: true });
+  const dir = path7.dirname(dbFilePath);
+  if (!fs7.existsSync(dir)) fs7.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync6(dbFilePath);
   return {
     driver: "sqlite",
@@ -3308,8 +3321,8 @@ function createSqliteFormulasRepo(dbFilePath) {
 }
 
 // server/db/sqlitePromoCodes.ts
-import fs7 from "fs";
-import path7 from "path";
+import fs8 from "fs";
+import path8 from "path";
 import { DatabaseSync as DatabaseSync7 } from "node:sqlite";
 function parsePlans2(raw) {
   if (!raw) return [];
@@ -3340,8 +3353,8 @@ function mapRow10(row) {
   };
 }
 function createSqlitePromoCodesRepo(dbFilePath) {
-  const dir = path7.dirname(dbFilePath);
-  if (!fs7.existsSync(dir)) fs7.mkdirSync(dir, { recursive: true });
+  const dir = path8.dirname(dbFilePath);
+  if (!fs8.existsSync(dir)) fs8.mkdirSync(dir, { recursive: true });
   const db = new DatabaseSync7(dbFilePath);
   return {
     driver: "sqlite",
@@ -3461,8 +3474,7 @@ function createSqlitePromoCodesRepo(dbFilePath) {
 }
 
 // server/db/index.ts
-var __dirname = path8.dirname(fileURLToPath(import.meta.url));
-var root = path8.resolve(__dirname, "../..");
+var root = resolveAppRoot(import.meta.url);
 function resolveDbMode() {
   const explicit = (process.env.DB_DRIVER || "").toLowerCase();
   if (explicit === "mysql") return "mysql";
@@ -3470,8 +3482,11 @@ function resolveDbMode() {
   const host = process.env.DB_HOST || process.env.MYSQL_HOST;
   return host ? "mysql" : "sqlite";
 }
+function resolveSqlitePath() {
+  return process.env.SQLITE_PATH || path9.join(root, "data", "prepx-questions.sqlite");
+}
 function sqlitePath() {
-  return process.env.SQLITE_PATH || path8.join(root, "data", "prepx-questions.sqlite");
+  return resolveSqlitePath();
 }
 async function createAppRepositories() {
   const mode = resolveDbMode();
@@ -4861,35 +4876,33 @@ function assertFreePlanPracticeAccess(plan, opts) {
 }
 
 // server/planEntitlementsStore.ts
-import fs8 from "node:fs";
-import path9 from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-var __dirname2 = path9.dirname(fileURLToPath2(import.meta.url));
-var root2 = path9.resolve(__dirname2, "..");
+import fs9 from "node:fs";
+import path10 from "node:path";
+var root2 = resolveAppRoot(import.meta.url);
 function entitlementsPath() {
-  const dataDir = path9.dirname(
-    process.env.SQLITE_PATH || path9.join(root2, "data", "prepx-questions.sqlite")
+  const dataDir = path10.dirname(
+    process.env.SQLITE_PATH || path10.join(root2, "data", "prepx-questions.sqlite")
   );
-  return path9.join(dataDir, "plan-entitlements.json");
+  return path10.join(dataDir, "plan-entitlements.json");
 }
 var cache = null;
 function ensureDir(filePath) {
-  fs8.mkdirSync(path9.dirname(filePath), { recursive: true });
+  fs9.mkdirSync(path10.dirname(filePath), { recursive: true });
 }
 function writeSeed(filePath) {
   ensureDir(filePath);
-  fs8.writeFileSync(filePath, JSON.stringify(PLAN_ENTITLEMENTS_SEED, null, 2), "utf8");
+  fs9.writeFileSync(filePath, JSON.stringify(PLAN_ENTITLEMENTS_SEED, null, 2), "utf8");
   return { ...PLAN_ENTITLEMENTS_SEED };
 }
 function getPlanEntitlements() {
   if (cache) return cache;
   const filePath = entitlementsPath();
   try {
-    if (!fs8.existsSync(filePath)) {
+    if (!fs9.existsSync(filePath)) {
       cache = writeSeed(filePath);
       return cache;
     }
-    const raw = JSON.parse(fs8.readFileSync(filePath, "utf8"));
+    const raw = JSON.parse(fs9.readFileSync(filePath, "utf8"));
     const parsed = parsePlanEntitlements(raw);
     if (parsed.ok === false) {
       console.warn("[plan-entitlements] invalid file, reseeding:", parsed.error);
@@ -4911,7 +4924,7 @@ function setPlanEntitlements(next) {
   }
   const filePath = entitlementsPath();
   ensureDir(filePath);
-  fs8.writeFileSync(filePath, JSON.stringify(parsed.value, null, 2), "utf8");
+  fs9.writeFileSync(filePath, JSON.stringify(parsed.value, null, 2), "utf8");
   cache = parsed.value;
   return cache;
 }
@@ -5029,10 +5042,9 @@ function emailDomainBlockedMessage(decision) {
 }
 
 // server/index.ts
-var __dirname3 = path10.dirname(fileURLToPath3(import.meta.url));
-var root3 = fs9.existsSync(path10.join(__dirname3, "package.json")) ? __dirname3 : path10.resolve(__dirname3, "..");
-dotenv.config({ path: path10.join(root3, ".env.local") });
-dotenv.config({ path: path10.join(root3, ".env") });
+var root3 = resolveAppRoot(import.meta.url);
+dotenv.config({ path: path11.join(root3, ".env.local") });
+dotenv.config({ path: path11.join(root3, ".env") });
 var PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 var SECRET_KEY = process.env.CLERK_SECRET_KEY;
 var BOOTSTRAP_ADMIN_EMAIL = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase() || "surajnepal2058@gmail.com";
@@ -5365,12 +5377,29 @@ async function requireAuth(req, res, next) {
     return res.status(401).json({ error: "Invalid or expired session" });
   }
 }
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", async (_req, res) => {
+  const mode = resolveDbMode();
+  let mockCount = null;
+  let questionCount = null;
+  try {
+    if (mocksRepo) mockCount = (await mocksRepo.list()).length;
+  } catch {
+    mockCount = null;
+  }
+  try {
+    if (questionsRepo) questionCount = await questionsRepo.countAll();
+  } catch {
+    questionCount = null;
+  }
   res.json({
     ok: true,
     source: "clerk-backend",
     realtime: true,
-    questionsDb: resolveDbMode()
+    questionsDb: mode,
+    mockCount,
+    questionCount,
+    // Basename only — confirms which file is open without leaking full host paths.
+    sqliteFile: mode === "sqlite" ? path11.basename(resolveSqlitePath()) : null
   });
 });
 app.get("/api/questions", requireAuth, async (req, res) => {
@@ -7536,14 +7565,14 @@ async function boot() {
     const mockTotal = (await mocksRepo.list()).length;
     const formulaTotal = await formulasRepo.countAll();
     const promoTotal = (await promoCodesRepo.listAll()).length;
-    const distDir = path10.join(root3, "dist");
-    if (fs9.existsSync(distDir)) {
+    const distDir = path11.join(root3, "dist");
+    if (fs10.existsSync(distDir)) {
       registerSeoStaticRoutes(app, distDir);
       app.use(express.static(distDir, { index: false, maxAge: "1h" }));
       app.get("*", (req, res, next) => {
         if (req.path.startsWith("/api")) return next();
         if (req.method !== "GET" && req.method !== "HEAD") return next();
-        res.sendFile(path10.join(distDir, "index.html"), (err) => {
+        res.sendFile(path11.join(distDir, "index.html"), (err) => {
           if (err) next(err);
         });
       });
@@ -7553,7 +7582,7 @@ async function boot() {
       console.log(
         `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets, ${promoTotal} promo codes)`
       );
-      if (fs9.existsSync(distDir)) {
+      if (fs10.existsSync(distDir)) {
         console.log(`Serving SPA from ${distDir}`);
       } else {
         console.warn(
