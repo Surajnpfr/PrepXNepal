@@ -214,6 +214,23 @@ export interface MockRecord {
   updatedAt: string;
 }
 
+/** Catalog / API list order: title A→Z (case-insensitive), then id. */
+export function compareMocksByTitleAsc(
+  a: Pick<{ title: string; id: string }, 'title' | 'id'>,
+  b: Pick<{ title: string; id: string }, 'title' | 'id'>
+): number {
+  const byTitle = a.title.localeCompare(b.title, undefined, {
+    sensitivity: 'base',
+    numeric: true,
+  });
+  if (byTitle !== 0) return byTitle;
+  return a.id.localeCompare(b.id);
+}
+
+export function sortMocksByTitleAsc<T extends { title: string; id: string }>(mocks: T[]): T[] {
+  return [...mocks].sort(compareMocksByTitleAsc);
+}
+
 export interface MockImportBatchRecord {
   id: string;
   label: string;

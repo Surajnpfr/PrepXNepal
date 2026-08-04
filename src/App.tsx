@@ -31,6 +31,7 @@ import { ClerkLoadGuard } from './components/ClerkLoadGuard';
 import { SeoHead } from './components/SeoHead';
 import { AboutView } from './components/AboutView';
 import { seoForTab } from './lib/siteSeo';
+import { FREE_PLAN_MOCK_ACCESS_ERROR } from './lib/mockAccess';
 
 import { 
   INITIAL_PAST_REPORTS, 
@@ -1005,6 +1006,16 @@ export function App() {
         title: 'Sign in required',
         message: 'Sign in to generate a practice mock.',
       });
+      return;
+    }
+    if (userProfile.plan === 'Free') {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Free plan: SetA only',
+        message: FREE_PLAN_MOCK_ACCESS_ERROR,
+        confirmLabel: 'View plans',
+      });
+      setActiveTab('payment');
       return;
     }
     if (userProfile.plan !== 'Unlimited' && (userProfile.mocksRemaining ?? 0) <= 0) {

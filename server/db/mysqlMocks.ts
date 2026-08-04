@@ -195,7 +195,7 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
       }
       const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
       const [rows] = await pool.query<MockRow[]>(
-        `SELECT * FROM mock_tests ${where} ORDER BY created_at DESC`,
+        `SELECT * FROM mock_tests ${where} ORDER BY title ASC, id ASC`,
         params
       );
       return Promise.all(rows.map((r) => hydrate(r)));

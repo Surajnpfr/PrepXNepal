@@ -106,6 +106,8 @@ export interface MockTest {
   year?: string;
   allocation?: MockAllocation;
   importBatchId?: string;
+  /** ISO timestamp from server — used for catalog "New" sort. */
+  createdAt?: string;
   questions: Question[];
   /** Server session binding start → score (not persisted). */
   attemptSessionId?: string;

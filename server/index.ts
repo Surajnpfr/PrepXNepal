@@ -19,6 +19,7 @@ import {
   sampleFromAllocation,
   serializeFixedMockAsSetJson,
   setExportFilename,
+  sortMocksByTitleAsc,
   testCategoryFromScope,
   totalFromAllocation,
   type MockRecord,
@@ -74,6 +75,10 @@ import {
   defaultMocksForPlan,
   parsePlanEntitlements,
 } from './planEntitlementsDomain.ts';
+import {
+  assertFreePlanMockAccess,
+  assertFreePlanPracticeAccess,
+} from './mockAccessDomain.ts';
 import { getPlanEntitlements, setPlanEntitlements } from './planEntitlementsStore.ts';
 import {
   emailDomainBlockedMessage,
@@ -349,15 +354,23 @@ async function authorizeStartedMock(
 
 /**
  * Study mode: browse paper with keys. Does not consume quota or charge coins.
- * Free papers (coinPrice ≤ 0) are open to any signed-in user; otherwise requires
- * Unlimited / remaining mock quota (same entitlement gate as catalog, without spend).
+ * Free papers (coinPrice ≤ 0) still require Free→SetA gate for Free plan.
+ * Paid papers require Unlimited / remaining mock quota (without spend).
  */
 async function assertStudyAccess(
   clerkUserId: string,
   coinPrice: number | null | undefined,
-  opts?: { staffBypass?: boolean }
+  opts?: { staffBypass?: boolean; plan?: string; mockId?: string }
 ): Promise<void> {
   if (opts?.staffBypass) return;
+  const freeGate = assertFreePlanMockAccess(opts?.plan, opts?.mockId, {
+    staffBypass: opts?.staffBypass,
+  });
+  if (!freeGate.ok) {
+    const err: any = new Error(freeGate.error);
+    err.status = freeGate.status;
+    throw err;
+  }
   const price = typeof coinPrice === 'number' && coinPrice > 0 ? Math.floor(coinPrice) : 0;
   if (price === 0) return;
   const user = await clerk.users.getUser(clerkUserId);
@@ -369,10 +382,18 @@ async function assertStudyAccess(
   if (plan === 'Unlimited' || mocksRemaining === null) return;
   if ((mocksRemaining ?? 0) > 0) return;
   const err: any = new Error(
-    'No mock access remaining. Upgrade your plan to study this paper, or use a free demo.'
+    'No mock access remaining. Upgrade your plan to study this paper, or use SetA on the Free plan.'
   );
   err.status = 402;
   throw err;
+}
+
+function rejectUnlessFreePlanMockAllowed(
+  plan: string | undefined,
+  mockId: string,
+  staffBypass: boolean
+): { ok: true } | { ok: false; status: number; error: string } {
+  return assertFreePlanMockAccess(plan, mockId, { staffBypass });
 }
 
 function sessionMarksFromMock(mock: { correctMarks?: number; wrongMarks?: number }) {
@@ -443,6 +464,7 @@ function toClientMock(m: MockRecord, questions?: ReturnType<typeof toClientQuest
     year: m.year,
     allocation: m.allocation,
     importBatchId: m.importBatchId,
+    createdAt: m.createdAt,
     questions: questions || [],
   };
 }
@@ -803,11 +825,13 @@ app.get('/api/mocks', requireAuth, async (req, res) => {
     const staffQs = canManageQuestions(profile.role, profile.email);
     const mode = typeof req.query.mode === 'string' ? req.query.mode : undefined;
     const scope = typeof req.query.scope === 'string' ? req.query.scope : undefined;
-    const list = await mocksRepo.list({
-      publishedOnly: !staffQs,
-      ...(mode === 'fixed' || mode === 'dynamic' ? { mode } : {}),
-      ...(scope === 'full' || scope === 'subject' || scope === 'chapter' ? { scope } : {}),
-    });
+    const list = sortMocksByTitleAsc(
+      await mocksRepo.list({
+        publishedOnly: !staffQs,
+        ...(mode === 'fixed' || mode === 'dynamic' ? { mode } : {}),
+        ...(scope === 'full' || scope === 'subject' || scope === 'chapter' ? { scope } : {}),
+      })
+    );
     res.json({
       mocks: list.map((m) => toClientMock(m)),
       total: list.length,
@@ -975,6 +999,11 @@ app.post('/api/mocks/import', requireAuth, async (req, res) => {
 app.post('/api/mocks/practice', requireAuth, async (req, res) => {
   try {
     const { profile, userId } = (req as any).auth;
+    const staffQs = canManageQuestions(profile.role, profile.email);
+    const practiceGate = assertFreePlanPracticeAccess(profile.plan, { staffBypass: staffQs });
+    if (!practiceGate.ok) {
+      return res.status(practiceGate.status).json({ error: practiceGate.error });
+    }
     const body = (req.body || {}) as Record<string, unknown>;
     const scope =
       body.scope === 'subject' || body.scope === 'chapter' || body.scope === 'full'
@@ -1414,6 +1443,12 @@ app.post('/api/mocks/:id/start', requireAuth, async (req, res) => {
       }
     }
 
+    const staffQs = canManageQuestions(profile.role, profile.email);
+    const freeGate = rejectUnlessFreePlanMockAllowed(profile.plan, mock.id, staffQs);
+    if (!freeGate.ok) {
+      return res.status(freeGate.status).json({ error: freeGate.error });
+    }
+
     const marks = sessionMarksFromMock(mock);
 
     if (mock.mode === 'fixed') {
@@ -1537,6 +1572,8 @@ app.post('/api/mocks/:id/study', requireAuth, async (req, res) => {
     try {
       await assertStudyAccess(userId, mock.coinPrice, {
         staffBypass: canManageQuestions(profile.role, profile.email),
+        plan: profile.plan,
+        mockId: mock.id,
       });
     } catch (accessErr: any) {
       return res

@@ -44,6 +44,7 @@ function normalizeMock(raw: any): MockTest {
     year: raw.year,
     allocation: raw.allocation,
     importBatchId: raw.importBatchId,
+    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : undefined,
     questions: Array.isArray(raw.questions) ? (raw.questions as Question[]) : [],
   };
 }

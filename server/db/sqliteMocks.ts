@@ -181,7 +181,7 @@ export function createSqliteMocksRepo(dbFilePath: string): MocksRepository {
       }
       const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
       const rows = db
-        .prepare(`SELECT * FROM mock_tests ${where} ORDER BY created_at DESC`)
+        .prepare(`SELECT * FROM mock_tests ${where} ORDER BY title COLLATE NOCASE ASC, id ASC`)
         .all(...params) as MockRow[];
       return rows.map(hydrate);
     },

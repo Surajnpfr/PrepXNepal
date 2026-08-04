@@ -9,6 +9,19 @@ import {
 import { MockTest, UserProfile, AttemptReport, MockMode, MockScope } from '../types';
 import type { ChapterQuestionCount, SubjectQuestionCount } from '../lib/questionsApi';
 import {
+  canFreePlanAccessMock,
+  FREE_PLAN_ALLOWED_MOCK_LABEL,
+  FREE_PLAN_MOCK_ACCESS_ERROR,
+  isFreePlan,
+} from '../lib/mockAccess';
+import {
+  filterMocksByAttempt,
+  givenMockIdSet,
+  sortCatalogMocks,
+  type CatalogAttemptFilter,
+  type CatalogSortMode,
+} from '../lib/catalogMocks';
+import {
   UserPracticeGenerator,
   type PracticeGeneratePayload,
 } from './UserPracticeGenerator';
@@ -55,38 +68,45 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [selectedTab, setSelectedTab] = useState<CatalogTab>('All');
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [attemptFilter, setAttemptFilter] = useState<CatalogAttemptFilter>('all');
+  const [sortMode, setSortMode] = useState<CatalogSortMode>('serial');
 
   const isEntitledBase =
     userProfile.plan === 'Unlimited' || (userProfile.mocksRemaining ?? 0) > 0;
+  const freePlanLocked = isFreePlan(userProfile.plan);
+  const givenIds = givenMockIdSet(pastReports);
 
   /** Catalog list: Fixed papers for Fixed/All; hide moderator dynamic blueprints (users self-serve). */
-  const filteredMocks = mockTests.filter((m) => {
-    if (!m.isPublished) return false;
-    const mode = resolveMode(m);
-    const scope = resolveScope(m);
+  const filteredMocks = (() => {
+    const base = mockTests.filter((m) => {
+      if (!m.isPublished) return false;
+      const mode = resolveMode(m);
+      const scope = resolveScope(m);
 
-    // User-driven dynamic/subject/chapter — do not list moderator dynamic templates
-    if (mode === 'dynamic') return false;
+      // User-driven dynamic/subject/chapter — do not list moderator dynamic templates
+      if (mode === 'dynamic') return false;
 
-    if (selectedTab === 'DynamicFull' || selectedTab === 'Subject' || selectedTab === 'Chapter') {
-      return false;
-    }
-    if (selectedTab === 'FixedFull' && !(mode === 'fixed' && scope === 'full')) return false;
-    if (selectedTab === 'All' && mode !== 'fixed') return false;
+      if (selectedTab === 'DynamicFull' || selectedTab === 'Subject' || selectedTab === 'Chapter') {
+        return false;
+      }
+      if (selectedTab === 'FixedFull' && !(mode === 'fixed' && scope === 'full')) return false;
+      if (selectedTab === 'All' && mode !== 'fixed') return false;
 
-    if (selectedSubject !== 'All' && selectedTab === 'All') {
-      if (m.subject && m.subject !== selectedSubject && m.subject !== 'Combined') return false;
-    }
+      if (selectedSubject !== 'All' && selectedTab === 'All') {
+        if (m.subject && m.subject !== selectedSubject && m.subject !== 'Combined') return false;
+      }
 
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = m.title.toLowerCase().includes(q);
-      const matchSubject = m.subject?.toLowerCase().includes(q);
-      const matchChapter = m.chapterName?.toLowerCase().includes(q);
-      if (!matchTitle && !matchSubject && !matchChapter) return false;
-    }
-    return true;
-  });
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchTitle = m.title.toLowerCase().includes(q);
+        const matchSubject = m.subject?.toLowerCase().includes(q);
+        const matchChapter = m.chapterName?.toLowerCase().includes(q);
+        if (!matchTitle && !matchSubject && !matchChapter) return false;
+      }
+      return true;
+    });
+    return sortCatalogMocks(filterMocksByAttempt(base, attemptFilter, givenIds), sortMode);
+  })();
 
   const showGenerator =
     selectedTab === 'DynamicFull' || selectedTab === 'Subject' || selectedTab === 'Chapter';
@@ -103,6 +123,12 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           <p className="text-sm text-slate-600 mt-1">
             Study a paper with answers, or Give Mock test for a timed exam. You can also build Dynamic,
             Subject, or Chapter practice tests.
+            {freePlanLocked ? (
+              <>
+                {' '}
+                Free plan includes <span className="font-semibold text-slate-800">{FREE_PLAN_ALLOWED_MOCK_LABEL}</span> only.
+              </>
+            ) : null}
           </p>
         </div>
 
@@ -173,16 +199,45 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           </div>
 
           {!showGenerator && (
-            <div className="relative w-full sm:max-w-xs sm:ml-auto">
-              <AppIcon icon={Search} size="btn" className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="search"
-                placeholder="Search published mocks"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 min-h-11 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
-                aria-label="Search fixed mocks"
-              />
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:w-auto sm:flex-1 sm:max-w-xl">
+                <label className="block space-y-1.5 min-w-0">
+                  <span className="text-xs font-medium text-slate-500">Attempt status</span>
+                  <select
+                    value={attemptFilter}
+                    onChange={(e) => setAttemptFilter(e.target.value as CatalogAttemptFilter)}
+                    className="w-full min-h-11 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
+                    aria-label="Filter by given or not given"
+                  >
+                    <option value="all">All sets</option>
+                    <option value="given">Given (attempted)</option>
+                    <option value="not_given">Not given</option>
+                  </select>
+                </label>
+                <label className="block space-y-1.5 min-w-0">
+                  <span className="text-xs font-medium text-slate-500">Sort by</span>
+                  <select
+                    value={sortMode}
+                    onChange={(e) => setSortMode(e.target.value as CatalogSortMode)}
+                    className="w-full min-h-11 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
+                    aria-label="Sort mock sets"
+                  >
+                    <option value="serial">Serially (A–Z)</option>
+                    <option value="new">New (newest first)</option>
+                  </select>
+                </label>
+              </div>
+              <div className="relative w-full sm:max-w-xs sm:ml-auto">
+                <AppIcon icon={Search} size="btn" className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="search"
+                  placeholder="Search published mocks"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 min-h-11 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
+                  aria-label="Search fixed mocks"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -190,9 +245,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
       {showGenerator && (
         <>
-          {!isEntitledBase ? (
+          {freePlanLocked || !isEntitledBase ? (
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-900 space-y-3">
-              <p className="font-semibold">Upgrade your plan to unlock practice test generation.</p>
+              <p className="font-semibold">
+                {freePlanLocked
+                  ? FREE_PLAN_MOCK_ACCESS_ERROR
+                  : 'Upgrade your plan to unlock practice test generation.'}
+              </p>
               <button
                 type="button"
                 onClick={() => onNavigate('payment')}
@@ -216,20 +275,38 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       {!showGenerator && filteredMocks.length === 0 && (
         <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-10 text-center space-y-2 max-w-lg mx-auto">
           <p className="text-sm font-semibold text-slate-900">
-            Published full-length mocks will appear here
+            {attemptFilter === 'given'
+              ? 'No given sets yet'
+              : attemptFilter === 'not_given'
+                ? 'No remaining not-given sets'
+                : 'Published full-length mocks will appear here'}
           </p>
           <p className="text-sm text-slate-600 leading-relaxed">
-            None are available right now. Open the Dynamic, Subject, or Chapter tab to build a
-            practice test, or check back soon for new timed mocks from PrepX Nepal.
+            {attemptFilter === 'given'
+              ? 'After you Give Mock test on a set, it will show here under Given.'
+              : attemptFilter === 'not_given'
+                ? 'You have attempted every published set in this list, or none are published yet.'
+                : 'None are available right now. Open the Dynamic, Subject, or Chapter tab to build a practice test, or check back soon for new timed mocks from PrepX Nepal.'}
           </p>
+          {attemptFilter !== 'all' && (
+            <button
+              type="button"
+              onClick={() => setAttemptFilter('all')}
+              className="mt-2 text-sm font-semibold text-[#2563EB] hover:underline cursor-pointer"
+            >
+              Show all sets
+            </button>
+          )}
         </div>
       )}
 
       {!showGenerator && filteredMocks.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMocks.map((mock) => {
-            const isFreeDemo = mock.id.includes('demo') || mock.coinPrice === 0;
-            const isEntitled = isEntitledBase || isFreeDemo;
+            const freeAllowed = canFreePlanAccessMock(userProfile.plan, mock.id);
+            const isFreeDemo =
+              freeAllowed && (mock.id.includes('demo') || mock.coinPrice === 0);
+            const isEntitled = freeAllowed && (isEntitledBase || isFreeDemo);
             const mockReports = pastReports.filter((r) => r.mockId === mock.id);
             const attemptCount = mockReports.length;
             const isCompleted = attemptCount > 0;
@@ -344,17 +421,23 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-300"
                     >
                       <AppIcon icon={Lock} size="btn" className="text-amber-600" />
-                      <span>View plans</span>
+                      <span>{freeAllowed ? 'View plans' : `Upgrade for non-${FREE_PLAN_ALLOWED_MOCK_LABEL}`}</span>
                     </button>
                   )}
 
                   <div className="text-center text-[10px] text-slate-400 space-y-0.5">
-                    <div>Study = browse with answers · no attempt used</div>
-                    <div>
-                      {isFreeDemo
-                        ? 'Give Mock test = timed exam (free demo)'
-                        : 'Give Mock test = timed exam · uses 1 plan attempt'}
-                    </div>
+                    {!freeAllowed ? (
+                      <div>{FREE_PLAN_MOCK_ACCESS_ERROR}</div>
+                    ) : (
+                      <>
+                        <div>Study = browse with answers · no attempt used</div>
+                        <div>
+                          {isFreeDemo
+                            ? `Give Mock test = timed exam (${FREE_PLAN_ALLOWED_MOCK_LABEL} free quota)`
+                            : 'Give Mock test = timed exam · uses 1 plan attempt'}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
