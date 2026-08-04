@@ -4,13 +4,13 @@
 // server/index.ts
 import express from "express";
 import dotenv from "dotenv";
-import fs3 from "fs";
-import path4 from "path";
-import { fileURLToPath as fileURLToPath2 } from "url";
+import fs10 from "fs";
+import path11 from "path";
+import { fileURLToPath as fileURLToPath3 } from "url";
 import { createClerkClient, verifyToken } from "@clerk/backend";
 
 // server/db/index.ts
-import path3 from "path";
+import path8 from "path";
 import { fileURLToPath } from "url";
 
 // server/db/mysqlQuestions.ts
@@ -22,12 +22,37 @@ var SUBJECTS = [
   "Chemistry",
   "Zoology",
   "Botany",
-  "MAT"
+  "MAT",
+  "Mixed"
 ];
 var OPTION_KEYS = ["A", "B", "C", "D"];
 var STATUSES = ["pending_review", "published", "flagged"];
+var SUBJECT_ALIASES = {
+  mixed: "Mixed",
+  gk: "Mixed",
+  "g.k.": "Mixed",
+  "g.k": "Mixed",
+  "general knowledge": "Mixed",
+  general: "Mixed",
+  aptitude: "MAT",
+  "mental ability": "MAT",
+  "mental ability test": "MAT",
+  biology: "Zoology",
+  zoology: "Zoology",
+  botany: "Botany",
+  physics: "Physics",
+  chemistry: "Chemistry",
+  mat: "MAT"
+};
 function isSubject(value) {
   return typeof value === "string" && SUBJECTS.includes(value);
+}
+function normalizeSubject(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (isSubject(trimmed)) return trimmed;
+  const aliased = SUBJECT_ALIASES[trimmed.toLowerCase()];
+  return aliased ?? null;
 }
 function isOptionKey(value) {
   return typeof value === "string" && OPTION_KEYS.includes(value);
@@ -79,10 +104,11 @@ function parseImportItem(item, idx, idFactory, batchId) {
     return { ok: false, error: `Item #${idx + 1}: Must be an object` };
   }
   const row = item;
-  if (!isSubject(row.subject)) {
+  const subject = normalizeSubject(row.subject);
+  if (!subject) {
     return {
       ok: false,
-      error: `Item #${idx + 1}: Invalid or missing subject (expected one of ${SUBJECTS.join(", ")})`
+      error: `Item #${idx + 1}: Invalid or missing subject (expected one of ${SUBJECTS.join(", ")}, or aliases like GK)`
     };
   }
   if (!nonEmptyString(row.chapter)) {
@@ -113,7 +139,7 @@ function parseImportItem(item, idx, idFactory, batchId) {
     ok: true,
     question: {
       id: nonEmptyString(row.id) ? row.id.trim() : idFactory(idx),
-      subject: row.subject,
+      subject,
       chapter: row.chapter.trim(),
       stem,
       imageUrl,
@@ -168,7 +194,8 @@ function emptySubjectCounts() {
     "Chemistry",
     "Zoology",
     "Botany",
-    "MAT"
+    "MAT",
+    "Mixed"
   ];
   return subjects.map((subject) => ({ subject, count: 0 }));
 }
@@ -505,6 +532,18 @@ function createMysqlQuestionsRepo(pool) {
       const [rows] = await pool.query("SELECT * FROM import_batches WHERE id = ?", [id]);
       return rows[0] ? mapBatch(rows[0]) : null;
     },
+    async updateBatchMeta(id, patch) {
+      const existing = await this.getBatch(id);
+      if (!existing) return null;
+      const label = typeof patch.label === "string" && patch.label.trim() ? patch.label.trim() : existing.label;
+      const filename = patch.filename === void 0 ? existing.filename : typeof patch.filename === "string" && patch.filename.trim() ? patch.filename.trim() : null;
+      await pool.query("UPDATE import_batches SET label = ?, filename = ? WHERE id = ?", [
+        label,
+        filename,
+        id
+      ]);
+      return this.getBatch(id);
+    },
     async deleteBatch(id) {
       const conn = await pool.getConnection();
       try {
@@ -737,7 +776,7 @@ function createMysqlMocksRepo(pool) {
       }
       const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
       const [rows] = await pool.query(
-        `SELECT * FROM mock_tests ${where} ORDER BY created_at DESC`,
+        `SELECT * FROM mock_tests ${where} ORDER BY title ASC, id ASC`,
         params
       );
       return Promise.all(rows.map((r) => hydrate(r)));
@@ -864,6 +903,7 @@ function createMysqlMocksRepo(pool) {
       return this.getById(id);
     },
     async deleteOne(id) {
+      const questionIds = await loadQuestionIds(id);
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -872,7 +912,7 @@ function createMysqlMocksRepo(pool) {
           id
         ]);
         await conn.commit();
-        return result.affectedRows > 0;
+        return { deleted: result.affectedRows > 0, questionIds };
       } catch (err) {
         await conn.rollback();
         throw err;
@@ -914,11 +954,36 @@ function createMysqlMocksRepo(pool) {
       );
       return rows.map(mapBatch2);
     },
+    async updateImportBatchMeta(id, patch) {
+      const [rows] = await pool.query(
+        "SELECT * FROM mock_import_batches WHERE id = ?",
+        [id]
+      );
+      if (!rows[0]) return null;
+      const current = mapBatch2(rows[0]);
+      const label = typeof patch.label === "string" && patch.label.trim() ? patch.label.trim() : current.label;
+      const filename = patch.filename === void 0 ? current.filename : typeof patch.filename === "string" && patch.filename.trim() ? patch.filename.trim() : null;
+      await pool.query("UPDATE mock_import_batches SET label = ?, filename = ? WHERE id = ?", [
+        label,
+        filename,
+        id
+      ]);
+      const [next] = await pool.query(
+        "SELECT * FROM mock_import_batches WHERE id = ?",
+        [id]
+      );
+      return next[0] ? mapBatch2(next[0]) : null;
+    },
     async deleteImportBatch(id) {
       const [mocks] = await pool.query(
         "SELECT id FROM mock_tests WHERE import_batch_id = ?",
         [id]
       );
+      const questionIds = [
+        ...new Set(
+          (await Promise.all(mocks.map((m) => loadQuestionIds(String(m.id))))).flat()
+        )
+      ];
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -928,13 +993,930 @@ function createMysqlMocksRepo(pool) {
         }
         await conn.query("DELETE FROM mock_import_batches WHERE id = ?", [id]);
         await conn.commit();
-        return { deletedMocks: mocks.length };
+        return { deletedMocks: mocks.length, questionIds };
       } catch (err) {
         await conn.rollback();
         throw err;
       } finally {
         conn.release();
       }
+    },
+    async filterQuestionIdsLinkedToMocks(questionIds) {
+      if (questionIds.length === 0) return [];
+      const placeholders = questionIds.map(() => "?").join(",");
+      const [rows] = await pool.query(
+        `SELECT DISTINCT question_id FROM mock_questions WHERE question_id IN (${placeholders})`,
+        questionIds
+      );
+      return rows.map((r) => String(r.question_id));
+    },
+    async close() {
+      await pool.end();
+    }
+  };
+}
+
+// server/db/mysqlReferrals.ts
+function asIso3(value) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}
+function mapLink(row) {
+  return {
+    ownerClerkId: row.owner_clerk_id,
+    code: row.code,
+    ownerEmail: row.owner_email,
+    ownerName: row.owner_name,
+    ownerRole: row.owner_role,
+    active: Boolean(row.active),
+    createdAt: asIso3(row.created_at),
+    updatedAt: asIso3(row.updated_at)
+  };
+}
+function mapAttr(row) {
+  return {
+    referredClerkId: row.referred_clerk_id,
+    referrerClerkId: row.referrer_clerk_id,
+    code: row.code,
+    attributedAt: asIso3(row.attributed_at)
+  };
+}
+function mapComm(row) {
+  return {
+    id: row.id,
+    claimId: row.claim_id,
+    referredClerkId: row.referred_clerk_id,
+    referrerClerkId: row.referrer_clerk_id,
+    conversionAmountNpr: Number(row.conversion_amount_npr),
+    commissionRate: Number(row.commission_rate),
+    commissionAmountNpr: Number(row.commission_amount_npr),
+    status: row.status,
+    createdAt: asIso3(row.created_at),
+    settledAt: asIso3(row.settled_at),
+    settledByClerkId: row.settled_by_clerk_id
+  };
+}
+function createMysqlReferralsRepo(pool) {
+  return {
+    driver: "mysql",
+    async ensureSchema() {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS referral_links (
+          owner_clerk_id VARCHAR(64) PRIMARY KEY,
+          code VARCHAR(32) NOT NULL,
+          owner_email VARCHAR(255) NOT NULL,
+          owner_name VARCHAR(255) NOT NULL,
+          owner_role VARCHAR(64) NOT NULL,
+          active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at DATETIME(3) NOT NULL,
+          updated_at DATETIME(3) NOT NULL,
+          UNIQUE KEY uq_referral_links_code (code),
+          INDEX idx_referral_links_active (active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS referral_attributions (
+          referred_clerk_id VARCHAR(64) PRIMARY KEY,
+          referrer_clerk_id VARCHAR(64) NOT NULL,
+          code VARCHAR(32) NOT NULL,
+          attributed_at DATETIME(3) NOT NULL,
+          INDEX idx_referral_attr_referrer (referrer_clerk_id),
+          INDEX idx_referral_attr_code (code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS referral_commissions (
+          id VARCHAR(64) PRIMARY KEY,
+          claim_id VARCHAR(128) NOT NULL,
+          referred_clerk_id VARCHAR(64) NOT NULL,
+          referrer_clerk_id VARCHAR(64) NOT NULL,
+          conversion_amount_npr INT NOT NULL,
+          commission_rate DOUBLE NOT NULL,
+          commission_amount_npr INT NOT NULL,
+          status ENUM('pending', 'settled') NOT NULL DEFAULT 'pending',
+          created_at DATETIME(3) NOT NULL,
+          settled_at DATETIME(3) NULL,
+          settled_by_clerk_id VARCHAR(64) NULL,
+          UNIQUE KEY uq_referral_commissions_claim (claim_id),
+          INDEX idx_referral_comm_referrer (referrer_clerk_id),
+          INDEX idx_referral_comm_status (status),
+          INDEX idx_referral_comm_referred (referred_clerk_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    },
+    async getLinkByOwner(ownerClerkId) {
+      const [rows] = await pool.query(
+        "SELECT * FROM referral_links WHERE owner_clerk_id = ? LIMIT 1",
+        [ownerClerkId]
+      );
+      return rows[0] ? mapLink(rows[0]) : null;
+    },
+    async getLinkByCode(code) {
+      const [rows] = await pool.query(
+        "SELECT * FROM referral_links WHERE LOWER(code) = LOWER(?) AND active = 1 LIMIT 1",
+        [code]
+      );
+      return rows[0] ? mapLink(rows[0]) : null;
+    },
+    async ensureLink(input) {
+      const existing = await this.getLinkByOwner(input.ownerClerkId);
+      const now = /* @__PURE__ */ new Date();
+      if (existing) {
+        await pool.query(
+          `UPDATE referral_links
+           SET owner_email = ?, owner_name = ?, owner_role = ?, updated_at = ?
+           WHERE owner_clerk_id = ?`,
+          [input.ownerEmail, input.ownerName, input.ownerRole, now, input.ownerClerkId]
+        );
+        return await this.getLinkByOwner(input.ownerClerkId);
+      }
+      let code = input.code;
+      for (let i = 0; i < 5; i++) {
+        try {
+          await pool.query(
+            `INSERT INTO referral_links
+              (owner_clerk_id, code, owner_email, owner_name, owner_role, active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+            [
+              input.ownerClerkId,
+              code,
+              input.ownerEmail,
+              input.ownerName,
+              input.ownerRole,
+              now,
+              now
+            ]
+          );
+          break;
+        } catch (err) {
+          if (err?.code === "ER_DUP_ENTRY") {
+            code = `${input.code}${i + 1}`.slice(0, 16);
+            if (i === 4) throw err;
+            continue;
+          }
+          throw err;
+        }
+      }
+      return await this.getLinkByOwner(input.ownerClerkId);
+    },
+    async listLinks() {
+      const [rows] = await pool.query(
+        "SELECT * FROM referral_links ORDER BY created_at ASC"
+      );
+      return rows.map(mapLink);
+    },
+    async getAttribution(referredClerkId) {
+      const [rows] = await pool.query(
+        "SELECT * FROM referral_attributions WHERE referred_clerk_id = ? LIMIT 1",
+        [referredClerkId]
+      );
+      return rows[0] ? mapAttr(rows[0]) : null;
+    },
+    async attributeFirstTouch(input) {
+      const existing = await this.getAttribution(input.referredClerkId);
+      if (existing) return { attribution: existing, created: false };
+      const now = /* @__PURE__ */ new Date();
+      try {
+        await pool.query(
+          `INSERT INTO referral_attributions
+            (referred_clerk_id, referrer_clerk_id, code, attributed_at)
+           VALUES (?, ?, ?, ?)`,
+          [input.referredClerkId, input.referrerClerkId, input.code, now]
+        );
+      } catch (err) {
+        if (err?.code === "ER_DUP_ENTRY") {
+          const raced = await this.getAttribution(input.referredClerkId);
+          if (raced) return { attribution: raced, created: false };
+        }
+        throw err;
+      }
+      return { attribution: await this.getAttribution(input.referredClerkId), created: true };
+    },
+    async getCommissionByClaimId(claimId) {
+      const [rows] = await pool.query(
+        "SELECT * FROM referral_commissions WHERE claim_id = ? LIMIT 1",
+        [claimId]
+      );
+      return rows[0] ? mapComm(rows[0]) : null;
+    },
+    async insertCommission(input) {
+      const existing = await this.getCommissionByClaimId(input.claimId);
+      if (existing) return { ok: false, reason: "duplicate_claim", existing };
+      const now = /* @__PURE__ */ new Date();
+      try {
+        await pool.query(
+          `INSERT INTO referral_commissions
+            (id, claim_id, referred_clerk_id, referrer_clerk_id, conversion_amount_npr,
+             commission_rate, commission_amount_npr, status, created_at, settled_at, settled_by_clerk_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, NULL)`,
+          [
+            input.id,
+            input.claimId,
+            input.referredClerkId,
+            input.referrerClerkId,
+            input.conversionAmountNpr,
+            input.commissionRate,
+            input.commissionAmountNpr,
+            now
+          ]
+        );
+      } catch (err) {
+        if (err?.code === "ER_DUP_ENTRY") {
+          const raced = await this.getCommissionByClaimId(input.claimId);
+          if (raced) return { ok: false, reason: "duplicate_claim", existing: raced };
+        }
+        throw err;
+      }
+      return { ok: true, commission: await this.getCommissionByClaimId(input.claimId) };
+    },
+    async listCommissionsByReferrer(referrerClerkId) {
+      const [rows] = await pool.query(
+        `SELECT * FROM referral_commissions
+         WHERE referrer_clerk_id = ?
+         ORDER BY created_at DESC`,
+        [referrerClerkId]
+      );
+      return rows.map(mapComm);
+    },
+    async listAllCommissions() {
+      const [rows] = await pool.query(
+        "SELECT * FROM referral_commissions ORDER BY created_at DESC"
+      );
+      return rows.map(mapComm);
+    },
+    async settleCommission(id, settledByClerkId) {
+      const now = /* @__PURE__ */ new Date();
+      const [result] = await pool.query(
+        `UPDATE referral_commissions
+         SET status = 'settled', settled_at = ?, settled_by_clerk_id = ?
+         WHERE id = ? AND status = 'pending'`,
+        [now, settledByClerkId, id]
+      );
+      const [rows] = await pool.query(
+        "SELECT * FROM referral_commissions WHERE id = ? LIMIT 1",
+        [id]
+      );
+      if (!rows[0]) return null;
+      void result;
+      return mapComm(rows[0]);
+    },
+    async close() {
+      await pool.end();
+    }
+  };
+}
+
+// server/db/mysqlPaymentClaims.ts
+function asIso4(value) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}
+function mapRow3(row) {
+  const amountNpr = Number(row.amount_npr);
+  const listAmountNpr = row.list_amount_npr == null ? amountNpr : Number(row.list_amount_npr);
+  return {
+    id: row.id,
+    userId: row.user_id,
+    clerkUserId: row.clerk_user_id,
+    userName: row.user_name,
+    userEmail: row.user_email,
+    planCode: row.plan_code,
+    amountNpr,
+    listAmountNpr,
+    promoCode: row.promo_code,
+    promoDiscountNpr: Number(row.promo_discount_npr || 0),
+    paymentMethod: row.payment_method,
+    transactionRef: row.transaction_ref,
+    screenshotUrl: row.screenshot_url,
+    status: row.status,
+    userNotes: row.user_notes,
+    moderatorNotes: row.moderator_notes,
+    submittedAt: asIso4(row.submitted_at),
+    verifiedAt: asIso4(row.verified_at),
+    verifiedBy: row.verified_by,
+    verifiedByClerkId: row.verified_by_clerk_id
+  };
+}
+function createMysqlPaymentClaimsRepo(pool) {
+  return {
+    driver: "mysql",
+    async ensureSchema() {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS payment_claims (
+          id VARCHAR(64) PRIMARY KEY,
+          user_id VARCHAR(128) NOT NULL,
+          clerk_user_id VARCHAR(64) NOT NULL,
+          user_name VARCHAR(255) NOT NULL,
+          user_email VARCHAR(255) NOT NULL,
+          plan_code VARCHAR(64) NOT NULL,
+          amount_npr INT NOT NULL,
+          list_amount_npr INT NULL,
+          promo_code VARCHAR(32) NULL,
+          promo_discount_npr INT NOT NULL DEFAULT 0,
+          payment_method VARCHAR(32) NOT NULL,
+          transaction_ref VARCHAR(191) NOT NULL,
+          screenshot_url TEXT NOT NULL,
+          status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+          user_notes TEXT NULL,
+          moderator_notes TEXT NULL,
+          submitted_at DATETIME(3) NOT NULL,
+          verified_at DATETIME(3) NULL,
+          verified_by VARCHAR(255) NULL,
+          verified_by_clerk_id VARCHAR(64) NULL,
+          INDEX idx_payment_claims_status_submitted (status, submitted_at),
+          INDEX idx_payment_claims_clerk (clerk_user_id),
+          INDEX idx_payment_claims_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      for (const stmt of [
+        "ALTER TABLE payment_claims ADD COLUMN user_notes TEXT NULL",
+        "ALTER TABLE payment_claims ADD COLUMN moderator_notes TEXT NULL",
+        "ALTER TABLE payment_claims ADD COLUMN list_amount_npr INT NULL",
+        "ALTER TABLE payment_claims ADD COLUMN promo_code VARCHAR(32) NULL",
+        "ALTER TABLE payment_claims ADD COLUMN promo_discount_npr INT NOT NULL DEFAULT 0"
+      ]) {
+        try {
+          await pool.query(stmt);
+        } catch {
+        }
+      }
+    },
+    async insert(input) {
+      const now = /* @__PURE__ */ new Date();
+      const listAmountNpr = input.listAmountNpr ?? input.amountNpr;
+      const promoDiscountNpr = input.promoDiscountNpr ?? 0;
+      await pool.query(
+        `INSERT INTO payment_claims
+          (id, user_id, clerk_user_id, user_name, user_email, plan_code, amount_npr,
+           list_amount_npr, promo_code, promo_discount_npr,
+           payment_method, transaction_ref, screenshot_url, status, user_notes,
+           moderator_notes, submitted_at, verified_at, verified_by, verified_by_clerk_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, NULL, NULL)`,
+        [
+          input.id,
+          input.userId,
+          input.clerkUserId,
+          input.userName,
+          input.userEmail,
+          input.planCode,
+          input.amountNpr,
+          listAmountNpr,
+          input.promoCode ?? null,
+          promoDiscountNpr,
+          input.paymentMethod,
+          input.transactionRef,
+          input.screenshotUrl,
+          input.userNotes ?? null,
+          now
+        ]
+      );
+      return await this.getById(input.id);
+    },
+    async listAll() {
+      const [rows] = await pool.query(
+        "SELECT * FROM payment_claims ORDER BY submitted_at ASC"
+      );
+      return rows.map(mapRow3);
+    },
+    async listByClerkUserId(clerkUserId) {
+      const [rows] = await pool.query(
+        `SELECT * FROM payment_claims
+         WHERE clerk_user_id = ?
+         ORDER BY submitted_at DESC`,
+        [clerkUserId]
+      );
+      return rows.map(mapRow3);
+    },
+    async getById(id) {
+      const [rows] = await pool.query(
+        "SELECT * FROM payment_claims WHERE id = ? LIMIT 1",
+        [id]
+      );
+      return rows[0] ? mapRow3(rows[0]) : null;
+    },
+    async updatePending(id, patch) {
+      const existing = await this.getById(id);
+      if (!existing || existing.status !== "pending") return null;
+      const next = {
+        planCode: patch.planCode ?? existing.planCode,
+        amountNpr: patch.amountNpr ?? existing.amountNpr,
+        listAmountNpr: patch.listAmountNpr !== void 0 ? patch.listAmountNpr : existing.listAmountNpr,
+        promoCode: patch.promoCode !== void 0 ? patch.promoCode : existing.promoCode,
+        promoDiscountNpr: patch.promoDiscountNpr !== void 0 ? patch.promoDiscountNpr : existing.promoDiscountNpr,
+        paymentMethod: patch.paymentMethod ?? existing.paymentMethod,
+        transactionRef: patch.transactionRef ?? existing.transactionRef,
+        screenshotUrl: patch.screenshotUrl ?? existing.screenshotUrl,
+        userNotes: patch.userNotes !== void 0 ? patch.userNotes : existing.userNotes
+      };
+      const [result] = await pool.query(
+        `UPDATE payment_claims
+         SET plan_code = ?, amount_npr = ?, list_amount_npr = ?, promo_code = ?,
+             promo_discount_npr = ?, payment_method = ?, transaction_ref = ?,
+             screenshot_url = ?, user_notes = ?
+         WHERE id = ? AND status = 'pending'`,
+        [
+          next.planCode,
+          next.amountNpr,
+          next.listAmountNpr,
+          next.promoCode,
+          next.promoDiscountNpr,
+          next.paymentMethod,
+          next.transactionRef,
+          next.screenshotUrl,
+          next.userNotes,
+          id
+        ]
+      );
+      if (!result.affectedRows) return null;
+      return this.getById(id);
+    },
+    async updateUserNotes(id, userNotes) {
+      const existing = await this.getById(id);
+      if (!existing) return null;
+      const [result] = await pool.query(
+        `UPDATE payment_claims SET user_notes = ? WHERE id = ?`,
+        [userNotes, id]
+      );
+      if (!result.affectedRows) return null;
+      return this.getById(id);
+    },
+    async deletePending(id) {
+      const [result] = await pool.query(
+        `DELETE FROM payment_claims WHERE id = ? AND status = 'pending'`,
+        [id]
+      );
+      return result.affectedRows > 0;
+    },
+    async resolve(id, input) {
+      const now = /* @__PURE__ */ new Date();
+      const [result] = await pool.query(
+        `UPDATE payment_claims
+         SET status = ?, moderator_notes = ?, verified_at = ?, verified_by = ?, verified_by_clerk_id = ?
+         WHERE id = ? AND status = 'pending'`,
+        [
+          input.status,
+          input.moderatorNotes ?? null,
+          now,
+          input.verifiedBy,
+          input.verifiedByClerkId,
+          id
+        ]
+      );
+      if (!result.affectedRows) return null;
+      return this.getById(id);
+    },
+    async close() {
+      await pool.end();
+    }
+  };
+}
+
+// server/db/mysqlSupportIssues.ts
+function asIso5(value) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}
+function mapRow4(row) {
+  return {
+    id: row.id,
+    clerkUserId: row.clerk_user_id,
+    userName: row.user_name,
+    userEmail: row.user_email,
+    category: row.category,
+    body: row.body,
+    status: row.status,
+    staffNotes: row.staff_notes,
+    createdAt: asIso5(row.created_at),
+    resolvedAt: asIso5(row.resolved_at),
+    resolvedBy: row.resolved_by,
+    resolvedByClerkId: row.resolved_by_clerk_id
+  };
+}
+function createMysqlSupportIssuesRepo(pool) {
+  return {
+    driver: "mysql",
+    async ensureSchema() {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS support_issues (
+          id VARCHAR(64) PRIMARY KEY,
+          clerk_user_id VARCHAR(64) NOT NULL,
+          user_name VARCHAR(255) NOT NULL,
+          user_email VARCHAR(255) NOT NULL,
+          category VARCHAR(32) NOT NULL,
+          body TEXT NOT NULL,
+          status ENUM('open', 'resolved') NOT NULL DEFAULT 'open',
+          staff_notes TEXT NULL,
+          created_at DATETIME(3) NOT NULL,
+          resolved_at DATETIME(3) NULL,
+          resolved_by VARCHAR(255) NULL,
+          resolved_by_clerk_id VARCHAR(64) NULL,
+          INDEX idx_support_issues_status_created (status, created_at),
+          INDEX idx_support_issues_clerk (clerk_user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    },
+    async insert(input) {
+      const now = /* @__PURE__ */ new Date();
+      await pool.execute(
+        `INSERT INTO support_issues
+          (id, clerk_user_id, user_name, user_email, category, body, status,
+           staff_notes, created_at, resolved_at, resolved_by, resolved_by_clerk_id)
+         VALUES (?, ?, ?, ?, ?, ?, 'open', NULL, ?, NULL, NULL, NULL)`,
+        [
+          input.id,
+          input.clerkUserId,
+          input.userName,
+          input.userEmail,
+          input.category,
+          input.body,
+          now
+        ]
+      );
+      return await this.getById(input.id);
+    },
+    async listAll() {
+      const [rows] = await pool.query(
+        "SELECT * FROM support_issues ORDER BY created_at ASC"
+      );
+      return rows.map(mapRow4);
+    },
+    async listByClerkUserId(clerkUserId) {
+      const [rows] = await pool.query(
+        `SELECT * FROM support_issues
+         WHERE clerk_user_id = ?
+         ORDER BY created_at DESC`,
+        [clerkUserId]
+      );
+      return rows.map(mapRow4);
+    },
+    async getById(id) {
+      const [rows] = await pool.query(
+        "SELECT * FROM support_issues WHERE id = ? LIMIT 1",
+        [id]
+      );
+      return rows[0] ? mapRow4(rows[0]) : null;
+    },
+    async resolve(id, input) {
+      const now = /* @__PURE__ */ new Date();
+      const [result] = await pool.execute(
+        `UPDATE support_issues
+         SET status = 'resolved', staff_notes = ?, resolved_at = ?,
+             resolved_by = ?, resolved_by_clerk_id = ?
+         WHERE id = ? AND status = 'open'`,
+        [
+          input.staffNotes ?? null,
+          now,
+          input.resolvedBy,
+          input.resolvedByClerkId,
+          id
+        ]
+      );
+      if (!result.affectedRows) return null;
+      return this.getById(id);
+    },
+    async close() {
+    }
+  };
+}
+
+// server/db/mysqlFormulas.ts
+function asIso6(value) {
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}
+function mapBatch3(row) {
+  return {
+    id: row.id,
+    label: row.label,
+    filename: row.filename,
+    importedByEmail: row.imported_by_email,
+    importedByName: row.imported_by_name,
+    sheetCount: row.sheet_count,
+    errorCount: row.error_count,
+    createdAt: asIso6(row.created_at)
+  };
+}
+function parseFormulasJson(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+function mapSheet(row) {
+  return {
+    id: row.id,
+    subject: row.subject,
+    title: row.title,
+    chapter: row.chapter,
+    formulas: parseFormulasJson(row.formulas_json),
+    batchId: row.batch_id || void 0,
+    createdAt: asIso6(row.created_at),
+    updatedAt: asIso6(row.updated_at)
+  };
+}
+function createMysqlFormulasRepo(pool) {
+  return {
+    driver: "mysql",
+    async ensureSchema() {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS formula_import_batches (
+          id VARCHAR(64) PRIMARY KEY,
+          label VARCHAR(255) NOT NULL,
+          filename VARCHAR(255) NULL,
+          imported_by_email VARCHAR(255) NOT NULL,
+          imported_by_name VARCHAR(255) NOT NULL,
+          sheet_count INT NOT NULL DEFAULT 0,
+          error_count INT NOT NULL DEFAULT 0,
+          created_at DATETIME(3) NOT NULL
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS formula_sheets (
+          id VARCHAR(64) PRIMARY KEY,
+          subject VARCHAR(32) NOT NULL,
+          title VARCHAR(512) NOT NULL,
+          chapter VARCHAR(255) NOT NULL,
+          formulas_json JSON NOT NULL,
+          batch_id VARCHAR(64) NULL,
+          created_at DATETIME(3) NOT NULL,
+          updated_at DATETIME(3) NOT NULL,
+          INDEX idx_formula_sheets_subject (subject),
+          INDEX idx_formula_sheets_batch (batch_id)
+        )
+      `);
+    },
+    async list(opts) {
+      const [rows] = opts?.batchId ? await pool.query(
+        "SELECT * FROM formula_sheets WHERE batch_id = ? ORDER BY subject, title",
+        [opts.batchId]
+      ) : await pool.query(
+        "SELECT * FROM formula_sheets ORDER BY subject, title"
+      );
+      return rows.map(mapSheet);
+    },
+    async insertMany(sheets) {
+      if (sheets.length === 0) return 0;
+      const now = /* @__PURE__ */ new Date();
+      const values = sheets.map((s) => [
+        s.id,
+        s.subject,
+        s.title,
+        s.chapter,
+        JSON.stringify(s.formulas),
+        s.batchId ?? null,
+        now,
+        now
+      ]);
+      const [result] = await pool.query(
+        `INSERT INTO formula_sheets
+          (id, subject, title, chapter, formulas_json, batch_id, created_at, updated_at)
+         VALUES ?
+         ON DUPLICATE KEY UPDATE
+           subject = VALUES(subject),
+           title = VALUES(title),
+           chapter = VALUES(chapter),
+           formulas_json = VALUES(formulas_json),
+           batch_id = VALUES(batch_id),
+           updated_at = VALUES(updated_at)`,
+        [values]
+      );
+      return Number(result.affectedRows) > 0 ? sheets.length : 0;
+    },
+    async createBatch(input) {
+      const now = /* @__PURE__ */ new Date();
+      await pool.query(
+        `INSERT INTO formula_import_batches (
+          id, label, filename, imported_by_email, imported_by_name, sheet_count, error_count, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          input.id,
+          input.label,
+          input.filename ?? null,
+          input.importedByEmail,
+          input.importedByName,
+          input.sheetCount,
+          input.errorCount,
+          now
+        ]
+      );
+      return {
+        id: input.id,
+        label: input.label,
+        filename: input.filename ?? null,
+        importedByEmail: input.importedByEmail,
+        importedByName: input.importedByName,
+        sheetCount: input.sheetCount,
+        errorCount: input.errorCount,
+        createdAt: now.toISOString()
+      };
+    },
+    async listBatches() {
+      const [rows] = await pool.query(
+        "SELECT * FROM formula_import_batches ORDER BY created_at DESC"
+      );
+      return rows.map(mapBatch3);
+    },
+    async getBatch(id) {
+      const [rows] = await pool.query(
+        "SELECT * FROM formula_import_batches WHERE id = ? LIMIT 1",
+        [id]
+      );
+      return rows[0] ? mapBatch3(rows[0]) : null;
+    },
+    async deleteBatch(id) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [delSheets] = await conn.query(
+          "DELETE FROM formula_sheets WHERE batch_id = ?",
+          [id]
+        );
+        await conn.query("DELETE FROM formula_import_batches WHERE id = ?", [id]);
+        await conn.commit();
+        return { deletedSheets: Number(delSheets.affectedRows) || 0 };
+      } catch (err) {
+        await conn.rollback();
+        throw err;
+      } finally {
+        conn.release();
+      }
+    },
+    async countAll() {
+      const [rows] = await pool.query(
+        "SELECT COUNT(*) AS c FROM formula_sheets"
+      );
+      return Number(rows[0]?.c) || 0;
+    },
+    async close() {
+      await pool.end();
+    }
+  };
+}
+
+// server/db/mysqlPromoCodes.ts
+function asIso7(value) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}
+function parsePlans(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+function mapRow5(row) {
+  return {
+    id: row.id,
+    code: row.code,
+    description: row.description,
+    discountType: row.discount_type,
+    discountValue: Number(row.discount_value),
+    applicablePlanCodes: parsePlans(row.applicable_plan_codes),
+    maxRedemptions: row.max_redemptions == null ? null : Number(row.max_redemptions),
+    redemptionCount: Number(row.redemption_count || 0),
+    startsAt: asIso7(row.starts_at),
+    expiresAt: asIso7(row.expires_at),
+    active: Boolean(row.active),
+    createdAt: asIso7(row.created_at),
+    updatedAt: asIso7(row.updated_at),
+    createdByClerkId: row.created_by_clerk_id,
+    createdByName: row.created_by_name
+  };
+}
+function createMysqlPromoCodesRepo(pool) {
+  return {
+    driver: "mysql",
+    async ensureSchema() {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS promo_codes (
+          id VARCHAR(64) PRIMARY KEY,
+          code VARCHAR(32) NOT NULL,
+          description VARCHAR(500) NULL,
+          discount_type ENUM('percent', 'fixed') NOT NULL,
+          discount_value DECIMAL(10, 2) NOT NULL,
+          applicable_plan_codes JSON NULL,
+          max_redemptions INT NULL,
+          redemption_count INT NOT NULL DEFAULT 0,
+          starts_at DATETIME(3) NULL,
+          expires_at DATETIME(3) NULL,
+          active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at DATETIME(3) NOT NULL,
+          updated_at DATETIME(3) NOT NULL,
+          created_by_clerk_id VARCHAR(64) NULL,
+          created_by_name VARCHAR(255) NULL,
+          UNIQUE KEY uq_promo_codes_code (code),
+          INDEX idx_promo_codes_active (active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    },
+    async listAll() {
+      const [rows] = await pool.query(
+        "SELECT * FROM promo_codes ORDER BY created_at DESC"
+      );
+      return rows.map(mapRow5);
+    },
+    async getById(id) {
+      const [rows] = await pool.query("SELECT * FROM promo_codes WHERE id = ?", [id]);
+      return rows[0] ? mapRow5(rows[0]) : null;
+    },
+    async getByCode(code) {
+      const [rows] = await pool.query("SELECT * FROM promo_codes WHERE code = ?", [
+        code
+      ]);
+      return rows[0] ? mapRow5(rows[0]) : null;
+    },
+    async insert(input) {
+      const now = /* @__PURE__ */ new Date();
+      await pool.query(
+        `INSERT INTO promo_codes
+          (id, code, description, discount_type, discount_value, applicable_plan_codes,
+           max_redemptions, redemption_count, starts_at, expires_at, active,
+           created_at, updated_at, created_by_clerk_id, created_by_name)
+         VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          input.id,
+          input.code,
+          input.description ?? null,
+          input.discountType,
+          input.discountValue,
+          JSON.stringify(input.applicablePlanCodes ?? []),
+          input.maxRedemptions ?? null,
+          input.startsAt ? new Date(input.startsAt) : null,
+          input.expiresAt ? new Date(input.expiresAt) : null,
+          input.active === false ? 0 : 1,
+          now,
+          now,
+          input.createdByClerkId ?? null,
+          input.createdByName ?? null
+        ]
+      );
+      return await this.getById(input.id);
+    },
+    async update(id, patch) {
+      const existing = await this.getById(id);
+      if (!existing) return null;
+      const next = {
+        description: patch.description !== void 0 ? patch.description : existing.description,
+        discountType: patch.discountType ?? existing.discountType,
+        discountValue: patch.discountValue ?? existing.discountValue,
+        applicablePlanCodes: patch.applicablePlanCodes !== void 0 ? patch.applicablePlanCodes : existing.applicablePlanCodes,
+        maxRedemptions: patch.maxRedemptions !== void 0 ? patch.maxRedemptions : existing.maxRedemptions,
+        startsAt: patch.startsAt !== void 0 ? patch.startsAt : existing.startsAt,
+        expiresAt: patch.expiresAt !== void 0 ? patch.expiresAt : existing.expiresAt,
+        active: patch.active !== void 0 ? patch.active : existing.active
+      };
+      await pool.query(
+        `UPDATE promo_codes
+         SET description = ?, discount_type = ?, discount_value = ?,
+             applicable_plan_codes = CAST(? AS JSON), max_redemptions = ?,
+             starts_at = ?, expires_at = ?, active = ?, updated_at = ?
+         WHERE id = ?`,
+        [
+          next.description,
+          next.discountType,
+          next.discountValue,
+          JSON.stringify(next.applicablePlanCodes),
+          next.maxRedemptions,
+          next.startsAt ? new Date(next.startsAt) : null,
+          next.expiresAt ? new Date(next.expiresAt) : null,
+          next.active ? 1 : 0,
+          /* @__PURE__ */ new Date(),
+          id
+        ]
+      );
+      return this.getById(id);
+    },
+    async tryIncrementRedemption(code) {
+      const [result] = await pool.query(
+        `UPDATE promo_codes
+         SET redemption_count = redemption_count + 1, updated_at = ?
+         WHERE code = ?
+           AND active = 1
+           AND (max_redemptions IS NULL OR redemption_count < max_redemptions)`,
+        [/* @__PURE__ */ new Date(), code]
+      );
+      if (!result.affectedRows) return null;
+      return this.getByCode(code);
+    },
+    async deleteById(id) {
+      const [result] = await pool.query("DELETE FROM promo_codes WHERE id = ?", [
+        id
+      ]);
+      return result.affectedRows > 0;
     },
     async close() {
       await pool.end();
@@ -946,7 +1928,7 @@ function createMysqlMocksRepo(pool) {
 import fs from "fs";
 import path from "path";
 import { DatabaseSync } from "node:sqlite";
-function mapRow3(row) {
+function mapRow6(row) {
   let optionImages;
   if (row.option_images_json) {
     try {
@@ -975,7 +1957,7 @@ function mapRow3(row) {
     updatedAt: row.updated_at
   };
 }
-function mapBatch3(row) {
+function mapBatch4(row) {
   return {
     id: row.id,
     label: row.label,
@@ -1047,25 +2029,25 @@ function createSqliteQuestionsRepo(dbFilePath) {
         const rows2 = db.prepare(
           "SELECT * FROM questions WHERE batch_id = ? AND status = ? ORDER BY created_at DESC"
         ).all(opts.batchId, opts.status);
-        return rows2.map(mapRow3);
+        return rows2.map(mapRow6);
       }
       if (opts?.batchId) {
         const rows2 = db.prepare("SELECT * FROM questions WHERE batch_id = ? ORDER BY created_at DESC").all(opts.batchId);
-        return rows2.map(mapRow3);
+        return rows2.map(mapRow6);
       }
       if (opts?.status) {
         const rows2 = db.prepare("SELECT * FROM questions WHERE status = ? ORDER BY created_at DESC").all(opts.status);
-        return rows2.map(mapRow3);
+        return rows2.map(mapRow6);
       }
       const rows = db.prepare("SELECT * FROM questions ORDER BY created_at DESC").all();
-      return rows.map(mapRow3);
+      return rows.map(mapRow6);
     },
     async getByIds(ids) {
       if (ids.length === 0) return [];
       const byId = /* @__PURE__ */ new Map();
       for (const id of ids) {
         const row = db.prepare("SELECT * FROM questions WHERE id = ?").get(id);
-        if (row) byId.set(id, mapRow3(row));
+        if (row) byId.set(id, mapRow6(row));
       }
       return ids.map((id) => byId.get(id)).filter((q) => Boolean(q));
     },
@@ -1080,7 +2062,7 @@ function createSqliteQuestionsRepo(dbFilePath) {
         rows = db.prepare("SELECT * FROM questions WHERE status = ? AND subject = ?").all(status, opts.subject);
       }
       const exclude = new Set(opts.excludeIds || []);
-      return rows.map(mapRow3).filter((q) => !exclude.has(q.id));
+      return rows.map(mapRow6).filter((q) => !exclude.has(q.id));
     },
     async insertOne(question) {
       const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -1221,11 +2203,23 @@ function createSqliteQuestionsRepo(dbFilePath) {
     },
     async listBatches() {
       const rows = db.prepare("SELECT * FROM import_batches ORDER BY created_at DESC").all();
-      return rows.map(mapBatch3);
+      return rows.map(mapBatch4);
     },
     async getBatch(id) {
       const row = db.prepare("SELECT * FROM import_batches WHERE id = ?").get(id);
-      return row ? mapBatch3(row) : null;
+      return row ? mapBatch4(row) : null;
+    },
+    async updateBatchMeta(id, patch) {
+      const existing = await this.getBatch(id);
+      if (!existing) return null;
+      const label = typeof patch.label === "string" && patch.label.trim() ? patch.label.trim() : existing.label;
+      const filename = patch.filename === void 0 ? existing.filename : typeof patch.filename === "string" && patch.filename.trim() ? patch.filename.trim() : null;
+      db.prepare("UPDATE import_batches SET label = ?, filename = ? WHERE id = ?").run(
+        label,
+        filename,
+        id
+      );
+      return this.getBatch(id);
     },
     async deleteBatch(id) {
       const tx = db.prepare("BEGIN");
@@ -1300,7 +2294,7 @@ function mapSubject2(value) {
   if (isSubject(value)) return value;
   return void 0;
 }
-function mapRow4(row, questionIds) {
+function mapRow7(row, questionIds) {
   let allocation;
   if (row.allocation_json) {
     try {
@@ -1333,7 +2327,7 @@ function mapRow4(row, questionIds) {
     updatedAt: row.updated_at
   };
 }
-function mapBatch4(row) {
+function mapBatch5(row) {
   return {
     id: row.id,
     label: row.label,
@@ -1355,7 +2349,7 @@ function createSqliteMocksRepo(dbFilePath) {
   }
   function hydrate(row) {
     const questionIds = row.mode === "fixed" ? loadQuestionIds(row.id) : void 0;
-    return mapRow4(row, questionIds);
+    return mapRow7(row, questionIds);
   }
   return {
     driver: "sqlite",
@@ -1419,7 +2413,7 @@ function createSqliteMocksRepo(dbFilePath) {
         params.push(opts.scope);
       }
       const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-      const rows = db.prepare(`SELECT * FROM mock_tests ${where} ORDER BY created_at DESC`).all(...params);
+      const rows = db.prepare(`SELECT * FROM mock_tests ${where} ORDER BY title COLLATE NOCASE ASC, id ASC`).all(...params);
       return rows.map(hydrate);
     },
     async getById(id) {
@@ -1539,6 +2533,7 @@ function createSqliteMocksRepo(dbFilePath) {
       return this.getById(id);
     },
     async deleteOne(id) {
+      const questionIds = loadQuestionIds(id);
       const tx = db.prepare("BEGIN");
       const commit = db.prepare("COMMIT");
       const rollback = db.prepare("ROLLBACK");
@@ -1547,7 +2542,7 @@ function createSqliteMocksRepo(dbFilePath) {
         db.prepare("DELETE FROM mock_questions WHERE mock_id = ?").run(id);
         const result = db.prepare("DELETE FROM mock_tests WHERE id = ?").run(id);
         commit.run();
-        return Number(result.changes) > 0;
+        return { deleted: Number(result.changes) > 0, questionIds };
       } catch (err) {
         rollback.run();
         throw err;
@@ -1582,10 +2577,27 @@ function createSqliteMocksRepo(dbFilePath) {
     },
     async listImportBatches() {
       const rows = db.prepare("SELECT * FROM mock_import_batches ORDER BY created_at DESC").all();
-      return rows.map(mapBatch4);
+      return rows.map(mapBatch5);
+    },
+    async updateImportBatchMeta(id, patch) {
+      const row = db.prepare("SELECT * FROM mock_import_batches WHERE id = ?").get(id);
+      if (!row) return null;
+      const current = mapBatch5(row);
+      const label = typeof patch.label === "string" && patch.label.trim() ? patch.label.trim() : current.label;
+      const filename = patch.filename === void 0 ? current.filename : typeof patch.filename === "string" && patch.filename.trim() ? patch.filename.trim() : null;
+      db.prepare("UPDATE mock_import_batches SET label = ?, filename = ? WHERE id = ?").run(
+        label,
+        filename,
+        id
+      );
+      const next = db.prepare("SELECT * FROM mock_import_batches WHERE id = ?").get(id);
+      return next ? mapBatch5(next) : null;
     },
     async deleteImportBatch(id) {
       const mocks = db.prepare("SELECT id FROM mock_tests WHERE import_batch_id = ?").all(id);
+      const questionIds = [
+        ...new Set(mocks.flatMap((m) => loadQuestionIds(m.id)))
+      ];
       const tx = db.prepare("BEGIN");
       const commit = db.prepare("COMMIT");
       const rollback = db.prepare("ROLLBACK");
@@ -1597,11 +2609,850 @@ function createSqliteMocksRepo(dbFilePath) {
         }
         db.prepare("DELETE FROM mock_import_batches WHERE id = ?").run(id);
         commit.run();
-        return { deletedMocks: mocks.length };
+        return { deletedMocks: mocks.length, questionIds };
       } catch (err) {
         rollback.run();
         throw err;
       }
+    },
+    async filterQuestionIdsLinkedToMocks(questionIds) {
+      if (questionIds.length === 0) return [];
+      const linked = /* @__PURE__ */ new Set();
+      const stmt = db.prepare(
+        "SELECT 1 AS ok FROM mock_questions WHERE question_id = ? LIMIT 1"
+      );
+      for (const qid of questionIds) {
+        const row = stmt.get(qid);
+        if (row) linked.add(qid);
+      }
+      return [...linked];
+    },
+    async close() {
+      db.close();
+    }
+  };
+}
+
+// server/db/sqliteReferrals.ts
+import fs3 from "fs";
+import path3 from "path";
+import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
+function mapLink2(row) {
+  return {
+    ownerClerkId: row.owner_clerk_id,
+    code: row.code,
+    ownerEmail: row.owner_email,
+    ownerName: row.owner_name,
+    ownerRole: row.owner_role,
+    active: Boolean(row.active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+function mapAttr2(row) {
+  return {
+    referredClerkId: row.referred_clerk_id,
+    referrerClerkId: row.referrer_clerk_id,
+    code: row.code,
+    attributedAt: row.attributed_at
+  };
+}
+function mapComm2(row) {
+  return {
+    id: row.id,
+    claimId: row.claim_id,
+    referredClerkId: row.referred_clerk_id,
+    referrerClerkId: row.referrer_clerk_id,
+    conversionAmountNpr: Number(row.conversion_amount_npr),
+    commissionRate: Number(row.commission_rate),
+    commissionAmountNpr: Number(row.commission_amount_npr),
+    status: row.status,
+    createdAt: row.created_at,
+    settledAt: row.settled_at,
+    settledByClerkId: row.settled_by_clerk_id
+  };
+}
+function createSqliteReferralsRepo(dbFilePath) {
+  const dir = path3.dirname(dbFilePath);
+  if (!fs3.existsSync(dir)) fs3.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync3(dbFilePath);
+  return {
+    driver: "sqlite",
+    async ensureSchema() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS referral_links (
+          owner_clerk_id TEXT PRIMARY KEY,
+          code TEXT NOT NULL UNIQUE,
+          owner_email TEXT NOT NULL,
+          owner_name TEXT NOT NULL,
+          owner_role TEXT NOT NULL,
+          active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS referral_attributions (
+          referred_clerk_id TEXT PRIMARY KEY,
+          referrer_clerk_id TEXT NOT NULL,
+          code TEXT NOT NULL,
+          attributed_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_referral_attr_referrer
+          ON referral_attributions (referrer_clerk_id);
+        CREATE TABLE IF NOT EXISTS referral_commissions (
+          id TEXT PRIMARY KEY,
+          claim_id TEXT NOT NULL UNIQUE,
+          referred_clerk_id TEXT NOT NULL,
+          referrer_clerk_id TEXT NOT NULL,
+          conversion_amount_npr INTEGER NOT NULL,
+          commission_rate REAL NOT NULL,
+          commission_amount_npr INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TEXT NOT NULL,
+          settled_at TEXT,
+          settled_by_clerk_id TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_referral_comm_referrer
+          ON referral_commissions (referrer_clerk_id);
+      `);
+    },
+    async getLinkByOwner(ownerClerkId) {
+      const row = db.prepare("SELECT * FROM referral_links WHERE owner_clerk_id = ?").get(ownerClerkId);
+      return row ? mapLink2(row) : null;
+    },
+    async getLinkByCode(code) {
+      const row = db.prepare("SELECT * FROM referral_links WHERE lower(code) = lower(?) AND active = 1").get(code);
+      return row ? mapLink2(row) : null;
+    },
+    async ensureLink(input) {
+      const existing = await this.getLinkByOwner(input.ownerClerkId);
+      if (existing) {
+        const now2 = (/* @__PURE__ */ new Date()).toISOString();
+        db.prepare(
+          `UPDATE referral_links
+           SET owner_email = ?, owner_name = ?, owner_role = ?, updated_at = ?
+           WHERE owner_clerk_id = ?`
+        ).run(input.ownerEmail, input.ownerName, input.ownerRole, now2, input.ownerClerkId);
+        const updated = await this.getLinkByOwner(input.ownerClerkId);
+        return updated;
+      }
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      let code = input.code;
+      for (let i = 0; i < 5; i++) {
+        try {
+          db.prepare(
+            `INSERT INTO referral_links
+              (owner_clerk_id, code, owner_email, owner_name, owner_role, active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 1, ?, ?)`
+          ).run(
+            input.ownerClerkId,
+            code,
+            input.ownerEmail,
+            input.ownerName,
+            input.ownerRole,
+            now,
+            now
+          );
+          break;
+        } catch {
+          code = `${input.code}${i + 1}`.slice(0, 16);
+          if (i === 4) throw new Error("Failed to allocate unique referral code");
+        }
+      }
+      const created = await this.getLinkByOwner(input.ownerClerkId);
+      return created;
+    },
+    async listLinks() {
+      const rows = db.prepare("SELECT * FROM referral_links ORDER BY created_at ASC").all();
+      return rows.map(mapLink2);
+    },
+    async getAttribution(referredClerkId) {
+      const row = db.prepare("SELECT * FROM referral_attributions WHERE referred_clerk_id = ?").get(referredClerkId);
+      return row ? mapAttr2(row) : null;
+    },
+    async attributeFirstTouch(input) {
+      const existing = await this.getAttribution(input.referredClerkId);
+      if (existing) return { attribution: existing, created: false };
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      try {
+        db.prepare(
+          `INSERT INTO referral_attributions
+            (referred_clerk_id, referrer_clerk_id, code, attributed_at)
+           VALUES (?, ?, ?, ?)`
+        ).run(input.referredClerkId, input.referrerClerkId, input.code, now);
+      } catch {
+        const raced = await this.getAttribution(input.referredClerkId);
+        if (raced) return { attribution: raced, created: false };
+        throw new Error("Failed to attribute referral");
+      }
+      const attribution = await this.getAttribution(input.referredClerkId);
+      return { attribution, created: true };
+    },
+    async getCommissionByClaimId(claimId) {
+      const row = db.prepare("SELECT * FROM referral_commissions WHERE claim_id = ?").get(claimId);
+      return row ? mapComm2(row) : null;
+    },
+    async insertCommission(input) {
+      const existing = await this.getCommissionByClaimId(input.claimId);
+      if (existing) return { ok: false, reason: "duplicate_claim", existing };
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      try {
+        db.prepare(
+          `INSERT INTO referral_commissions
+            (id, claim_id, referred_clerk_id, referrer_clerk_id, conversion_amount_npr,
+             commission_rate, commission_amount_npr, status, created_at, settled_at, settled_by_clerk_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, NULL)`
+        ).run(
+          input.id,
+          input.claimId,
+          input.referredClerkId,
+          input.referrerClerkId,
+          input.conversionAmountNpr,
+          input.commissionRate,
+          input.commissionAmountNpr,
+          now
+        );
+      } catch {
+        const raced = await this.getCommissionByClaimId(input.claimId);
+        if (raced) return { ok: false, reason: "duplicate_claim", existing: raced };
+        throw new Error("Failed to insert commission");
+      }
+      const commission = await this.getCommissionByClaimId(input.claimId);
+      return { ok: true, commission };
+    },
+    async listCommissionsByReferrer(referrerClerkId) {
+      const rows = db.prepare(
+        `SELECT * FROM referral_commissions
+           WHERE referrer_clerk_id = ?
+           ORDER BY created_at DESC`
+      ).all(referrerClerkId);
+      return rows.map(mapComm2);
+    },
+    async listAllCommissions() {
+      const rows = db.prepare("SELECT * FROM referral_commissions ORDER BY created_at DESC").all();
+      return rows.map(mapComm2);
+    },
+    async settleCommission(id, settledByClerkId) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const result = db.prepare(
+        `UPDATE referral_commissions
+           SET status = 'settled', settled_at = ?, settled_by_clerk_id = ?
+           WHERE id = ? AND status = 'pending'`
+      ).run(now, settledByClerkId, id);
+      if (!result.changes) {
+        const row2 = db.prepare("SELECT * FROM referral_commissions WHERE id = ?").get(id);
+        return row2 ? mapComm2(row2) : null;
+      }
+      const row = db.prepare("SELECT * FROM referral_commissions WHERE id = ?").get(id);
+      return row ? mapComm2(row) : null;
+    },
+    async close() {
+      db.close();
+    }
+  };
+}
+
+// server/db/sqlitePaymentClaims.ts
+import fs4 from "fs";
+import path4 from "path";
+import { DatabaseSync as DatabaseSync4 } from "node:sqlite";
+function mapRow8(row) {
+  const amountNpr = Number(row.amount_npr);
+  const listAmountNpr = row.list_amount_npr == null ? amountNpr : Number(row.list_amount_npr);
+  return {
+    id: row.id,
+    userId: row.user_id,
+    clerkUserId: row.clerk_user_id,
+    userName: row.user_name,
+    userEmail: row.user_email,
+    planCode: row.plan_code,
+    amountNpr,
+    listAmountNpr,
+    promoCode: row.promo_code,
+    promoDiscountNpr: Number(row.promo_discount_npr || 0),
+    paymentMethod: row.payment_method,
+    transactionRef: row.transaction_ref,
+    screenshotUrl: row.screenshot_url,
+    status: row.status,
+    userNotes: row.user_notes,
+    moderatorNotes: row.moderator_notes,
+    submittedAt: row.submitted_at,
+    verifiedAt: row.verified_at,
+    verifiedBy: row.verified_by,
+    verifiedByClerkId: row.verified_by_clerk_id
+  };
+}
+function createSqlitePaymentClaimsRepo(dbFilePath) {
+  const dir = path4.dirname(dbFilePath);
+  if (!fs4.existsSync(dir)) fs4.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync4(dbFilePath);
+  return {
+    driver: "sqlite",
+    async ensureSchema() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS payment_claims (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          clerk_user_id TEXT NOT NULL,
+          user_name TEXT NOT NULL,
+          user_email TEXT NOT NULL,
+          plan_code TEXT NOT NULL,
+          amount_npr INTEGER NOT NULL,
+          list_amount_npr INTEGER,
+          promo_code TEXT,
+          promo_discount_npr INTEGER DEFAULT 0,
+          payment_method TEXT NOT NULL,
+          transaction_ref TEXT NOT NULL,
+          screenshot_url TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          user_notes TEXT,
+          moderator_notes TEXT,
+          submitted_at TEXT NOT NULL,
+          verified_at TEXT,
+          verified_by TEXT,
+          verified_by_clerk_id TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_payment_claims_status_submitted
+          ON payment_claims (status, submitted_at);
+        CREATE INDEX IF NOT EXISTS idx_payment_claims_clerk
+          ON payment_claims (clerk_user_id);
+      `);
+      for (const col of [
+        "user_notes TEXT",
+        "moderator_notes TEXT",
+        "list_amount_npr INTEGER",
+        "promo_code TEXT",
+        "promo_discount_npr INTEGER DEFAULT 0"
+      ]) {
+        try {
+          db.exec(`ALTER TABLE payment_claims ADD COLUMN ${col}`);
+        } catch {
+        }
+      }
+    },
+    async insert(input) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const listAmountNpr = input.listAmountNpr ?? input.amountNpr;
+      const promoDiscountNpr = input.promoDiscountNpr ?? 0;
+      db.prepare(
+        `INSERT INTO payment_claims
+          (id, user_id, clerk_user_id, user_name, user_email, plan_code, amount_npr,
+           list_amount_npr, promo_code, promo_discount_npr,
+           payment_method, transaction_ref, screenshot_url, status, user_notes,
+           moderator_notes, submitted_at, verified_at, verified_by, verified_by_clerk_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, ?, NULL, NULL, NULL)`
+      ).run(
+        input.id,
+        input.userId,
+        input.clerkUserId,
+        input.userName,
+        input.userEmail,
+        input.planCode,
+        input.amountNpr,
+        listAmountNpr,
+        input.promoCode ?? null,
+        promoDiscountNpr,
+        input.paymentMethod,
+        input.transactionRef,
+        input.screenshotUrl,
+        input.userNotes ?? null,
+        now
+      );
+      return await this.getById(input.id);
+    },
+    async listAll() {
+      const rows = db.prepare("SELECT * FROM payment_claims ORDER BY submitted_at ASC").all();
+      return rows.map(mapRow8);
+    },
+    async listByClerkUserId(clerkUserId) {
+      const rows = db.prepare(
+        `SELECT * FROM payment_claims
+           WHERE clerk_user_id = ?
+           ORDER BY submitted_at DESC`
+      ).all(clerkUserId);
+      return rows.map(mapRow8);
+    },
+    async getById(id) {
+      const row = db.prepare("SELECT * FROM payment_claims WHERE id = ?").get(id);
+      return row ? mapRow8(row) : null;
+    },
+    async updatePending(id, patch) {
+      const existing = await this.getById(id);
+      if (!existing || existing.status !== "pending") return null;
+      const next = {
+        planCode: patch.planCode ?? existing.planCode,
+        amountNpr: patch.amountNpr ?? existing.amountNpr,
+        listAmountNpr: patch.listAmountNpr !== void 0 ? patch.listAmountNpr : existing.listAmountNpr,
+        promoCode: patch.promoCode !== void 0 ? patch.promoCode : existing.promoCode,
+        promoDiscountNpr: patch.promoDiscountNpr !== void 0 ? patch.promoDiscountNpr : existing.promoDiscountNpr,
+        paymentMethod: patch.paymentMethod ?? existing.paymentMethod,
+        transactionRef: patch.transactionRef ?? existing.transactionRef,
+        screenshotUrl: patch.screenshotUrl ?? existing.screenshotUrl,
+        userNotes: patch.userNotes !== void 0 ? patch.userNotes : existing.userNotes
+      };
+      const result = db.prepare(
+        `UPDATE payment_claims
+           SET plan_code = ?, amount_npr = ?, list_amount_npr = ?, promo_code = ?,
+               promo_discount_npr = ?, payment_method = ?, transaction_ref = ?,
+               screenshot_url = ?, user_notes = ?
+           WHERE id = ? AND status = 'pending'`
+      ).run(
+        next.planCode,
+        next.amountNpr,
+        next.listAmountNpr,
+        next.promoCode,
+        next.promoDiscountNpr,
+        next.paymentMethod,
+        next.transactionRef,
+        next.screenshotUrl,
+        next.userNotes,
+        id
+      );
+      if (!result.changes) return null;
+      return this.getById(id);
+    },
+    async updateUserNotes(id, userNotes) {
+      const existing = await this.getById(id);
+      if (!existing) return null;
+      const result = db.prepare(`UPDATE payment_claims SET user_notes = ? WHERE id = ?`).run(userNotes, id);
+      if (!result.changes) return null;
+      return this.getById(id);
+    },
+    async deletePending(id) {
+      const result = db.prepare(`DELETE FROM payment_claims WHERE id = ? AND status = 'pending'`).run(id);
+      return Number(result.changes || 0) > 0;
+    },
+    async resolve(id, input) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const result = db.prepare(
+        `UPDATE payment_claims
+           SET status = ?, moderator_notes = ?, verified_at = ?, verified_by = ?, verified_by_clerk_id = ?
+           WHERE id = ? AND status = 'pending'`
+      ).run(
+        input.status,
+        input.moderatorNotes ?? null,
+        now,
+        input.verifiedBy,
+        input.verifiedByClerkId,
+        id
+      );
+      if (!result.changes) return null;
+      return this.getById(id);
+    },
+    async close() {
+      db.close();
+    }
+  };
+}
+
+// server/db/sqliteSupportIssues.ts
+import fs5 from "fs";
+import path5 from "path";
+import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
+function mapRow9(row) {
+  return {
+    id: row.id,
+    clerkUserId: row.clerk_user_id,
+    userName: row.user_name,
+    userEmail: row.user_email,
+    category: row.category,
+    body: row.body,
+    status: row.status,
+    staffNotes: row.staff_notes,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at,
+    resolvedBy: row.resolved_by,
+    resolvedByClerkId: row.resolved_by_clerk_id
+  };
+}
+function createSqliteSupportIssuesRepo(dbFilePath) {
+  const dir = path5.dirname(dbFilePath);
+  if (!fs5.existsSync(dir)) fs5.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync5(dbFilePath);
+  return {
+    driver: "sqlite",
+    async ensureSchema() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS support_issues (
+          id TEXT PRIMARY KEY,
+          clerk_user_id TEXT NOT NULL,
+          user_name TEXT NOT NULL,
+          user_email TEXT NOT NULL,
+          category TEXT NOT NULL,
+          body TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'open',
+          staff_notes TEXT,
+          created_at TEXT NOT NULL,
+          resolved_at TEXT,
+          resolved_by TEXT,
+          resolved_by_clerk_id TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_support_issues_status_created
+          ON support_issues (status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_support_issues_clerk
+          ON support_issues (clerk_user_id);
+      `);
+    },
+    async insert(input) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db.prepare(
+        `INSERT INTO support_issues
+          (id, clerk_user_id, user_name, user_email, category, body, status,
+           staff_notes, created_at, resolved_at, resolved_by, resolved_by_clerk_id)
+         VALUES (?, ?, ?, ?, ?, ?, 'open', NULL, ?, NULL, NULL, NULL)`
+      ).run(
+        input.id,
+        input.clerkUserId,
+        input.userName,
+        input.userEmail,
+        input.category,
+        input.body,
+        now
+      );
+      return await this.getById(input.id);
+    },
+    async listAll() {
+      const rows = db.prepare("SELECT * FROM support_issues ORDER BY created_at ASC").all();
+      return rows.map(mapRow9);
+    },
+    async listByClerkUserId(clerkUserId) {
+      const rows = db.prepare(
+        `SELECT * FROM support_issues
+           WHERE clerk_user_id = ?
+           ORDER BY created_at DESC`
+      ).all(clerkUserId);
+      return rows.map(mapRow9);
+    },
+    async getById(id) {
+      const row = db.prepare("SELECT * FROM support_issues WHERE id = ?").get(id);
+      return row ? mapRow9(row) : null;
+    },
+    async resolve(id, input) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const result = db.prepare(
+        `UPDATE support_issues
+           SET status = 'resolved', staff_notes = ?, resolved_at = ?,
+               resolved_by = ?, resolved_by_clerk_id = ?
+           WHERE id = ? AND status = 'open'`
+      ).run(
+        input.staffNotes ?? null,
+        now,
+        input.resolvedBy,
+        input.resolvedByClerkId,
+        id
+      );
+      if (!result.changes) return null;
+      return this.getById(id);
+    },
+    async close() {
+      db.close();
+    }
+  };
+}
+
+// server/db/sqliteFormulas.ts
+import fs6 from "fs";
+import path6 from "path";
+import { DatabaseSync as DatabaseSync6 } from "node:sqlite";
+function mapBatch6(row) {
+  return {
+    id: row.id,
+    label: row.label,
+    filename: row.filename,
+    importedByEmail: row.imported_by_email,
+    importedByName: row.imported_by_name,
+    sheetCount: row.sheet_count,
+    errorCount: row.error_count,
+    createdAt: row.created_at
+  };
+}
+function parseFormulasJson2(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+function mapSheet2(row) {
+  return {
+    id: row.id,
+    subject: row.subject,
+    title: row.title,
+    chapter: row.chapter,
+    formulas: parseFormulasJson2(row.formulas_json),
+    batchId: row.batch_id || void 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+function createSqliteFormulasRepo(dbFilePath) {
+  const dir = path6.dirname(dbFilePath);
+  if (!fs6.existsSync(dir)) fs6.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync6(dbFilePath);
+  return {
+    driver: "sqlite",
+    async ensureSchema() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS formula_import_batches (
+          id TEXT PRIMARY KEY,
+          label TEXT NOT NULL,
+          filename TEXT NULL,
+          imported_by_email TEXT NOT NULL,
+          imported_by_name TEXT NOT NULL,
+          sheet_count INTEGER NOT NULL DEFAULT 0,
+          error_count INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS formula_sheets (
+          id TEXT PRIMARY KEY,
+          subject TEXT NOT NULL,
+          title TEXT NOT NULL,
+          chapter TEXT NOT NULL,
+          formulas_json TEXT NOT NULL,
+          batch_id TEXT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_formula_sheets_subject ON formula_sheets (subject);
+        CREATE INDEX IF NOT EXISTS idx_formula_sheets_batch ON formula_sheets (batch_id);
+      `);
+    },
+    async list(opts) {
+      const rows = opts?.batchId ? db.prepare(
+        "SELECT * FROM formula_sheets WHERE batch_id = ? ORDER BY subject, title"
+      ).all(opts.batchId) : db.prepare("SELECT * FROM formula_sheets ORDER BY subject, title").all();
+      return rows.map(mapSheet2);
+    },
+    async insertMany(sheets) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const stmt = db.prepare(`
+        INSERT OR REPLACE INTO formula_sheets
+          (id, subject, title, chapter, formulas_json, batch_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      let count = 0;
+      for (const sheet of sheets) {
+        stmt.run(
+          sheet.id,
+          sheet.subject,
+          sheet.title,
+          sheet.chapter,
+          JSON.stringify(sheet.formulas),
+          sheet.batchId ?? null,
+          now,
+          now
+        );
+        count += 1;
+      }
+      return count;
+    },
+    async createBatch(input) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db.prepare(
+        `INSERT INTO formula_import_batches (
+          id, label, filename, imported_by_email, imported_by_name, sheet_count, error_count, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        input.id,
+        input.label,
+        input.filename ?? null,
+        input.importedByEmail,
+        input.importedByName,
+        input.sheetCount,
+        input.errorCount,
+        now
+      );
+      return {
+        id: input.id,
+        label: input.label,
+        filename: input.filename ?? null,
+        importedByEmail: input.importedByEmail,
+        importedByName: input.importedByName,
+        sheetCount: input.sheetCount,
+        errorCount: input.errorCount,
+        createdAt: now
+      };
+    },
+    async listBatches() {
+      const rows = db.prepare("SELECT * FROM formula_import_batches ORDER BY created_at DESC").all();
+      return rows.map(mapBatch6);
+    },
+    async getBatch(id) {
+      const row = db.prepare("SELECT * FROM formula_import_batches WHERE id = ?").get(id);
+      return row ? mapBatch6(row) : null;
+    },
+    async deleteBatch(id) {
+      const before = db.prepare("SELECT COUNT(*) AS c FROM formula_sheets WHERE batch_id = ?").get(id);
+      const tx = db.prepare("BEGIN");
+      const commit = db.prepare("COMMIT");
+      const rollback = db.prepare("ROLLBACK");
+      tx.run();
+      try {
+        db.prepare("DELETE FROM formula_sheets WHERE batch_id = ?").run(id);
+        db.prepare("DELETE FROM formula_import_batches WHERE id = ?").run(id);
+        commit.run();
+        return { deletedSheets: Number(before?.c) || 0 };
+      } catch (err) {
+        rollback.run();
+        throw err;
+      }
+    },
+    async countAll() {
+      const row = db.prepare("SELECT COUNT(*) AS c FROM formula_sheets").get();
+      return Number(row?.c) || 0;
+    },
+    async close() {
+      db.close();
+    }
+  };
+}
+
+// server/db/sqlitePromoCodes.ts
+import fs7 from "fs";
+import path7 from "path";
+import { DatabaseSync as DatabaseSync7 } from "node:sqlite";
+function parsePlans2(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+function mapRow10(row) {
+  return {
+    id: row.id,
+    code: row.code,
+    description: row.description,
+    discountType: row.discount_type,
+    discountValue: Number(row.discount_value),
+    applicablePlanCodes: parsePlans2(row.applicable_plan_codes),
+    maxRedemptions: row.max_redemptions == null ? null : Number(row.max_redemptions),
+    redemptionCount: Number(row.redemption_count || 0),
+    startsAt: row.starts_at,
+    expiresAt: row.expires_at,
+    active: Boolean(row.active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdByClerkId: row.created_by_clerk_id,
+    createdByName: row.created_by_name
+  };
+}
+function createSqlitePromoCodesRepo(dbFilePath) {
+  const dir = path7.dirname(dbFilePath);
+  if (!fs7.existsSync(dir)) fs7.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync7(dbFilePath);
+  return {
+    driver: "sqlite",
+    async ensureSchema() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS promo_codes (
+          id TEXT PRIMARY KEY,
+          code TEXT NOT NULL UNIQUE,
+          description TEXT,
+          discount_type TEXT NOT NULL,
+          discount_value REAL NOT NULL,
+          applicable_plan_codes TEXT,
+          max_redemptions INTEGER,
+          redemption_count INTEGER NOT NULL DEFAULT 0,
+          starts_at TEXT,
+          expires_at TEXT,
+          active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          created_by_clerk_id TEXT,
+          created_by_name TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_promo_codes_active ON promo_codes (active);
+      `);
+    },
+    async listAll() {
+      const rows = db.prepare("SELECT * FROM promo_codes ORDER BY created_at DESC").all();
+      return rows.map(mapRow10);
+    },
+    async getById(id) {
+      const row = db.prepare("SELECT * FROM promo_codes WHERE id = ?").get(id);
+      return row ? mapRow10(row) : null;
+    },
+    async getByCode(code) {
+      const row = db.prepare("SELECT * FROM promo_codes WHERE code = ?").get(code);
+      return row ? mapRow10(row) : null;
+    },
+    async insert(input) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db.prepare(
+        `INSERT INTO promo_codes
+          (id, code, description, discount_type, discount_value, applicable_plan_codes,
+           max_redemptions, redemption_count, starts_at, expires_at, active,
+           created_at, updated_at, created_by_clerk_id, created_by_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        input.id,
+        input.code,
+        input.description ?? null,
+        input.discountType,
+        input.discountValue,
+        JSON.stringify(input.applicablePlanCodes ?? []),
+        input.maxRedemptions ?? null,
+        input.startsAt ?? null,
+        input.expiresAt ?? null,
+        input.active === false ? 0 : 1,
+        now,
+        now,
+        input.createdByClerkId ?? null,
+        input.createdByName ?? null
+      );
+      return await this.getById(input.id);
+    },
+    async update(id, patch) {
+      const existing = await this.getById(id);
+      if (!existing) return null;
+      const next = {
+        description: patch.description !== void 0 ? patch.description : existing.description,
+        discountType: patch.discountType ?? existing.discountType,
+        discountValue: patch.discountValue ?? existing.discountValue,
+        applicablePlanCodes: patch.applicablePlanCodes !== void 0 ? patch.applicablePlanCodes : existing.applicablePlanCodes,
+        maxRedemptions: patch.maxRedemptions !== void 0 ? patch.maxRedemptions : existing.maxRedemptions,
+        startsAt: patch.startsAt !== void 0 ? patch.startsAt : existing.startsAt,
+        expiresAt: patch.expiresAt !== void 0 ? patch.expiresAt : existing.expiresAt,
+        active: patch.active !== void 0 ? patch.active : existing.active
+      };
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db.prepare(
+        `UPDATE promo_codes
+         SET description = ?, discount_type = ?, discount_value = ?, applicable_plan_codes = ?,
+             max_redemptions = ?, starts_at = ?, expires_at = ?, active = ?, updated_at = ?
+         WHERE id = ?`
+      ).run(
+        next.description,
+        next.discountType,
+        next.discountValue,
+        JSON.stringify(next.applicablePlanCodes),
+        next.maxRedemptions,
+        next.startsAt,
+        next.expiresAt,
+        next.active ? 1 : 0,
+        now,
+        id
+      );
+      return this.getById(id);
+    },
+    async tryIncrementRedemption(code) {
+      const result = db.prepare(
+        `UPDATE promo_codes
+           SET redemption_count = redemption_count + 1,
+               updated_at = ?
+           WHERE code = ?
+             AND active = 1
+             AND (max_redemptions IS NULL OR redemption_count < max_redemptions)`
+      ).run((/* @__PURE__ */ new Date()).toISOString(), code);
+      if (!result.changes) return null;
+      return this.getByCode(code);
+    },
+    async deleteById(id) {
+      const result = db.prepare("DELETE FROM promo_codes WHERE id = ?").run(id);
+      return Number(result.changes || 0) > 0;
     },
     async close() {
       db.close();
@@ -1610,8 +3461,8 @@ function createSqliteMocksRepo(dbFilePath) {
 }
 
 // server/db/index.ts
-var __dirname = path3.dirname(fileURLToPath(import.meta.url));
-var root = path3.resolve(__dirname, "../..");
+var __dirname = path8.dirname(fileURLToPath(import.meta.url));
+var root = path8.resolve(__dirname, "../..");
 function resolveDbMode() {
   const explicit = (process.env.DB_DRIVER || "").toLowerCase();
   if (explicit === "mysql") return "mysql";
@@ -1620,7 +3471,7 @@ function resolveDbMode() {
   return host ? "mysql" : "sqlite";
 }
 function sqlitePath() {
-  return process.env.SQLITE_PATH || path3.join(root, "data", "prepx-questions.sqlite");
+  return process.env.SQLITE_PATH || path8.join(root, "data", "prepx-questions.sqlite");
 }
 async function createAppRepositories() {
   const mode = resolveDbMode();
@@ -1628,16 +3479,103 @@ async function createAppRepositories() {
     const pool = createMysqlPoolFromEnv();
     const questions2 = createMysqlQuestionsRepo(pool);
     const mocks2 = createMysqlMocksRepo(pool);
+    const referrals2 = createMysqlReferralsRepo(pool);
+    const paymentClaims2 = createMysqlPaymentClaimsRepo(pool);
+    const supportIssues2 = createMysqlSupportIssuesRepo(pool);
+    const formulas2 = createMysqlFormulasRepo(pool);
+    const promoCodes2 = createMysqlPromoCodesRepo(pool);
     await questions2.ensureSchema();
     await mocks2.ensureSchema();
-    return { questions: questions2, mocks: mocks2 };
+    await referrals2.ensureSchema();
+    await paymentClaims2.ensureSchema();
+    await supportIssues2.ensureSchema();
+    await formulas2.ensureSchema();
+    await promoCodes2.ensureSchema();
+    return {
+      questions: questions2,
+      mocks: mocks2,
+      referrals: referrals2,
+      paymentClaims: paymentClaims2,
+      supportIssues: supportIssues2,
+      formulas: formulas2,
+      promoCodes: promoCodes2
+    };
   }
   const file = sqlitePath();
   const questions = createSqliteQuestionsRepo(file);
   const mocks = createSqliteMocksRepo(file);
+  const referrals = createSqliteReferralsRepo(file);
+  const paymentClaims = createSqlitePaymentClaimsRepo(file);
+  const supportIssues = createSqliteSupportIssuesRepo(file);
+  const formulas = createSqliteFormulasRepo(file);
+  const promoCodes = createSqlitePromoCodesRepo(file);
   await questions.ensureSchema();
   await mocks.ensureSchema();
-  return { questions, mocks };
+  await referrals.ensureSchema();
+  await paymentClaims.ensureSchema();
+  await supportIssues.ensureSchema();
+  await formulas.ensureSchema();
+  await promoCodes.ensureSchema();
+  return {
+    questions,
+    mocks,
+    referrals,
+    paymentClaims,
+    supportIssues,
+    formulas,
+    promoCodes
+  };
+}
+
+// server/seoStaticFiles.ts
+import fs8 from "node:fs";
+import path9 from "node:path";
+var SITEMAP_CONTENT_TYPE = "application/xml; charset=utf-8";
+var ROBOTS_CONTENT_TYPE = "text/plain; charset=utf-8";
+var SEO_CACHE_CONTROL = "public, max-age=3600";
+function sitemapHeaders() {
+  return {
+    "Content-Type": SITEMAP_CONTENT_TYPE,
+    "Cache-Control": SEO_CACHE_CONTROL
+  };
+}
+function robotsHeaders() {
+  return {
+    "Content-Type": ROBOTS_CONTENT_TYPE,
+    "Cache-Control": SEO_CACHE_CONTROL
+  };
+}
+function sendAlwaysFresh(res, body, headers) {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(body, "utf8");
+  res.statusCode = 200;
+  for (const [key, value] of Object.entries(headers)) {
+    res.setHeader(key, value);
+  }
+  res.setHeader("Content-Length", String(buf.byteLength));
+  res.removeHeader("ETag");
+  res.removeHeader("Last-Modified");
+  if (res.req?.method === "HEAD") {
+    res.end();
+    return;
+  }
+  res.end(buf);
+}
+function sendDistFile(res, distDir, fileName, headers, missingLabel) {
+  const filePath = path9.join(distDir, fileName);
+  if (!fs8.existsSync(filePath)) {
+    res.status(404).type("text/plain; charset=utf-8").send(`${missingLabel} not found`);
+    return;
+  }
+  sendAlwaysFresh(res, fs8.readFileSync(filePath), headers);
+}
+function registerSeoStaticRoutes(app2, distDir) {
+  const sitemapHandler = (_req, res) => {
+    sendDistFile(res, distDir, "sitemap.xml", sitemapHeaders(), "Sitemap");
+  };
+  app2.get(["/sitemap.xml", "/sitemap"], sitemapHandler);
+  app2.get("/robots.txt", (_req, res) => {
+    sendDistFile(res, distDir, "robots.txt", robotsHeaders(), "robots.txt");
+  });
 }
 
 // server/mocksDomain.ts
@@ -1704,6 +3642,80 @@ function ceeAllocationForChapter(subject, chapter) {
     subjects: { [subject]: count },
     chapters: [{ subject, chapter: name, count }]
   };
+}
+function resizeAllocationToTotal(allocation, targetTotal) {
+  const target = Math.floor(Number(targetTotal));
+  if (!Number.isFinite(target) || target < 1) {
+    return allocation;
+  }
+  const chapters = (allocation.chapters || []).filter((c) => c.count > 0);
+  const current = totalFromAllocation(allocation);
+  if (current === target) {
+    return {
+      subjects: { ...allocation.subjects },
+      chapters: chapters.map((c) => ({ ...c }))
+    };
+  }
+  if (chapters.length === 0) {
+    const subjects2 = {};
+    const keyed = SUBJECTS.filter((s) => (allocation.subjects[s] || 0) > 0);
+    const focus = keyed[0] || SUBJECTS.find((s) => allocation.subjects[s] != null) || "Physics";
+    subjects2[focus] = target;
+    return { subjects: subjects2, chapters: [] };
+  }
+  if (current < 1) {
+    const first = chapters[0];
+    return {
+      subjects: { [first.subject]: target },
+      chapters: [{ subject: first.subject, chapter: first.chapter, count: target }]
+    };
+  }
+  const scaled = chapters.map((c) => ({
+    subject: c.subject,
+    chapter: c.chapter,
+    count: Math.max(0, Math.floor(c.count * target / current))
+  }));
+  let sum = scaled.reduce((s, c) => s + c.count, 0);
+  let drift = target - sum;
+  const order = chapters.map((c, i) => ({ i, count: c.count })).sort((a, b) => b.count - a.count);
+  if (drift > 0) {
+    let guard = 0;
+    while (drift > 0 && guard < target + order.length) {
+      scaled[order[guard % order.length].i].count += 1;
+      drift -= 1;
+      guard += 1;
+    }
+  } else if (drift < 0) {
+    let guard = 0;
+    while (drift < 0 && guard < target + order.length * 4) {
+      const idx = order[guard % order.length].i;
+      if (scaled[idx].count > 0) {
+        scaled[idx].count -= 1;
+        drift += 1;
+      }
+      guard += 1;
+    }
+  }
+  const subjects = {};
+  for (const c of scaled) {
+    if (c.count <= 0) continue;
+    subjects[c.subject] = (subjects[c.subject] || 0) + c.count;
+  }
+  return {
+    subjects,
+    chapters: scaled.filter((c) => c.count > 0)
+  };
+}
+function compareMocksByTitleAsc(a, b) {
+  const byTitle = a.title.localeCompare(b.title, void 0, {
+    sensitivity: "base",
+    numeric: true
+  });
+  if (byTitle !== 0) return byTitle;
+  return a.id.localeCompare(b.id);
+}
+function sortMocksByTitleAsc(mocks) {
+  return [...mocks].sort(compareMocksByTitleAsc);
 }
 function nonEmptyString2(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -1896,6 +3908,64 @@ function parseMockMeta(item, idx) {
     }
   };
 }
+var CEE_FULL_SET_QUESTION_COUNT = 200;
+function looksLikeQuestionBankArray(raw) {
+  if (raw.length === 0) return false;
+  const first = raw[0];
+  if (!first || typeof first !== "object") return false;
+  const row = first;
+  if (Array.isArray(row.questions)) return false;
+  const hasStem = typeof row.question === "string" && row.question.trim().length > 0 || typeof row.stem === "string" && row.stem.trim().length > 0;
+  const hasAnswer = row.correctAnswer != null || row.correctOptionKey != null;
+  return hasStem && row.options != null && hasAnswer;
+}
+function wrapQuestionBankAsFixedMock(questions, opts) {
+  const stemFrom = (value) => value.trim().replace(/\.json$/i, "").trim();
+  const fromFile = typeof opts?.filename === "string" && opts.filename.trim() ? stemFrom(opts.filename) : "";
+  const fromTitle = typeof opts?.title === "string" && opts.title.trim() ? stemFrom(opts.title) : "";
+  const title = fromFile || fromTitle || "Imported Fixed Mock";
+  const idSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+  return {
+    id: idSlug ? `mock-set-${idSlug}` : void 0,
+    title,
+    scope: "full",
+    subject: "Combined",
+    mode: "fixed",
+    durationSec: 10800,
+    questionsPerPage: 20,
+    correctMarks: 1,
+    wrongMarks: -0.25,
+    isPublished: true,
+    questions
+  };
+}
+function toSetExportQuestion(q) {
+  const out = {
+    subject: q.subject,
+    chapter: q.chapter,
+    question: q.stem,
+    options: q.options,
+    correctAnswer: q.correctOptionKey,
+    explanation: q.explanation,
+    tags: Array.isArray(q.tags) ? [...q.tags] : [],
+    language: q.language,
+    status: q.status
+  };
+  if (q.source) out.source = q.source;
+  if (q.imageUrl) out.imageUrl = q.imageUrl;
+  if (q.optionImages && Object.keys(q.optionImages).length > 0) {
+    out.optionImages = { ...q.optionImages };
+  }
+  return out;
+}
+function serializeFixedMockAsSetJson(questions) {
+  return questions.map(toSetExportQuestion);
+}
+function setExportFilename(preferred, fallbackLabel) {
+  const raw = preferred && preferred.trim() || fallbackLabel.trim() || "set-export";
+  const base = raw.replace(/[/\\?%*:|"<>]/g, "-").replace(/\.json$/i, "").trim() || "set-export";
+  return `${base}.json`;
+}
 function parseFixedMockImportItem(item, idx, opts) {
   const metaParsed = parseMockMeta({ ...item, mode: "fixed" }, idx);
   if (metaParsed.ok === false) return metaParsed;
@@ -1904,22 +3974,28 @@ function parseFixedMockImportItem(item, idx, opts) {
     return { ok: false, error: `Mock #${idx + 1}: questions array is required for fixed mocks` };
   }
   const stamp = Date.now();
+  const prefix = opts?.questionIdPrefix?.trim();
+  const idFactory = (i) => prefix ? `${prefix}-${String(i + 1).padStart(3, "0")}` : `q-mock-${stamp}-${idx}-${i}`;
   const questions = [];
   const errors = [];
   row.questions.forEach((q, qIdx) => {
-    const parsed = parseImportItem(
-      q,
-      qIdx,
-      (i) => `q-mock-${stamp}-${idx}-${i}`,
-      opts?.questionBatchId
-    );
+    const parsed = parseImportItem(q, qIdx, idFactory, opts?.questionBatchId);
     if (parsed.ok === false) {
       errors.push(`Mock #${idx + 1} Q${qIdx + 1}: ${parsed.error}`);
       return;
     }
     questions.push(parsed.question);
   });
-  if (errors.length > 0) {
+  const required = opts?.requireExactQuestionCount;
+  if (required != null) {
+    if (questions.length !== required || errors.length > 0) {
+      const preview = errors.slice(0, 5).join(" | ");
+      return {
+        ok: false,
+        error: `Mock #${idx + 1}: need exactly ${required} valid questions, got ${questions.length} valid` + (errors.length ? ` and ${errors.length} invalid` : "") + ` (array length ${row.questions.length})` + (preview ? `. ${preview}` : "")
+      };
+    }
+  } else if (errors.length > 0) {
     return { ok: false, error: errors[0] };
   }
   const { meta } = metaParsed;
@@ -1971,12 +4047,31 @@ function parseFixedMockImportItem(item, idx, opts) {
 }
 function parseFixedMockImportBatch(raw, opts) {
   if (!Array.isArray(raw)) {
-    return { mocks: [], errors: ["Input JSON must be an array of fixed mock objects."] };
+    return {
+      mocks: [],
+      errors: [
+        "Input JSON must be an array of fixed mock objects, or an array of questions (Set*.json style)."
+      ]
+    };
   }
+  const isSetBank = looksLikeQuestionBankArray(raw);
+  const items = isSetBank ? [wrapQuestionBankAsFixedMock(raw, { title: opts?.title ?? void 0, filename: opts?.filename })] : raw;
+  const setSlug = (() => {
+    if (!isSetBank) return null;
+    const wrapped = items[0];
+    const id = typeof wrapped.id === "string" ? wrapped.id : "";
+    const m = /^mock-set-(.+)$/i.exec(id);
+    return m?.[1] || null;
+  })();
   const mocks = [];
   const errors = [];
-  raw.forEach((item, idx) => {
-    const parsed = parseFixedMockImportItem(item, idx, opts);
+  items.forEach((item, idx) => {
+    const parsed = parseFixedMockImportItem(item, idx, {
+      batchId: opts?.batchId,
+      questionBatchId: opts?.questionBatchId,
+      requireExactQuestionCount: isSetBank ? CEE_FULL_SET_QUESTION_COUNT : void 0,
+      questionIdPrefix: setSlug ? `q-set-${setSlug}` : void 0
+    });
     if (parsed.ok === true) mocks.push(parsed.mock);
     else errors.push(parsed.error);
   });
@@ -2303,17 +4398,623 @@ function publicErrorMessage(err, fallback) {
   return fallback;
 }
 
+// server/referralsDomain.ts
+var REFERRAL_COMMISSION_RATE = 0.3;
+var STAFF_ROLES = /* @__PURE__ */ new Set([
+  "Admin",
+  "Moderator (Questions)",
+  "Moderator (Billing)"
+]);
+function isReferralStaffRole(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  return Boolean(role && STAFF_ROLES.has(role));
+}
+function canRecordReferralCommission(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  return role === "Admin" || role === "Moderator (Billing)";
+}
+function canSettleReferralCommission(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  return role === "Admin";
+}
+function computeCommissionAmountNpr(conversionAmountNpr, rate = REFERRAL_COMMISSION_RATE) {
+  if (!Number.isFinite(conversionAmountNpr) || conversionAmountNpr < 0) {
+    throw new Error("conversionAmountNpr must be a non-negative number");
+  }
+  if (!Number.isFinite(rate) || rate < 0 || rate > 1) {
+    throw new Error("commission rate must be between 0 and 1");
+  }
+  return Math.round(conversionAmountNpr * rate);
+}
+function sumCommissionTotals(rows) {
+  let totalConversionNpr = 0;
+  let totalCommissionNpr = 0;
+  let pendingCommissionNpr = 0;
+  let settledCommissionNpr = 0;
+  for (const r of rows) {
+    totalConversionNpr += r.conversionAmountNpr;
+    totalCommissionNpr += r.commissionAmountNpr;
+    if (r.status === "settled") settledCommissionNpr += r.commissionAmountNpr;
+    else pendingCommissionNpr += r.commissionAmountNpr;
+  }
+  return {
+    totalConversionNpr,
+    totalCommissionNpr,
+    pendingCommissionNpr,
+    settledCommissionNpr,
+    conversionCount: rows.length
+  };
+}
+function generateReferralCode(ownerClerkId) {
+  const base = ownerClerkId.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toLowerCase() || "staff";
+  const rand = Math.random().toString(36).slice(2, 6);
+  return `px${base}${rand}`.slice(0, 16);
+}
+function normalizeReferralCode(raw) {
+  if (typeof raw !== "string") return null;
+  const code = raw.trim().toLowerCase();
+  if (!/^[a-z0-9_-]{4,32}$/.test(code)) return null;
+  return code;
+}
+
+// server/planEntitlementsDomain.ts
+var MOCKS_QUOTA_MIN = 0;
+var MOCKS_QUOTA_MAX = 1e4;
+var PLAN_ENTITLEMENTS_SEED = {
+  freeMocks: 1,
+  premiumMocks: 10
+};
+function isQuotaInt(n) {
+  return typeof n === "number" && Number.isFinite(n) && Number.isInteger(n);
+}
+function parsePlanEntitlements(input) {
+  if (!input || typeof input !== "object") {
+    return { ok: false, error: "Expected entitlements object" };
+  }
+  const raw = input;
+  const freeMocks = raw.freeMocks;
+  const premiumMocks = raw.premiumMocks;
+  if (!isQuotaInt(freeMocks) || freeMocks < MOCKS_QUOTA_MIN || freeMocks > MOCKS_QUOTA_MAX) {
+    return {
+      ok: false,
+      error: `freeMocks must be an integer ${MOCKS_QUOTA_MIN}\u2026${MOCKS_QUOTA_MAX}`
+    };
+  }
+  if (!isQuotaInt(premiumMocks) || premiumMocks < MOCKS_QUOTA_MIN || premiumMocks > MOCKS_QUOTA_MAX) {
+    return {
+      ok: false,
+      error: `premiumMocks must be an integer ${MOCKS_QUOTA_MIN}\u2026${MOCKS_QUOTA_MAX}`
+    };
+  }
+  return {
+    ok: true,
+    value: { freeMocks, premiumMocks }
+  };
+}
+function defaultMocksForPlan(plan, entitlements = PLAN_ENTITLEMENTS_SEED) {
+  if (plan === "Unlimited") return null;
+  if (plan === "Premium") return entitlements.premiumMocks;
+  return entitlements.freeMocks;
+}
+
+// server/paymentsDomain.ts
+var PAYMENT_METHODS = /* @__PURE__ */ new Set([
+  "Fonepay",
+  "eSewa",
+  "Khalti",
+  "Bank Transfer"
+]);
+function isPaymentMethod(value) {
+  return typeof value === "string" && PAYMENT_METHODS.has(value);
+}
+function canModeratePaymentClaims(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  return role === "Admin" || role === "Moderator (Billing)";
+}
+function sortClaimsForQueue(claims) {
+  const pending = claims.filter((c) => c.status === "pending").sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+  const rest = claims.filter((c) => c.status !== "pending").sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  return [...pending, ...rest];
+}
+function defaultEntitlementsForPlan(planCode, entitlements = PLAN_ENTITLEMENTS_SEED) {
+  const code = planCode.trim().toLowerCase();
+  if (code === "unlimited" || code.includes("unlimited")) {
+    return { tier: "Unlimited", mocksGranted: null, coinsGranted: 500 };
+  }
+  if (code === "premium" || code.includes("premium") || code.includes("pro")) {
+    return { tier: "Premium", mocksGranted: entitlements.premiumMocks, coinsGranted: 100 };
+  }
+  if (code === "free" || code.includes("free")) {
+    return { tier: "Free", mocksGranted: entitlements.freeMocks, coinsGranted: 20 };
+  }
+  return { tier: "Premium", mocksGranted: entitlements.premiumMocks, coinsGranted: 100 };
+}
+
+// server/supportDomain.ts
+var SUPPORT_ISSUE_CATEGORIES = /* @__PURE__ */ new Set([
+  "technical",
+  "content",
+  "payment",
+  "coins"
+]);
+function isSupportIssueCategory(value) {
+  return typeof value === "string" && SUPPORT_ISSUE_CATEGORIES.has(value);
+}
+function canTriageSupportIssues(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  return role === "Admin" || role === "Moderator (Questions)" || role === "Moderator (Billing)";
+}
+function normalizeIssueBody(raw) {
+  return raw.trim().replace(/\s+/g, " ").slice(0, 4e3);
+}
+function sortIssuesForQueue(issues) {
+  const open = issues.filter((i) => i.status === "open").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const rest = issues.filter((i) => i.status !== "open").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return [...open, ...rest];
+}
+
+// server/formulasDomain.ts
+function nonEmptyString3(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+function parseFormulaEntry(raw, sheetIdx, formulaIdx) {
+  if (!raw || typeof raw !== "object") {
+    return {
+      ok: false,
+      error: `Sheet #${sheetIdx + 1} formula #${formulaIdx + 1}: must be an object`
+    };
+  }
+  const row = raw;
+  if (!nonEmptyString3(row.name)) {
+    return {
+      ok: false,
+      error: `Sheet #${sheetIdx + 1} formula #${formulaIdx + 1}: missing name`
+    };
+  }
+  if (!nonEmptyString3(row.formula)) {
+    return {
+      ok: false,
+      error: `Sheet #${sheetIdx + 1} formula #${formulaIdx + 1}: missing formula`
+    };
+  }
+  return {
+    ok: true,
+    entry: {
+      name: row.name.trim(),
+      formula: row.formula.trim(),
+      note: nonEmptyString3(row.note) ? row.note.trim() : void 0
+    }
+  };
+}
+function parseFormulaSheetItem(item, idx, idFactory, batchId) {
+  if (!item || typeof item !== "object") {
+    return { ok: false, error: `Item #${idx + 1}: must be an object` };
+  }
+  const row = item;
+  if (!isSubject(row.subject)) {
+    return {
+      ok: false,
+      error: `Item #${idx + 1}: Invalid or missing subject (expected one of ${SUBJECTS.join(", ")})`
+    };
+  }
+  if (!nonEmptyString3(row.title)) {
+    return { ok: false, error: `Item #${idx + 1}: missing title` };
+  }
+  if (!nonEmptyString3(row.chapter)) {
+    return { ok: false, error: `Item #${idx + 1}: missing chapter` };
+  }
+  if (!Array.isArray(row.formulas) || row.formulas.length === 0) {
+    return {
+      ok: false,
+      error: `Item #${idx + 1}: formulas must be a non-empty array`
+    };
+  }
+  const formulas = [];
+  for (let i = 0; i < row.formulas.length; i++) {
+    const parsed = parseFormulaEntry(row.formulas[i], idx, i);
+    if (parsed.ok === false) return parsed;
+    formulas.push(parsed.entry);
+  }
+  const id = nonEmptyString3(row.id) ? row.id.trim() : idFactory(idx);
+  const resolvedBatchId = batchId || (nonEmptyString3(row.batchId) ? row.batchId.trim() : void 0);
+  return {
+    ok: true,
+    sheet: {
+      id,
+      subject: row.subject,
+      title: row.title.trim(),
+      chapter: row.chapter.trim(),
+      formulas,
+      batchId: resolvedBatchId
+    }
+  };
+}
+function parseFormulaImportBatch(raw, opts) {
+  if (!Array.isArray(raw)) {
+    return {
+      sheets: [],
+      errors: ["Input JSON must be an array of formula sheet objects."]
+    };
+  }
+  const stamp = Date.now();
+  const sheets = [];
+  const errors = [];
+  raw.forEach((item, idx) => {
+    const parsed = parseFormulaSheetItem(
+      item,
+      idx,
+      (i) => `fs-imp-${stamp}-${i}`,
+      opts?.batchId
+    );
+    if (parsed.ok === true) {
+      sheets.push(parsed.sheet);
+      return;
+    }
+    errors.push(parsed.error);
+  });
+  return { sheets, errors };
+}
+
+// server/promoCodesDomain.ts
+function canManagePromoCodes(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  return role === "Admin";
+}
+function normalizePromoCode(raw) {
+  const code = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
+  if (!code || code.length < 3 || code.length > 32) return null;
+  if (!/^[A-Z0-9_-]+$/.test(code)) return null;
+  return code;
+}
+function isPromoDiscountType(value) {
+  return value === "percent" || value === "fixed";
+}
+function parseApplicablePlanCodes(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map((p) => String(p || "").trim()).filter(Boolean).map((p) => p);
+  }
+  if (typeof raw === "string") {
+    return raw.split(/[,|\s]+/).map((p) => p.trim()).filter(Boolean);
+  }
+  return [];
+}
+function planMatchesPromo(planCode, applicable) {
+  if (!applicable.length) return true;
+  const needle = planCode.trim().toLowerCase();
+  return applicable.some((p) => p.trim().toLowerCase() === needle);
+}
+function computePromoDiscount(listAmountNpr, discountType, discountValue) {
+  const list = Math.max(0, Math.round(listAmountNpr));
+  if (list <= 0) return { discountNpr: 0, payableNpr: 0 };
+  let discountNpr = 0;
+  if (discountType === "percent") {
+    const pct = Math.min(100, Math.max(0, discountValue));
+    discountNpr = Math.round(list * pct / 100);
+  } else {
+    discountNpr = Math.min(list, Math.max(0, Math.round(discountValue)));
+  }
+  let payableNpr = list - discountNpr;
+  if (payableNpr < 1 && list >= 1) {
+    payableNpr = 1;
+    discountNpr = list - 1;
+  }
+  return { discountNpr, payableNpr };
+}
+function evaluatePromoForCheckout(promo, opts) {
+  const listAmountNpr = Math.round(Number(opts.listAmountNpr));
+  if (!Number.isFinite(listAmountNpr) || listAmountNpr <= 0) {
+    return { ok: false, reason: "Plan amount must be greater than zero" };
+  }
+  if (!promo) {
+    return { ok: false, reason: "Promo code not found" };
+  }
+  if (!promo.active) {
+    return { ok: false, reason: "This promo code is inactive" };
+  }
+  const now = opts.now ?? /* @__PURE__ */ new Date();
+  if (promo.startsAt) {
+    const start = new Date(promo.startsAt);
+    if (!Number.isNaN(start.getTime()) && now < start) {
+      return { ok: false, reason: "This promo code is not active yet" };
+    }
+  }
+  if (promo.expiresAt) {
+    const end = new Date(promo.expiresAt);
+    if (!Number.isNaN(end.getTime()) && now > end) {
+      return { ok: false, reason: "This promo code has expired" };
+    }
+  }
+  if (promo.maxRedemptions != null && promo.maxRedemptions >= 0 && promo.redemptionCount >= promo.maxRedemptions) {
+    return { ok: false, reason: "This promo code has reached its redemption limit" };
+  }
+  if (!planMatchesPromo(opts.planCode, promo.applicablePlanCodes)) {
+    return {
+      ok: false,
+      reason: `This promo does not apply to plan \u201C${opts.planCode}\u201D`
+    };
+  }
+  if (!isPromoDiscountType(promo.discountType)) {
+    return { ok: false, reason: "Promo code is misconfigured" };
+  }
+  if (!Number.isFinite(promo.discountValue) || promo.discountValue <= 0) {
+    return { ok: false, reason: "Promo code is misconfigured" };
+  }
+  if (promo.discountType === "percent" && promo.discountValue > 100) {
+    return { ok: false, reason: "Promo code is misconfigured" };
+  }
+  const { discountNpr, payableNpr } = computePromoDiscount(
+    listAmountNpr,
+    promo.discountType,
+    promo.discountValue
+  );
+  if (discountNpr <= 0) {
+    return { ok: false, reason: "Promo does not change the payable amount" };
+  }
+  return {
+    ok: true,
+    code: promo.code,
+    discountType: promo.discountType,
+    discountValue: promo.discountValue,
+    listAmountNpr,
+    discountNpr,
+    payableNpr
+  };
+}
+function validatePromoCodeCreateInput(raw) {
+  const code = normalizePromoCode(typeof raw.code === "string" ? raw.code : "");
+  if (!code) {
+    return {
+      ok: false,
+      reason: "Code must be 3\u201332 characters (letters, numbers, _ or -)"
+    };
+  }
+  if (!isPromoDiscountType(raw.discountType)) {
+    return { ok: false, reason: "discountType must be percent or fixed" };
+  }
+  const discountValue = typeof raw.discountValue === "number" ? raw.discountValue : Number(raw.discountValue);
+  if (!Number.isFinite(discountValue) || discountValue <= 0) {
+    return { ok: false, reason: "discountValue must be a positive number" };
+  }
+  if (raw.discountType === "percent" && discountValue > 100) {
+    return { ok: false, reason: "Percent discount cannot exceed 100" };
+  }
+  let maxRedemptions = null;
+  if (raw.maxRedemptions != null && raw.maxRedemptions !== "") {
+    const n = typeof raw.maxRedemptions === "number" ? raw.maxRedemptions : Number(raw.maxRedemptions);
+    if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+      return { ok: false, reason: "maxRedemptions must be a positive integer or empty" };
+    }
+    maxRedemptions = n;
+  }
+  const startsAt = typeof raw.startsAt === "string" && raw.startsAt.trim() ? raw.startsAt.trim() : null;
+  const expiresAt = typeof raw.expiresAt === "string" && raw.expiresAt.trim() ? raw.expiresAt.trim() : null;
+  if (startsAt && Number.isNaN(new Date(startsAt).getTime())) {
+    return { ok: false, reason: "startsAt must be a valid date" };
+  }
+  if (expiresAt && Number.isNaN(new Date(expiresAt).getTime())) {
+    return { ok: false, reason: "expiresAt must be a valid date" };
+  }
+  if (startsAt && expiresAt && new Date(startsAt) > new Date(expiresAt)) {
+    return { ok: false, reason: "startsAt must be before expiresAt" };
+  }
+  const description = typeof raw.description === "string" && raw.description.trim() ? raw.description.trim().slice(0, 500) : null;
+  return {
+    ok: true,
+    value: {
+      code,
+      description,
+      discountType: raw.discountType,
+      discountValue: Math.round(discountValue * 100) / 100,
+      applicablePlanCodes: parseApplicablePlanCodes(raw.applicablePlanCodes),
+      maxRedemptions,
+      startsAt,
+      expiresAt,
+      active: raw.active === false ? false : true
+    }
+  };
+}
+
+// server/mockAccessDomain.ts
+var FREE_PLAN_ALLOWED_MOCK_ID = "mock-set-seta";
+var FREE_PLAN_MOCK_ACCESS_ERROR = "Free plan includes SetA only. Upgrade to Premium or Unlimited for other mocks and practice tests.";
+function isFreePlan(plan) {
+  return (plan || "Free") === "Free";
+}
+function isFreePlanAllowedMock(mockId) {
+  return (mockId || "").trim() === FREE_PLAN_ALLOWED_MOCK_ID;
+}
+function assertFreePlanMockAccess(plan, mockId, opts) {
+  if (opts?.staffBypass) return { ok: true };
+  if (!isFreePlan(plan)) return { ok: true };
+  if (isFreePlanAllowedMock(mockId)) return { ok: true };
+  return { ok: false, error: FREE_PLAN_MOCK_ACCESS_ERROR, status: 403 };
+}
+function assertFreePlanPracticeAccess(plan, opts) {
+  if (opts?.staffBypass) return { ok: true };
+  if (!isFreePlan(plan)) return { ok: true };
+  return { ok: false, error: FREE_PLAN_MOCK_ACCESS_ERROR, status: 403 };
+}
+
+// server/planEntitlementsStore.ts
+import fs9 from "node:fs";
+import path10 from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+var __dirname2 = path10.dirname(fileURLToPath2(import.meta.url));
+var root2 = path10.resolve(__dirname2, "..");
+function entitlementsPath() {
+  const dataDir = path10.dirname(
+    process.env.SQLITE_PATH || path10.join(root2, "data", "prepx-questions.sqlite")
+  );
+  return path10.join(dataDir, "plan-entitlements.json");
+}
+var cache = null;
+function ensureDir(filePath) {
+  fs9.mkdirSync(path10.dirname(filePath), { recursive: true });
+}
+function writeSeed(filePath) {
+  ensureDir(filePath);
+  fs9.writeFileSync(filePath, JSON.stringify(PLAN_ENTITLEMENTS_SEED, null, 2), "utf8");
+  return { ...PLAN_ENTITLEMENTS_SEED };
+}
+function getPlanEntitlements() {
+  if (cache) return cache;
+  const filePath = entitlementsPath();
+  try {
+    if (!fs9.existsSync(filePath)) {
+      cache = writeSeed(filePath);
+      return cache;
+    }
+    const raw = JSON.parse(fs9.readFileSync(filePath, "utf8"));
+    const parsed = parsePlanEntitlements(raw);
+    if (parsed.ok === false) {
+      console.warn("[plan-entitlements] invalid file, reseeding:", parsed.error);
+      cache = writeSeed(filePath);
+      return cache;
+    }
+    cache = parsed.value;
+    return cache;
+  } catch (err) {
+    console.warn("[plan-entitlements] read failed, reseeding:", err);
+    cache = writeSeed(filePath);
+    return cache;
+  }
+}
+function setPlanEntitlements(next) {
+  const parsed = parsePlanEntitlements(next);
+  if (parsed.ok === false) {
+    throw new Error(parsed.error);
+  }
+  const filePath = entitlementsPath();
+  ensureDir(filePath);
+  fs9.writeFileSync(filePath, JSON.stringify(parsed.value, null, 2), "utf8");
+  cache = parsed.value;
+  return cache;
+}
+
+// server/emailDomainPolicy.ts
+var DISPOSABLE_EMAIL_DOMAINS = /* @__PURE__ */ new Set([
+  "mailinator.com",
+  "guerrillamail.com",
+  "guerrillamail.org",
+  "guerrillamail.net",
+  "sharklasers.com",
+  "grr.la",
+  "guerrillamailblock.com",
+  "pokemail.net",
+  "spam4.me",
+  "tempmail.com",
+  "temp-mail.org",
+  "temp-mail.io",
+  "throwaway.email",
+  "yopmail.com",
+  "yopmail.fr",
+  "cool.in.th",
+  "discard.email",
+  "discardmail.com",
+  "trashmail.com",
+  "trashmail.me",
+  "trashmail.net",
+  "mailnesia.com",
+  "maildrop.cc",
+  "getnada.com",
+  "nada.email",
+  "10minutemail.com",
+  "10minutemail.net",
+  "minutemail.com",
+  "minuteinbox.com",
+  "tempail.com",
+  "fakeinbox.com",
+  "mailcatch.com",
+  "mailnull.com",
+  "spamgourmet.com",
+  "spam.la",
+  "spamfree24.org",
+  "moakt.com",
+  "tmpmail.org",
+  "tmpmail.net",
+  "emailondeck.com",
+  "getairmail.com",
+  "mailtemp.net",
+  "tempr.email",
+  "dispostable.com",
+  "mailforspam.com",
+  "mytemp.email",
+  "tempinbox.com",
+  "inboxkitten.com",
+  "burnermail.io",
+  "guerrillamail.de",
+  "spamobox.com",
+  "tempmailo.com",
+  "emailfake.com",
+  "crazymailing.com",
+  "mohmal.com",
+  "tempmailaddress.com",
+  "throwam.com",
+  "mailpoof.com"
+]);
+function parseCsvEnv(raw) {
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+function extractEmailDomain(email) {
+  const trimmed = (email || "").trim().toLowerCase();
+  const at = trimmed.lastIndexOf("@");
+  if (at <= 0 || at === trimmed.length - 1) return null;
+  const domain = trimmed.slice(at + 1);
+  if (!domain.includes(".") || domain.includes(" ")) return null;
+  return domain;
+}
+function domainMatchesAllowlist(domain, allowed) {
+  for (const entry of allowed) {
+    if (entry.startsWith("*.") && domain.endsWith(entry.slice(1))) return true;
+    if (domain === entry) return true;
+  }
+  return false;
+}
+function evaluateEmailDomain(email, opts = {}) {
+  const domain = extractEmailDomain(email);
+  if (!domain) return { ok: false, domain: "", reason: "invalid" };
+  const blockDisposable = opts.blockDisposable !== false;
+  const allowed = opts.allowedDomains || [];
+  const extraBlocked = new Set(opts.extraBlockedDomains || []);
+  if (extraBlocked.has(domain) || blockDisposable && DISPOSABLE_EMAIL_DOMAINS.has(domain)) {
+    return { ok: false, domain, reason: "disposable" };
+  }
+  if (allowed.length > 0 && !domainMatchesAllowlist(domain, allowed)) {
+    return { ok: false, domain, reason: "not_allowed" };
+  }
+  return { ok: true, domain };
+}
+function emailDomainPolicyFromEnv(env = process.env) {
+  const blockFlag = (env.EMAIL_BLOCK_DISPOSABLE || "true").toLowerCase();
+  return {
+    blockDisposable: blockFlag !== "false" && blockFlag !== "0",
+    allowedDomains: parseCsvEnv(env.EMAIL_ALLOWED_DOMAINS),
+    extraBlockedDomains: parseCsvEnv(env.EMAIL_BLOCKED_DOMAINS)
+  };
+}
+function emailDomainBlockedMessage(decision) {
+  if (decision.reason === "invalid") {
+    return "A valid email address is required.";
+  }
+  if (decision.reason === "disposable") {
+    return "Temporary or disposable email addresses are not allowed. Use a permanent email (e.g. Gmail, Outlook, Yahoo, or your school email).";
+  }
+  return "That email domain is not authorized for PrepX Nepal. Use a supported permanent email provider.";
+}
+
 // server/index.ts
-var __dirname2 = path4.dirname(fileURLToPath2(import.meta.url));
-var root2 = fs3.existsSync(path4.join(__dirname2, "package.json")) ? __dirname2 : path4.resolve(__dirname2, "..");
-dotenv.config({ path: path4.join(root2, ".env.local") });
-dotenv.config({ path: path4.join(root2, ".env") });
+var __dirname3 = path11.dirname(fileURLToPath3(import.meta.url));
+var root3 = fs10.existsSync(path11.join(__dirname3, "package.json")) ? __dirname3 : path11.resolve(__dirname3, "..");
+dotenv.config({ path: path11.join(root3, ".env.local") });
+dotenv.config({ path: path11.join(root3, ".env") });
 var PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 var SECRET_KEY = process.env.CLERK_SECRET_KEY;
 var BOOTSTRAP_ADMIN_EMAIL = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase() || "surajnepal2058@gmail.com";
 var API_BIND_HOST = process.env.API_BIND_HOST || (process.env.PORT || process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1");
 var MOCK_COMPLETE_COINS = 20;
 var CLERK_AUTHORIZED_PARTIES = (process.env.CLERK_AUTHORIZED_PARTIES || "").split(",").map((s) => s.trim()).filter(Boolean);
+var EMAIL_DOMAIN_POLICY = emailDomainPolicyFromEnv();
 if (!SECRET_KEY) {
   console.error(
     "CLERK_SECRET_KEY is missing. Set it in the host Environment Variables panel (or .env.local for local dev). Without it the process exits and the proxy returns 503."
@@ -2331,13 +5032,18 @@ app.use((_req, res, next) => {
 });
 var questionsRepo;
 var mocksRepo;
+var referralsRepo;
+var paymentClaimsRepo;
+var supportIssuesRepo;
+var formulasRepo;
+var promoCodesRepo;
 function mapUser(user) {
   const email = user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId)?.emailAddress || user.emailAddresses[0]?.emailAddress || "";
   const meta = user.publicMetadata || {};
   const isBootstrapAdmin = email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
   const plan = meta.plan || (isBootstrapAdmin ? "Unlimited" : "Free");
   const role = meta.role || (isBootstrapAdmin ? "Admin" : "Student");
-  const mocksRemaining = meta.mocksRemaining !== void 0 ? meta.mocksRemaining : plan === "Unlimited" ? null : plan === "Premium" ? 10 : 3;
+  const mocksRemaining = meta.mocksRemaining !== void 0 ? meta.mocksRemaining : defaultMocksForPlan(plan, getPlanEntitlements());
   const studyCoinBalance = typeof meta.studyCoinBalance === "number" ? meta.studyCoinBalance : isBootstrapAdmin ? 9999 : 0;
   const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || email.split("@")[0] || "Clerk User";
   return {
@@ -2368,8 +5074,14 @@ function isBootstrapAdminEmail(email) {
 function isStaff(role, email) {
   return isBootstrapAdminEmail(email) || role === "Admin" || role === "Moderator (Questions)" || role === "Moderator (Billing)";
 }
+function canManageBilling2(role, email) {
+  return isBootstrapAdminEmail(email) || role === "Admin" || role === "Moderator (Billing)";
+}
 function canManageQuestions(role, email) {
   return isBootstrapAdminEmail(email) || role === "Admin" || role === "Moderator (Questions)";
+}
+function canDeleteImportFiles(role, email) {
+  return isBootstrapAdminEmail(email) || role === "Admin";
 }
 function toClientQuestion(q, includeAnswers = false) {
   const base = {
@@ -2404,7 +5116,7 @@ function resolvePlanQuota(meta) {
   }
   return {
     plan,
-    mocksRemaining: plan === "Premium" ? 10 : 3
+    mocksRemaining: defaultMocksForPlan(plan, getPlanEntitlements())
   };
 }
 async function mutateClerkMeta(clerkUserId, mutator) {
@@ -2463,6 +5175,35 @@ async function authorizeStartedMock(clerkUserId, coinPrice) {
   const profile = await consumeMockQuota(clerkUserId);
   return { profile, coinPriceCharged: 0 };
 }
+async function assertStudyAccess(clerkUserId, coinPrice, opts) {
+  if (opts?.staffBypass) return;
+  const freeGate = assertFreePlanMockAccess(opts?.plan, opts?.mockId, {
+    staffBypass: opts?.staffBypass
+  });
+  if (freeGate.ok === false) {
+    const err2 = new Error(freeGate.error);
+    err2.status = freeGate.status;
+    throw err2;
+  }
+  const price = typeof coinPrice === "number" && coinPrice > 0 ? Math.floor(coinPrice) : 0;
+  if (price === 0) return;
+  const user = await clerk.users.getUser(clerkUserId);
+  const profile = mapUser(user);
+  const { plan, mocksRemaining } = resolvePlanQuota({
+    plan: profile.plan,
+    mocksRemaining: profile.mocksRemaining
+  });
+  if (plan === "Unlimited" || mocksRemaining === null) return;
+  if ((mocksRemaining ?? 0) > 0) return;
+  const err = new Error(
+    "No mock access remaining. Upgrade your plan to study this paper, or use SetA on the Free plan."
+  );
+  err.status = 402;
+  throw err;
+}
+function rejectUnlessFreePlanMockAllowed(plan, mockId, staffBypass) {
+  return assertFreePlanMockAccess(plan, mockId, { staffBypass });
+}
 function sessionMarksFromMock(mock) {
   return {
     correctMarks: typeof mock.correctMarks === "number" ? mock.correctMarks : 1,
@@ -2477,6 +5218,28 @@ function toClientBatch(b) {
     importedByEmail: b.importedByEmail,
     importedByName: b.importedByName,
     questionCount: b.questionCount,
+    errorCount: b.errorCount,
+    createdAt: b.createdAt
+  };
+}
+function toClientFormulaSheet(s) {
+  return {
+    id: s.id,
+    subject: s.subject,
+    title: s.title,
+    chapter: s.chapter,
+    formulas: s.formulas,
+    batchId: s.batchId
+  };
+}
+function toClientFormulaBatch(b) {
+  return {
+    id: b.id,
+    label: b.label,
+    filename: b.filename,
+    importedByEmail: b.importedByEmail,
+    importedByName: b.importedByName,
+    sheetCount: b.sheetCount,
     errorCount: b.errorCount,
     createdAt: b.createdAt
   };
@@ -2503,6 +5266,7 @@ function toClientMock(m, questions) {
     year: m.year,
     allocation: m.allocation,
     importBatchId: m.importBatchId,
+    createdAt: m.createdAt,
     questions: questions || []
   };
 }
@@ -2517,6 +5281,30 @@ function toClientMockBatch(b) {
     errorCount: b.errorCount,
     createdAt: b.createdAt
   };
+}
+async function purgeOrphanBankQuestions(questionIds) {
+  const unique = [...new Set(questionIds.filter(Boolean))];
+  if (unique.length === 0) return { deletedQuestions: 0, deletedQuestionBatches: 0 };
+  const stillLinked = new Set(await mocksRepo.filterQuestionIdsLinkedToMocks(unique));
+  const orphans = unique.filter((id) => !stillLinked.has(id));
+  if (orphans.length === 0) return { deletedQuestions: 0, deletedQuestionBatches: 0 };
+  const rows = await questionsRepo.getByIds(orphans);
+  const batchIds = [
+    ...new Set(rows.map((q) => q.batchId).filter((id) => Boolean(id)))
+  ];
+  let deletedQuestions = 0;
+  for (const id of orphans) {
+    if (await questionsRepo.deleteOne(id)) deletedQuestions += 1;
+  }
+  let deletedQuestionBatches = 0;
+  for (const batchId of batchIds) {
+    const remaining = await questionsRepo.list({ batchId });
+    if (remaining.length === 0) {
+      await questionsRepo.deleteBatch(batchId);
+      deletedQuestionBatches += 1;
+    }
+  }
+  return { deletedQuestions, deletedQuestionBatches };
 }
 async function requireAuth(req, res, next) {
   try {
@@ -2534,6 +5322,17 @@ async function requireAuth(req, res, next) {
     const payload = await verifyToken(token, verifyOpts);
     const user = await clerk.users.getUser(payload.sub);
     const profile = mapUser(user);
+    const emailCheck = evaluateEmailDomain(profile.email, EMAIL_DOMAIN_POLICY);
+    if (emailCheck.ok === false) {
+      console.warn(
+        `Blocked email domain for user ${user.id}: ${emailCheck.domain || "(none)"} (${emailCheck.reason})`
+      );
+      return res.status(403).json({
+        error: emailDomainBlockedMessage(emailCheck),
+        code: "EMAIL_DOMAIN_BLOCKED",
+        reason: emailCheck.reason
+      });
+    }
     req.auth = { userId: user.id, profile };
     next();
   } catch (err) {
@@ -2627,6 +5426,50 @@ app.post("/api/questions", requireAuth, async (req, res) => {
     res.status(500).json({ error: err?.message || "Failed to create question" });
   }
 });
+app.patch("/api/questions/batches/:batchId", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Questions moderator or Admin required" });
+    }
+    const body = req.body || {};
+    const patch = {};
+    if (body.label !== void 0) {
+      if (typeof body.label !== "string" || !body.label.trim()) {
+        return res.status(400).json({ error: "label must be a non-empty string" });
+      }
+      patch.label = body.label.trim();
+    }
+    if (body.filename !== void 0) {
+      if (body.filename === null) {
+        patch.filename = null;
+      } else if (typeof body.filename === "string") {
+        patch.filename = body.filename.trim() || null;
+      } else {
+        return res.status(400).json({ error: "filename must be a string or null" });
+      }
+    }
+    if (patch.label === void 0 && patch.filename === void 0) {
+      return res.status(400).json({ error: "Provide label and/or filename" });
+    }
+    const existing = await questionsRepo.getBatch(req.params.batchId);
+    if (!existing) return res.status(404).json({ error: "Batch not found" });
+    if (patch.filename && patch.label === void 0) {
+      const stem = patch.filename.replace(/\.[^.]+$/i, "").trim() || patch.filename;
+      patch.label = existing.label.endsWith(" (questions)") ? `${stem} (questions)` : stem;
+    }
+    const updated = await questionsRepo.updateBatchMeta(req.params.batchId, patch);
+    if (!updated) return res.status(404).json({ error: "Batch not found" });
+    res.json({
+      batch: updated,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      source: questionsRepo.driver
+    });
+  } catch (err) {
+    console.error("PATCH /api/questions/batches/:batchId failed:", err);
+    res.status(500).json({ error: err?.message || "Failed to update batch" });
+  }
+});
 app.patch("/api/questions/:id", requireAuth, async (req, res) => {
   try {
     const { profile } = req.auth;
@@ -2652,8 +5495,8 @@ app.patch("/api/questions/:id", requireAuth, async (req, res) => {
 app.delete("/api/questions/batches/:batchId", requireAuth, async (req, res) => {
   try {
     const { profile } = req.auth;
-    if (!canManageQuestions(profile.role, profile.email)) {
-      return res.status(403).json({ error: "Questions moderator or Admin required" });
+    if (!canDeleteImportFiles(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Admin required to delete import files" });
     }
     const existing = await questionsRepo.getBatch(req.params.batchId);
     if (!existing) return res.status(404).json({ error: "Batch not found" });
@@ -2730,11 +5573,13 @@ app.get("/api/mocks", requireAuth, async (req, res) => {
     const staffQs = canManageQuestions(profile.role, profile.email);
     const mode = typeof req.query.mode === "string" ? req.query.mode : void 0;
     const scope = typeof req.query.scope === "string" ? req.query.scope : void 0;
-    const list = await mocksRepo.list({
-      publishedOnly: !staffQs,
-      ...mode === "fixed" || mode === "dynamic" ? { mode } : {},
-      ...scope === "full" || scope === "subject" || scope === "chapter" ? { scope } : {}
-    });
+    const list = sortMocksByTitleAsc(
+      await mocksRepo.list({
+        publishedOnly: !staffQs,
+        ...mode === "fixed" || mode === "dynamic" ? { mode } : {},
+        ...scope === "full" || scope === "subject" || scope === "chapter" ? { scope } : {}
+      })
+    );
     res.json({
       mocks: list.map((m) => toClientMock(m)),
       total: list.length,
@@ -2799,7 +5644,13 @@ app.post("/api/mocks/import", requireAuth, async (req, res) => {
     const label = typeof req.body?.label === "string" && req.body.label.trim() ? req.body.label.trim() : filename || `Mock import ${(/* @__PURE__ */ new Date()).toLocaleString()}`;
     const batchId = `mock-batch-${Date.now()}`;
     const questionBatchId = `batch-mockq-${Date.now()}`;
-    const parsed = parseFixedMockImportBatch(payload, { batchId, questionBatchId });
+    const parsed = parseFixedMockImportBatch(payload, {
+      batchId,
+      questionBatchId,
+      filename,
+      // Prefer SetA from filename over generic batch labels.
+      title: filename ? filename.replace(/\.json$/i, "") : label
+    });
     let successCount = 0;
     const imported = [];
     if (parsed.mocks.length > 0) {
@@ -2824,6 +5675,10 @@ app.post("/api/mocks/import", requireAuth, async (req, res) => {
         errorCount: parsed.errors.length
       });
       for (const m of parsed.mocks) {
+        const existing = await mocksRepo.getById(m.id);
+        if (existing) {
+          await mocksRepo.deleteOne(m.id);
+        }
         const saved = await mocksRepo.insertFixed({
           id: m.id,
           title: m.title,
@@ -2866,22 +5721,46 @@ app.post("/api/mocks/import", requireAuth, async (req, res) => {
 app.post("/api/mocks/practice", requireAuth, async (req, res) => {
   try {
     const { profile, userId } = req.auth;
+    const staffQs = canManageQuestions(profile.role, profile.email);
+    const practiceGate = assertFreePlanPracticeAccess(profile.plan, { staffBypass: staffQs });
+    if (practiceGate.ok === false) {
+      return res.status(practiceGate.status).json({ error: practiceGate.error });
+    }
     const body = req.body || {};
     const scope = body.scope === "subject" || body.scope === "chapter" || body.scope === "full" ? body.scope : "full";
     let allocation = structuredClone(DEFAULT_CEE_ALLOCATION);
     let subject = body.subject === "Combined" ? "Combined" : isSubject(body.subject) ? body.subject : void 0;
     let chapterName = typeof body.chapterName === "string" && body.chapterName.trim() ? body.chapterName.trim() : void 0;
+    const requestedTotal = typeof body.totalQuestions === "number" && Number.isFinite(body.totalQuestions) ? Math.floor(body.totalQuestions) : typeof body.questionCount === "number" && Number.isFinite(body.questionCount) ? Math.floor(body.questionCount) : null;
+    if (requestedTotal != null && requestedTotal < 1) {
+      return res.status(400).json({ error: "totalQuestions must be at least 1" });
+    }
+    if (requestedTotal != null && requestedTotal > 500) {
+      return res.status(400).json({ error: "totalQuestions cannot exceed 500" });
+    }
     if (scope === "subject") {
       if (!subject || subject === "Combined") {
         return res.status(400).json({ error: "subject is required for subject-wise practice" });
       }
       allocation = ceeAllocationForSubject(subject);
+      const blueprintTotal = totalFromAllocation(allocation);
+      if (requestedTotal != null) {
+        allocation = blueprintTotal < 1 ? { subjects: { [subject]: requestedTotal }, chapters: [] } : resizeAllocationToTotal(allocation, requestedTotal);
+      } else if (blueprintTotal < 1) {
+        allocation = { subjects: { [subject]: 25 }, chapters: [] };
+      }
     } else if (scope === "chapter") {
       if (!subject || subject === "Combined" || !chapterName) {
         return res.status(400).json({ error: "subject and chapterName are required for chapter practice" });
       }
       allocation = ceeAllocationForChapter(subject, chapterName);
       chapterName = allocation.chapters?.[0]?.chapter || chapterName;
+      if (requestedTotal != null) {
+        allocation = {
+          subjects: { [subject]: requestedTotal },
+          chapters: [{ subject, chapter: chapterName, count: requestedTotal }]
+        };
+      }
     } else {
       subject = "Combined";
     }
@@ -2958,6 +5837,159 @@ app.post("/api/mocks/practice", requireAuth, async (req, res) => {
     res.status(500).json({ error: publicErrorMessage(err, "Failed to generate practice mock") });
   }
 });
+app.post("/api/mocks/export", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canDeleteImportFiles(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Admin required to export Set JSON files" });
+    }
+    const body = req.body || {};
+    const batchIds = Array.isArray(body.batchIds) ? body.batchIds.filter((id) => typeof id === "string" && id.trim().length > 0) : [];
+    const mockIds = Array.isArray(body.mockIds) ? body.mockIds.filter((id) => typeof id === "string" && id.trim().length > 0) : [];
+    if (batchIds.length === 0 && mockIds.length === 0) {
+      return res.status(400).json({ error: "Provide batchIds and/or mockIds" });
+    }
+    const allMocks = await mocksRepo.list();
+    const selected = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const id of mockIds) {
+      const m = allMocks.find((x) => x.id === id) || await mocksRepo.getById(id);
+      if (!m) continue;
+      if (m.mode !== "fixed") continue;
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      selected.push(m);
+    }
+    if (batchIds.length > 0) {
+      const batchSet = new Set(batchIds);
+      for (const m of allMocks) {
+        if (m.mode !== "fixed" || !m.importBatchId || !batchSet.has(m.importBatchId)) continue;
+        if (seen.has(m.id)) continue;
+        seen.add(m.id);
+        selected.push(m);
+      }
+    }
+    if (selected.length === 0) {
+      return res.status(404).json({ error: "No Fixed mocks found for the given selection" });
+    }
+    const batches = await mocksRepo.listImportBatches();
+    const batchById = new Map(batches.map((b) => [b.id, b]));
+    const usedNames = /* @__PURE__ */ new Set();
+    const files = [];
+    for (const m of selected) {
+      const ids = m.questionIds || [];
+      if (ids.length === 0) {
+        return res.status(400).json({
+          error: `Fixed mock \u201C${m.title}\u201D (${m.id}) has no linked questions to export`
+        });
+      }
+      const records = await questionsRepo.getByIds(ids);
+      const byId = new Map(records.map((q) => [q.id, q]));
+      const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+      if (ordered.length !== ids.length) {
+        return res.status(400).json({
+          error: `Fixed mock \u201C${m.title}\u201D is missing ${ids.length - ordered.length} question(s) in the bank`
+        });
+      }
+      const batch = m.importBatchId ? batchById.get(m.importBatchId) : void 0;
+      let filename = setExportFilename(batch?.filename || null, batch?.label || m.title);
+      if (usedNames.has(filename.toLowerCase())) {
+        const stem = filename.replace(/\.json$/i, "");
+        filename = setExportFilename(null, `${stem}-${m.id.slice(-6)}`);
+      }
+      usedNames.add(filename.toLowerCase());
+      files.push({
+        filename,
+        mockId: m.id,
+        mockTitle: m.title,
+        batchId: m.importBatchId || null,
+        questionCount: ordered.length,
+        questions: serializeFixedMockAsSetJson(ordered)
+      });
+    }
+    res.json({
+      fileCount: files.length,
+      files,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      source: mocksRepo.driver
+    });
+  } catch (err) {
+    console.error("POST /api/mocks/export failed:", err);
+    res.status(500).json({ error: err?.message || "Failed to export Set JSON" });
+  }
+});
+app.patch("/api/mocks/batches/:batchId", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Questions moderator or Admin required" });
+    }
+    const existing = (await mocksRepo.listImportBatches()).find((b) => b.id === req.params.batchId) || null;
+    if (!existing) return res.status(404).json({ error: "Batch not found" });
+    const body = req.body || {};
+    const patch = {};
+    if (body.label !== void 0) {
+      if (typeof body.label !== "string" || !body.label.trim()) {
+        return res.status(400).json({ error: "label must be a non-empty string" });
+      }
+      patch.label = body.label.trim();
+    }
+    if (body.filename !== void 0) {
+      if (body.filename === null) {
+        patch.filename = null;
+      } else if (typeof body.filename === "string") {
+        patch.filename = body.filename.trim() || null;
+      } else {
+        return res.status(400).json({ error: "filename must be a string or null" });
+      }
+    }
+    if (patch.label === void 0 && patch.filename === void 0) {
+      return res.status(400).json({ error: "Provide label and/or filename" });
+    }
+    if (patch.filename && patch.label === void 0) {
+      patch.label = patch.filename.replace(/\.[^.]+$/i, "").trim() || patch.filename;
+    }
+    const updated = await mocksRepo.updateImportBatchMeta(req.params.batchId, patch);
+    if (!updated) return res.status(404).json({ error: "Batch not found" });
+    const oldLabel = existing.label;
+    const newLabel = updated.label;
+    const oldFilename = existing.filename;
+    let renamedMocks = 0;
+    if (newLabel !== oldLabel) {
+      const linked = (await mocksRepo.list()).filter((m) => m.importBatchId === existing.id);
+      const oldStem = oldFilename ? oldFilename.replace(/\.[^.]+$/i, "").trim() : "";
+      for (const m of linked) {
+        if (m.title === oldLabel || oldStem && m.title === oldStem) {
+          await mocksRepo.updateMeta(m.id, { title: newLabel });
+          renamedMocks += 1;
+        }
+      }
+    }
+    let renamedQuestionBatches = 0;
+    const qBatches = await questionsRepo.listBatches();
+    for (const qb of qBatches) {
+      const sameFile = Boolean(oldFilename && qb.filename === oldFilename);
+      const sameCompanionLabel = qb.label === `${oldLabel} (questions)`;
+      if (!sameFile && !sameCompanionLabel) continue;
+      const qLabel = sameCompanionLabel ? `${newLabel} (questions)` : qb.label;
+      await questionsRepo.updateBatchMeta(qb.id, {
+        filename: updated.filename,
+        label: qLabel
+      });
+      renamedQuestionBatches += 1;
+    }
+    res.json({
+      batch: updated,
+      renamedMocks,
+      renamedQuestionBatches,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      source: mocksRepo.driver
+    });
+  } catch (err) {
+    console.error("PATCH /api/mocks/batches/:batchId failed:", err);
+    res.status(500).json({ error: err?.message || "Failed to update mock batch" });
+  }
+});
 app.patch("/api/mocks/:id", requireAuth, async (req, res) => {
   try {
     const { profile } = req.auth;
@@ -3005,14 +6037,17 @@ app.patch("/api/mocks/:id", requireAuth, async (req, res) => {
 app.delete("/api/mocks/batches/:batchId", requireAuth, async (req, res) => {
   try {
     const { profile } = req.auth;
-    if (!canManageQuestions(profile.role, profile.email)) {
-      return res.status(403).json({ error: "Questions moderator or Admin required" });
+    if (!canDeleteImportFiles(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Admin required to delete import files" });
     }
     const result = await mocksRepo.deleteImportBatch(req.params.batchId);
+    const purged = await purgeOrphanBankQuestions(result.questionIds);
     res.json({
       deleted: true,
       batchId: req.params.batchId,
       deletedMocks: result.deletedMocks,
+      deletedQuestions: purged.deletedQuestions,
+      deletedQuestionBatches: purged.deletedQuestionBatches,
       syncedAt: (/* @__PURE__ */ new Date()).toISOString()
     });
   } catch (err) {
@@ -3023,12 +6058,19 @@ app.delete("/api/mocks/batches/:batchId", requireAuth, async (req, res) => {
 app.delete("/api/mocks/:id", requireAuth, async (req, res) => {
   try {
     const { profile } = req.auth;
-    if (!canManageQuestions(profile.role, profile.email)) {
-      return res.status(403).json({ error: "Questions moderator or Admin required" });
+    if (!canDeleteImportFiles(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Admin required to delete Sets / mocks" });
     }
-    const ok = await mocksRepo.deleteOne(req.params.id);
-    if (!ok) return res.status(404).json({ error: "Mock not found" });
-    res.json({ deleted: true, id: req.params.id, syncedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    const result = await mocksRepo.deleteOne(req.params.id);
+    if (!result.deleted) return res.status(404).json({ error: "Mock not found" });
+    const purged = await purgeOrphanBankQuestions(result.questionIds);
+    res.json({
+      deleted: true,
+      id: req.params.id,
+      deletedQuestions: purged.deletedQuestions,
+      deletedQuestionBatches: purged.deletedQuestionBatches,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
   } catch (err) {
     console.error("DELETE /api/mocks/:id failed:", err);
     res.status(500).json({ error: err?.message || "Failed to delete mock" });
@@ -3043,6 +6085,11 @@ app.post("/api/mocks/:id/start", requireAuth, async (req, res) => {
       if (!canManageQuestions(profile.role, profile.email)) {
         return res.status(403).json({ error: "Mock is not published" });
       }
+    }
+    const staffQs = canManageQuestions(profile.role, profile.email);
+    const freeGate = rejectUnlessFreePlanMockAllowed(profile.plan, mock.id, staffQs);
+    if (freeGate.ok === false) {
+      return res.status(freeGate.status).json({ error: freeGate.error });
     }
     const marks = sessionMarksFromMock(mock);
     if (mock.mode === "fixed") {
@@ -3125,6 +6172,51 @@ app.post("/api/mocks/:id/start", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("POST /api/mocks/:id/start failed:", err);
     res.status(500).json({ error: publicErrorMessage(err, "Failed to start mock") });
+  }
+});
+app.post("/api/mocks/:id/study", requireAuth, async (req, res) => {
+  try {
+    const { profile, userId } = req.auth;
+    const mock = await mocksRepo.getById(req.params.id);
+    if (!mock) return res.status(404).json({ error: "Mock not found" });
+    if (!mock.isPublished) {
+      if (!canManageQuestions(profile.role, profile.email)) {
+        return res.status(403).json({ error: "Mock is not published" });
+      }
+    }
+    if (mock.mode === "dynamic") {
+      return res.status(400).json({
+        error: "Study mode is available for fixed papers only. Generate a practice mock to attempt instead."
+      });
+    }
+    const ids = mock.questionIds || [];
+    const records = await questionsRepo.getByIds(ids);
+    if (records.length !== ids.length) {
+      return res.status(409).json({
+        error: `Fixed mock is missing questions in the bank (${records.length}/${ids.length} found)`
+      });
+    }
+    try {
+      await assertStudyAccess(userId, mock.coinPrice, {
+        staffBypass: canManageQuestions(profile.role, profile.email),
+        plan: profile.plan,
+        mockId: mock.id
+      });
+    } catch (accessErr) {
+      return res.status(accessErr?.status || 402).json({ error: accessErr?.message || "Study access denied" });
+    }
+    res.json({
+      mock: toClientMock(
+        mock,
+        records.map((q) => toClientQuestion(q, true))
+      ),
+      mode: "study",
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      source: mocksRepo.driver
+    });
+  } catch (err) {
+    console.error("POST /api/mocks/:id/study failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to open study mode") });
   }
 });
 app.post("/api/mocks/score", requireAuth, async (req, res) => {
@@ -3284,6 +6376,37 @@ app.post("/api/mocks/score", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("POST /api/mocks/score failed:", err);
     res.status(500).json({ error: publicErrorMessage(err, "Failed to score attempt") });
+  }
+});
+app.get("/api/plan-entitlements", (_req, res) => {
+  try {
+    res.json({
+      entitlements: getPlanEntitlements(),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("GET /api/plan-entitlements failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load plan entitlements") });
+  }
+});
+app.put("/api/plan-entitlements", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!isBootstrapAdminEmail(profile.email) && profile.role !== "Admin") {
+      return res.status(403).json({ error: "Admin role required" });
+    }
+    const parsed = parsePlanEntitlements(req.body);
+    if (parsed.ok === false) {
+      return res.status(400).json({ error: parsed.error });
+    }
+    const entitlements = setPlanEntitlements(parsed.value);
+    res.json({
+      entitlements,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("PUT /api/plan-entitlements failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to save plan entitlements") });
   }
 });
 app.get("/api/users", requireAuth, async (req, res) => {
@@ -3474,28 +6597,938 @@ app.post("/api/coins/redeem", requireAuth, async (req, res) => {
     res.status(500).json({ error: publicErrorMessage(err, "Failed to redeem") });
   }
 });
+app.post("/api/referrals/me/ensure", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    if (!isReferralStaffRole(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Staff only" });
+    }
+    const link = await referralsRepo.ensureLink({
+      ownerClerkId: userId,
+      code: generateReferralCode(userId),
+      ownerEmail: profile.email,
+      ownerName: profile.name,
+      ownerRole: profile.role
+    });
+    res.json({ link });
+  } catch (err) {
+    console.error("POST /api/referrals/me/ensure failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to ensure referral link") });
+  }
+});
+app.get("/api/referrals/me", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    if (!isReferralStaffRole(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Staff only" });
+    }
+    let link = await referralsRepo.getLinkByOwner(userId);
+    if (!link) {
+      link = await referralsRepo.ensureLink({
+        ownerClerkId: userId,
+        code: generateReferralCode(userId),
+        ownerEmail: profile.email,
+        ownerName: profile.name,
+        ownerRole: profile.role
+      });
+    }
+    const commissions = await referralsRepo.listCommissionsByReferrer(userId);
+    const totals = sumCommissionTotals(commissions);
+    res.json({ link, commissions, totals });
+  } catch (err) {
+    console.error("GET /api/referrals/me failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load referrals") });
+  }
+});
+app.post("/api/referrals/attribute", requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const code = normalizeReferralCode(req.body?.code);
+    if (!code) {
+      return res.status(400).json({ error: "Invalid referral code" });
+    }
+    const link = await referralsRepo.getLinkByCode(code);
+    if (!link || !link.active) {
+      return res.status(404).json({ error: "Referral link not found" });
+    }
+    if (link.ownerClerkId === userId) {
+      return res.status(400).json({ error: "Cannot attribute your own referral link" });
+    }
+    const result = await referralsRepo.attributeFirstTouch({
+      referredClerkId: userId,
+      referrerClerkId: link.ownerClerkId,
+      code: link.code
+    });
+    if (result.created) {
+      try {
+        await updatePublicMetadataAtomic({
+          userId,
+          getUser: (id) => clerk.users.getUser(id),
+          updateUser: (id, data) => clerk.users.updateUser(id, data),
+          mutator: (draft) => ({
+            ok: true,
+            next: {
+              ...draft,
+              referredByClerkId: link.ownerClerkId,
+              referralCode: link.code
+            }
+          })
+        });
+      } catch (metaErr) {
+        console.warn("referral attribute Clerk meta sync failed:", metaErr?.message || metaErr);
+      }
+    }
+    res.json({
+      attribution: result.attribution,
+      created: result.created
+    });
+  } catch (err) {
+    console.error("POST /api/referrals/attribute failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to attribute referral") });
+  }
+});
+app.post("/api/referrals/commissions", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canRecordReferralCommission(profile.role, isBootstrapAdminEmail(profile.email)) && !canManageBilling2(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Billing staff only" });
+    }
+    const claimId = typeof req.body?.claimId === "string" ? req.body.claimId.trim() : "";
+    const referredClerkId = typeof req.body?.referredClerkId === "string" ? req.body.referredClerkId.trim() : "";
+    const amountRaw = req.body?.amountNpr;
+    const amountNpr = typeof amountRaw === "number" ? amountRaw : Number(amountRaw);
+    if (!claimId || !referredClerkId) {
+      return res.status(400).json({ error: "claimId and referredClerkId are required" });
+    }
+    if (!Number.isFinite(amountNpr) || amountNpr <= 0) {
+      return res.status(400).json({ error: "amountNpr must be a positive number" });
+    }
+    const attribution = await referralsRepo.getAttribution(referredClerkId);
+    if (!attribution) {
+      return res.status(200).json({
+        recorded: false,
+        reason: "no_attribution",
+        message: "Payer has no referral attribution; no commission created"
+      });
+    }
+    const commissionAmountNpr = computeCommissionAmountNpr(amountNpr, REFERRAL_COMMISSION_RATE);
+    const insert = await referralsRepo.insertCommission({
+      id: `refc-${claimId}`.slice(0, 64),
+      claimId,
+      referredClerkId,
+      referrerClerkId: attribution.referrerClerkId,
+      conversionAmountNpr: Math.round(amountNpr),
+      commissionRate: REFERRAL_COMMISSION_RATE,
+      commissionAmountNpr
+    });
+    if (insert.ok === false) {
+      return res.status(200).json({
+        recorded: false,
+        reason: "duplicate_claim",
+        commission: insert.existing
+      });
+    }
+    res.status(201).json({
+      recorded: true,
+      commission: insert.commission
+    });
+  } catch (err) {
+    console.error("POST /api/referrals/commissions failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to record commission") });
+  }
+});
+app.get("/api/referrals/admin/overview", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canSettleReferralCommission(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const links = await referralsRepo.listLinks();
+    const commissions = await referralsRepo.listAllCommissions();
+    const totals = sumCommissionTotals(commissions);
+    const byReferrer = links.map((link) => {
+      const rows = commissions.filter((c) => c.referrerClerkId === link.ownerClerkId);
+      return {
+        link,
+        commissions: rows,
+        totals: sumCommissionTotals(rows)
+      };
+    });
+    res.json({ links, commissions, totals, byReferrer });
+  } catch (err) {
+    console.error("GET /api/referrals/admin/overview failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load referral overview") });
+  }
+});
+app.patch("/api/referrals/commissions/:id/settle", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    if (!canSettleReferralCommission(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing commission id" });
+    const commission = await referralsRepo.settleCommission(id, userId);
+    if (!commission) return res.status(404).json({ error: "Commission not found" });
+    res.json({ commission });
+  } catch (err) {
+    console.error("PATCH /api/referrals/commissions/:id/settle failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to settle commission") });
+  }
+});
+function toClientPaymentClaim(c) {
+  if (!c) return null;
+  return {
+    id: c.id,
+    userId: c.userId,
+    clerkUserId: c.clerkUserId,
+    userName: c.userName,
+    userEmail: c.userEmail,
+    planCode: c.planCode,
+    amountNpr: c.amountNpr,
+    listAmountNpr: c.listAmountNpr,
+    promoCode: c.promoCode || void 0,
+    promoDiscountNpr: c.promoDiscountNpr || void 0,
+    paymentMethod: c.paymentMethod,
+    transactionRef: c.transactionRef,
+    screenshotUrl: c.screenshotUrl,
+    status: c.status,
+    userNotes: c.userNotes != null && String(c.userNotes).trim() ? String(c.userNotes).trim() : void 0,
+    moderatorNotes: c.moderatorNotes != null && String(c.moderatorNotes).trim() ? String(c.moderatorNotes).trim() : void 0,
+    submittedAt: c.submittedAt,
+    verifiedAt: c.verifiedAt || void 0,
+    verifiedBy: c.verifiedBy || void 0
+  };
+}
+app.post("/api/payment-claims", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    const planCode = typeof req.body?.planCode === "string" ? req.body.planCode.trim() : "";
+    const transactionRef = typeof req.body?.transactionRef === "string" ? req.body.transactionRef.trim() : "";
+    const screenshotUrl = typeof req.body?.screenshotUrl === "string" ? req.body.screenshotUrl.trim() : "";
+    const userNotesRaw = typeof req.body?.userNotes === "string" ? req.body.userNotes : typeof req.body?.remarks === "string" ? req.body.remarks : typeof req.body?.userRemarks === "string" ? req.body.userRemarks : "";
+    const userNotes = userNotesRaw.trim();
+    const amountRaw = req.body?.amountNpr;
+    const listAmountNpr = Math.round(
+      typeof amountRaw === "number" ? amountRaw : Number(amountRaw)
+    );
+    const paymentMethod = req.body?.paymentMethod;
+    const promoRaw = typeof req.body?.promoCode === "string" ? req.body.promoCode : typeof req.body?.couponCode === "string" ? req.body.couponCode : "";
+    if (!planCode) return res.status(400).json({ error: "planCode is required" });
+    if (!transactionRef) return res.status(400).json({ error: "transactionRef is required" });
+    if (!isPaymentMethod(paymentMethod)) {
+      return res.status(400).json({ error: "paymentMethod must be Fonepay, eSewa, Khalti, or Bank Transfer" });
+    }
+    if (!Number.isFinite(listAmountNpr) || listAmountNpr <= 0) {
+      return res.status(400).json({ error: "amountNpr must be a positive number" });
+    }
+    if (!screenshotUrl.startsWith("data:image/") && !/^https?:\/\//i.test(screenshotUrl)) {
+      return res.status(400).json({
+        error: "Payment screenshot is required (attach an image of your payment receipt)"
+      });
+    }
+    let payableNpr = listAmountNpr;
+    let promoCode = null;
+    let promoDiscountNpr = 0;
+    const normalizedPromo = normalizePromoCode(promoRaw);
+    if (promoRaw.trim() && !normalizedPromo) {
+      return res.status(400).json({ error: "Invalid promo code format" });
+    }
+    if (normalizedPromo) {
+      const promo = await promoCodesRepo.getByCode(normalizedPromo);
+      const applied = evaluatePromoForCheckout(promo, {
+        planCode,
+        listAmountNpr
+      });
+      if (applied.ok === false) {
+        return res.status(400).json({ error: applied.reason });
+      }
+      promoCode = applied.code;
+      promoDiscountNpr = applied.discountNpr;
+      payableNpr = applied.payableNpr;
+    }
+    const claim = await paymentClaimsRepo.insert({
+      id: `pay-claim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      userId: profile.id || `usr-clerk-${userId}`,
+      clerkUserId: userId,
+      userName: profile.name,
+      userEmail: profile.email,
+      planCode,
+      amountNpr: payableNpr,
+      listAmountNpr,
+      promoCode,
+      promoDiscountNpr,
+      paymentMethod,
+      transactionRef,
+      screenshotUrl,
+      userNotes: userNotes || null
+    });
+    res.status(201).json({ claim: toClientPaymentClaim(claim) });
+  } catch (err) {
+    console.error("POST /api/payment-claims failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to submit payment claim") });
+  }
+});
+app.get("/api/payment-claims", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    const staff = canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email));
+    const rows = staff ? sortClaimsForQueue(await paymentClaimsRepo.listAll()) : await paymentClaimsRepo.listByClerkUserId(userId);
+    res.json({
+      claims: rows.map((c) => toClientPaymentClaim(c)),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("GET /api/payment-claims failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load payment claims") });
+  }
+});
+app.post("/api/payment-claims/:id/approve", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    if (!canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Billing staff only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing claim id" });
+    const existing = await paymentClaimsRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: "Claim not found" });
+    if (existing.status !== "pending") {
+      return res.status(409).json({ error: `Claim already ${existing.status}`, claim: toClientPaymentClaim(existing) });
+    }
+    const claim = await paymentClaimsRepo.resolve(id, {
+      status: "approved",
+      verifiedBy: profile.name,
+      verifiedByClerkId: userId,
+      moderatorNotes: typeof req.body?.moderatorNotes === "string" ? req.body.moderatorNotes : null
+    });
+    if (!claim) {
+      return res.status(409).json({ error: "Claim was already resolved by another moderator" });
+    }
+    if (claim.promoCode) {
+      try {
+        const bumped = await promoCodesRepo.tryIncrementRedemption(claim.promoCode);
+        if (!bumped) {
+          console.warn(
+            `Approve claim ${claim.id}: promo ${claim.promoCode} redemption not incremented (exhausted or inactive)`
+          );
+        }
+      } catch (promoErr) {
+        console.error("Approve claim: promo redemption failed:", promoErr?.message || promoErr);
+      }
+    }
+    const entitlements = defaultEntitlementsForPlan(claim.planCode, getPlanEntitlements());
+    let activatedUser = null;
+    try {
+      const updated = await updatePublicMetadataAtomic({
+        userId: claim.clerkUserId,
+        getUser: (id2) => clerk.users.getUser(id2),
+        updateUser: (id2, data) => clerk.users.updateUser(id2, data),
+        mutator: (draft) => {
+          const prevMocks = typeof draft.mocksRemaining === "number" || draft.mocksRemaining === null ? draft.mocksRemaining : 0;
+          const prevCoins = typeof draft.studyCoinBalance === "number" ? draft.studyCoinBalance : 0;
+          const nextMocks = entitlements.mocksGranted === null ? null : (prevMocks ?? 0) + entitlements.mocksGranted;
+          return {
+            ok: true,
+            next: {
+              ...draft,
+              plan: entitlements.tier,
+              mocksRemaining: nextMocks,
+              studyCoinBalance: prevCoins + entitlements.coinsGranted
+            }
+          };
+        }
+      });
+      if ("user" in updated) {
+        activatedUser = mapUser(updated.user);
+      }
+    } catch (activateErr) {
+      console.error("Approve claim: Clerk activation failed:", activateErr?.message || activateErr);
+    }
+    let commission = null;
+    let commissionRecorded = false;
+    try {
+      const attribution = await referralsRepo.getAttribution(claim.clerkUserId);
+      if (attribution) {
+        const commissionAmountNpr = computeCommissionAmountNpr(
+          claim.amountNpr,
+          REFERRAL_COMMISSION_RATE
+        );
+        const insert = await referralsRepo.insertCommission({
+          id: `refc-${claim.id}`.slice(0, 64),
+          claimId: claim.id,
+          referredClerkId: claim.clerkUserId,
+          referrerClerkId: attribution.referrerClerkId,
+          conversionAmountNpr: claim.amountNpr,
+          commissionRate: REFERRAL_COMMISSION_RATE,
+          commissionAmountNpr
+        });
+        if (insert.ok === true) {
+          commission = insert.commission;
+          commissionRecorded = true;
+        } else {
+          commission = insert.existing;
+        }
+      }
+    } catch (commErr) {
+      console.error("Approve claim: referral commission failed:", commErr?.message || commErr);
+    }
+    res.json({
+      claim: toClientPaymentClaim(claim),
+      activatedUser,
+      entitlements,
+      referralCommission: { recorded: commissionRecorded, commission }
+    });
+  } catch (err) {
+    console.error("POST /api/payment-claims/:id/approve failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to approve claim") });
+  }
+});
+app.post("/api/payment-claims/:id/reject", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    if (!canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Billing staff only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing claim id" });
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : typeof req.body?.moderatorNotes === "string" ? req.body.moderatorNotes.trim() : "";
+    const claim = await paymentClaimsRepo.resolve(id, {
+      status: "rejected",
+      verifiedBy: profile.name,
+      verifiedByClerkId: userId,
+      moderatorNotes: reason || "Rejected"
+    });
+    if (!claim) {
+      const existing = await paymentClaimsRepo.getById(id);
+      if (!existing) return res.status(404).json({ error: "Claim not found" });
+      return res.status(409).json({ error: `Claim already ${existing.status}`, claim: toClientPaymentClaim(existing) });
+    }
+    res.json({ claim: toClientPaymentClaim(claim) });
+  } catch (err) {
+    console.error("POST /api/payment-claims/:id/reject failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to reject claim") });
+  }
+});
+app.patch("/api/payment-claims/:id", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Billing staff only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing claim id" });
+    const existing = await paymentClaimsRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: "Claim not found" });
+    const body = req.body || {};
+    const hasUserNotes = body.userNotes !== void 0;
+    const userNotesValue = typeof body.userNotes === "string" && body.userNotes.trim() ? body.userNotes.trim() : null;
+    if (existing.status !== "pending") {
+      const otherKeys = [
+        "planCode",
+        "amountNpr",
+        "listAmountNpr",
+        "promoCode",
+        "promoDiscountNpr",
+        "paymentMethod",
+        "transactionRef",
+        "screenshotUrl"
+      ].filter((k) => body[k] !== void 0);
+      if (otherKeys.length > 0) {
+        return res.status(409).json({
+          error: `Only user remarks can be edited on ${existing.status} claims`,
+          claim: toClientPaymentClaim(existing)
+        });
+      }
+      if (!hasUserNotes) {
+        return res.status(400).json({ error: "userNotes is required when editing a resolved claim" });
+      }
+      const claim2 = await paymentClaimsRepo.updateUserNotes(id, userNotesValue);
+      if (!claim2) return res.status(404).json({ error: "Claim not found" });
+      return res.json({ claim: toClientPaymentClaim(claim2) });
+    }
+    const patch = {};
+    if (typeof body.planCode === "string" && body.planCode.trim()) {
+      patch.planCode = body.planCode.trim();
+    }
+    if (body.amountNpr !== void 0) {
+      const amount = typeof body.amountNpr === "number" ? body.amountNpr : Number(body.amountNpr);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ error: "amountNpr must be a positive number" });
+      }
+      patch.amountNpr = Math.round(amount);
+    }
+    if (body.listAmountNpr !== void 0) {
+      if (body.listAmountNpr === null || body.listAmountNpr === "") {
+        patch.listAmountNpr = null;
+      } else {
+        const list = typeof body.listAmountNpr === "number" ? body.listAmountNpr : Number(body.listAmountNpr);
+        if (!Number.isFinite(list) || list <= 0) {
+          return res.status(400).json({ error: "listAmountNpr must be a positive number" });
+        }
+        patch.listAmountNpr = Math.round(list);
+      }
+    }
+    if (body.promoCode !== void 0) {
+      patch.promoCode = typeof body.promoCode === "string" && body.promoCode.trim() ? body.promoCode.trim().toUpperCase() : null;
+    }
+    if (body.promoDiscountNpr !== void 0) {
+      const d = typeof body.promoDiscountNpr === "number" ? body.promoDiscountNpr : Number(body.promoDiscountNpr);
+      if (!Number.isFinite(d) || d < 0) {
+        return res.status(400).json({ error: "promoDiscountNpr must be >= 0" });
+      }
+      patch.promoDiscountNpr = Math.round(d);
+    }
+    if (body.paymentMethod !== void 0) {
+      if (!isPaymentMethod(body.paymentMethod)) {
+        return res.status(400).json({
+          error: "paymentMethod must be Fonepay, eSewa, Khalti, or Bank Transfer"
+        });
+      }
+      patch.paymentMethod = body.paymentMethod;
+    }
+    if (typeof body.transactionRef === "string" && body.transactionRef.trim()) {
+      patch.transactionRef = body.transactionRef.trim();
+    }
+    if (typeof body.screenshotUrl === "string" && body.screenshotUrl.trim()) {
+      const url = body.screenshotUrl.trim();
+      if (!url.startsWith("data:image/") && !/^https?:\/\//i.test(url)) {
+        return res.status(400).json({ error: "screenshotUrl must be an image data URL or http(s) URL" });
+      }
+      patch.screenshotUrl = url;
+    }
+    if (hasUserNotes) {
+      patch.userNotes = userNotesValue;
+    }
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "No editable fields provided" });
+    }
+    const claim = await paymentClaimsRepo.updatePending(id, patch);
+    if (!claim) {
+      return res.status(409).json({ error: "Claim is no longer pending" });
+    }
+    res.json({ claim: toClientPaymentClaim(claim) });
+  } catch (err) {
+    console.error("PATCH /api/payment-claims/:id failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to update claim") });
+  }
+});
+app.delete("/api/payment-claims/:id", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canModeratePaymentClaims(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Billing staff only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing claim id" });
+    const existing = await paymentClaimsRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: "Claim not found" });
+    if (existing.status !== "pending") {
+      return res.status(409).json({
+        error: `Only pending claims can be deleted (currently ${existing.status})`,
+        claim: toClientPaymentClaim(existing)
+      });
+    }
+    const ok = await paymentClaimsRepo.deletePending(id);
+    if (!ok) return res.status(409).json({ error: "Claim is no longer pending" });
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error("DELETE /api/payment-claims/:id failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to delete claim") });
+  }
+});
+function toClientPromoCode(p) {
+  return {
+    id: p.id,
+    code: p.code,
+    description: p.description || void 0,
+    discountType: p.discountType,
+    discountValue: p.discountValue,
+    applicablePlanCodes: p.applicablePlanCodes,
+    maxRedemptions: p.maxRedemptions,
+    redemptionCount: p.redemptionCount,
+    startsAt: p.startsAt || void 0,
+    expiresAt: p.expiresAt || void 0,
+    active: p.active,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    createdByName: p.createdByName || void 0
+  };
+}
+app.post("/api/promo-codes/validate", requireAuth, async (req, res) => {
+  try {
+    const code = normalizePromoCode(typeof req.body?.code === "string" ? req.body.code : "");
+    const planCode = typeof req.body?.planCode === "string" ? req.body.planCode.trim() : "";
+    const listRaw = req.body?.amountNpr ?? req.body?.listAmountNpr;
+    const listAmountNpr = Math.round(typeof listRaw === "number" ? listRaw : Number(listRaw));
+    if (!code) return res.status(400).json({ error: "Enter a valid promo code" });
+    if (!planCode) return res.status(400).json({ error: "planCode is required" });
+    if (!Number.isFinite(listAmountNpr) || listAmountNpr <= 0) {
+      return res.status(400).json({ error: "amountNpr must be a positive number" });
+    }
+    const promo = await promoCodesRepo.getByCode(code);
+    const applied = evaluatePromoForCheckout(promo, { planCode, listAmountNpr });
+    if (applied.ok === false) {
+      return res.status(400).json({ error: applied.reason, valid: false });
+    }
+    res.json({ valid: true, ...applied });
+  } catch (err) {
+    console.error("POST /api/promo-codes/validate failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to validate promo") });
+  }
+});
+app.get("/api/promo-codes", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManagePromoCodes(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const rows = await promoCodesRepo.listAll();
+    res.json({ promoCodes: rows.map(toClientPromoCode) });
+  } catch (err) {
+    console.error("GET /api/promo-codes failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load promo codes") });
+  }
+});
+app.post("/api/promo-codes", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    if (!canManagePromoCodes(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const parsed = validatePromoCodeCreateInput(req.body || {});
+    if (parsed.ok === false) return res.status(400).json({ error: parsed.reason });
+    const existing = await promoCodesRepo.getByCode(parsed.value.code);
+    if (existing) {
+      return res.status(409).json({ error: `Promo code ${parsed.value.code} already exists` });
+    }
+    const created = await promoCodesRepo.insert({
+      id: `promo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ...parsed.value,
+      createdByClerkId: userId,
+      createdByName: profile.name || profile.email || "Admin"
+    });
+    res.status(201).json({ promoCode: toClientPromoCode(created) });
+  } catch (err) {
+    console.error("POST /api/promo-codes failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to create promo code") });
+  }
+});
+app.patch("/api/promo-codes/:id", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManagePromoCodes(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing promo id" });
+    const existing = await promoCodesRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: "Promo code not found" });
+    const body = req.body || {};
+    const patch = {};
+    if (body.description !== void 0) {
+      patch.description = typeof body.description === "string" && body.description.trim() ? body.description.trim().slice(0, 500) : null;
+    }
+    if (body.discountType !== void 0 || body.discountValue !== void 0) {
+      const discountType = body.discountType ?? existing.discountType;
+      const discountValue = body.discountValue !== void 0 ? typeof body.discountValue === "number" ? body.discountValue : Number(body.discountValue) : existing.discountValue;
+      const check = validatePromoCodeCreateInput({
+        code: existing.code,
+        discountType,
+        discountValue,
+        applicablePlanCodes: body.applicablePlanCodes !== void 0 ? body.applicablePlanCodes : existing.applicablePlanCodes,
+        maxRedemptions: body.maxRedemptions !== void 0 ? body.maxRedemptions : existing.maxRedemptions,
+        startsAt: body.startsAt !== void 0 ? body.startsAt : existing.startsAt,
+        expiresAt: body.expiresAt !== void 0 ? body.expiresAt : existing.expiresAt,
+        active: body.active !== void 0 ? body.active : existing.active,
+        description: body.description !== void 0 ? body.description : existing.description
+      });
+      if (check.ok === false) return res.status(400).json({ error: check.reason });
+      patch.discountType = check.value.discountType;
+      patch.discountValue = check.value.discountValue;
+      patch.applicablePlanCodes = check.value.applicablePlanCodes;
+      patch.maxRedemptions = check.value.maxRedemptions ?? null;
+      patch.startsAt = check.value.startsAt ?? null;
+      patch.expiresAt = check.value.expiresAt ?? null;
+      patch.active = check.value.active !== false;
+      if (body.description !== void 0) patch.description = check.value.description ?? null;
+    } else {
+      if (body.applicablePlanCodes !== void 0) {
+        const check = validatePromoCodeCreateInput({
+          code: existing.code,
+          discountType: existing.discountType,
+          discountValue: existing.discountValue,
+          applicablePlanCodes: body.applicablePlanCodes
+        });
+        if (check.ok === false) return res.status(400).json({ error: check.reason });
+        patch.applicablePlanCodes = check.value.applicablePlanCodes;
+      }
+      if (body.maxRedemptions !== void 0) {
+        if (body.maxRedemptions === null || body.maxRedemptions === "") {
+          patch.maxRedemptions = null;
+        } else {
+          const n = typeof body.maxRedemptions === "number" ? body.maxRedemptions : Number(body.maxRedemptions);
+          if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+            return res.status(400).json({ error: "maxRedemptions must be a positive integer or empty" });
+          }
+          patch.maxRedemptions = n;
+        }
+      }
+      if (body.startsAt !== void 0) {
+        patch.startsAt = typeof body.startsAt === "string" && body.startsAt.trim() ? body.startsAt.trim() : null;
+      }
+      if (body.expiresAt !== void 0) {
+        patch.expiresAt = typeof body.expiresAt === "string" && body.expiresAt.trim() ? body.expiresAt.trim() : null;
+      }
+      if (body.active !== void 0) {
+        patch.active = Boolean(body.active);
+      }
+    }
+    const updated = await promoCodesRepo.update(id, patch);
+    if (!updated) return res.status(404).json({ error: "Promo code not found" });
+    res.json({ promoCode: toClientPromoCode(updated) });
+  } catch (err) {
+    console.error("PATCH /api/promo-codes/:id failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to update promo code") });
+  }
+});
+app.delete("/api/promo-codes/:id", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManagePromoCodes(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing promo id" });
+    const ok = await promoCodesRepo.deleteById(id);
+    if (!ok) return res.status(404).json({ error: "Promo code not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /api/promo-codes/:id failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to delete promo code") });
+  }
+});
+function toClientSupportIssue(i) {
+  return {
+    id: i.id,
+    clerkUserId: i.clerkUserId,
+    userName: i.userName,
+    userEmail: i.userEmail,
+    category: i.category,
+    body: i.body,
+    status: i.status,
+    staffNotes: i.staffNotes || void 0,
+    createdAt: i.createdAt,
+    resolvedAt: i.resolvedAt || void 0,
+    resolvedBy: i.resolvedBy || void 0
+  };
+}
+app.post("/api/support-issues", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    const category = req.body?.category;
+    const body = normalizeIssueBody(typeof req.body?.body === "string" ? req.body.body : "");
+    if (!isSupportIssueCategory(category)) {
+      return res.status(400).json({
+        error: "category must be technical, content, payment, or coins"
+      });
+    }
+    if (body.length < 10) {
+      return res.status(400).json({ error: "Description must be at least 10 characters" });
+    }
+    const issue = await supportIssuesRepo.insert({
+      id: `issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      clerkUserId: userId,
+      userName: profile.name || "Aspirant",
+      userEmail: profile.email || "",
+      category,
+      body
+    });
+    res.status(201).json({ issue: toClientSupportIssue(issue) });
+  } catch (err) {
+    console.error("POST /api/support-issues failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to submit issue") });
+  }
+});
+app.get("/api/support-issues", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    const staff = canTriageSupportIssues(profile.role, isBootstrapAdminEmail(profile.email));
+    const rows = staff ? sortIssuesForQueue(await supportIssuesRepo.listAll()) : await supportIssuesRepo.listByClerkUserId(userId);
+    res.json({
+      issues: rows.map((i) => toClientSupportIssue(i)),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("GET /api/support-issues failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load issues") });
+  }
+});
+app.post("/api/support-issues/:id/resolve", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    if (!canTriageSupportIssues(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Staff only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing issue id" });
+    const existing = await supportIssuesRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: "Issue not found" });
+    if (existing.status !== "open") {
+      return res.status(409).json({ error: `Issue already ${existing.status}`, issue: toClientSupportIssue(existing) });
+    }
+    const issue = await supportIssuesRepo.resolve(id, {
+      staffNotes: typeof req.body?.staffNotes === "string" ? req.body.staffNotes.trim() : null,
+      resolvedBy: profile.name,
+      resolvedByClerkId: userId
+    });
+    if (!issue) {
+      return res.status(409).json({ error: "Issue was already resolved by another moderator" });
+    }
+    res.json({ issue: toClientSupportIssue(issue) });
+  } catch (err) {
+    console.error("POST /api/support-issues/:id/resolve failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to resolve issue") });
+  }
+});
+app.get("/api/formulas", requireAuth, async (_req, res) => {
+  try {
+    const sheets = await formulasRepo.list();
+    res.json({
+      sheets: sheets.map(toClientFormulaSheet),
+      total: sheets.length,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      source: formulasRepo.driver
+    });
+  } catch (err) {
+    console.error("GET /api/formulas failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load formulas") });
+  }
+});
+app.get("/api/formulas/batches", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Questions moderator or Admin required" });
+    }
+    const batches = await formulasRepo.listBatches();
+    res.json({
+      batches: batches.map(toClientFormulaBatch),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      source: formulasRepo.driver
+    });
+  } catch (err) {
+    console.error("GET /api/formulas/batches failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load formula batches") });
+  }
+});
+app.post("/api/formulas/import", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Questions moderator or Admin required" });
+    }
+    const payload = Array.isArray(req.body) ? req.body : req.body?.sheets;
+    const filename = typeof req.body?.filename === "string" && req.body.filename.trim() ? req.body.filename.trim() : null;
+    const label = typeof req.body?.label === "string" && req.body.label.trim() ? req.body.label.trim() : filename || `Formula import ${(/* @__PURE__ */ new Date()).toLocaleString()}`;
+    const batchId = `fbatch-${Date.now()}`;
+    const parsed = parseFormulaImportBatch(payload, { batchId });
+    let successCount = 0;
+    if (parsed.sheets.length > 0) {
+      await formulasRepo.createBatch({
+        id: batchId,
+        label,
+        filename,
+        importedByEmail: profile.email,
+        importedByName: profile.name,
+        sheetCount: parsed.sheets.length,
+        errorCount: parsed.errors.length
+      });
+      successCount = await formulasRepo.insertMany(parsed.sheets);
+    }
+    const batches = await formulasRepo.listBatches();
+    const sheets = await formulasRepo.list();
+    res.json({
+      successCount,
+      errors: parsed.errors,
+      batchId: successCount > 0 ? batchId : null,
+      batches: batches.map(toClientFormulaBatch),
+      sheets: sheets.map(toClientFormulaSheet),
+      total: sheets.length,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      source: formulasRepo.driver
+    });
+  } catch (err) {
+    console.error("POST /api/formulas/import failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to import formulas") });
+  }
+});
+app.delete("/api/formulas/batches/:batchId", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManageQuestions(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Questions moderator or Admin required" });
+    }
+    const existing = await formulasRepo.getBatch(req.params.batchId);
+    if (!existing) {
+      return res.status(404).json({ error: "Batch not found" });
+    }
+    const result = await formulasRepo.deleteBatch(req.params.batchId);
+    res.json({
+      deleted: true,
+      batchId: req.params.batchId,
+      deletedSheets: result.deletedSheets,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("DELETE /api/formulas/batches/:batchId failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to delete formula batch") });
+  }
+});
 async function boot() {
   try {
+    try {
+      await clerk.instance.updateRestrictions({
+        blockDisposableEmailDomains: true,
+        blockEmailSubaddresses: true
+      });
+      console.log("Clerk restrictions: disposable emails + email subaddresses blocked");
+    } catch (err) {
+      console.warn(
+        "Could not update Clerk email restrictions (enable in Dashboard \u2192 Protect \u2192 Rules):",
+        err?.message || err
+      );
+    }
     const repos = await createAppRepositories();
     questionsRepo = repos.questions;
     mocksRepo = repos.mocks;
+    referralsRepo = repos.referrals;
+    paymentClaimsRepo = repos.paymentClaims;
+    supportIssuesRepo = repos.supportIssues;
+    formulasRepo = repos.formulas;
+    promoCodesRepo = repos.promoCodes;
     const total = await questionsRepo.countAll();
     const mockTotal = (await mocksRepo.list()).length;
-    const distDir = path4.join(root2, "dist");
-    if (fs3.existsSync(distDir)) {
+    const formulaTotal = await formulasRepo.countAll();
+    const promoTotal = (await promoCodesRepo.listAll()).length;
+    const distDir = path11.join(root3, "dist");
+    if (fs10.existsSync(distDir)) {
+      registerSeoStaticRoutes(app, distDir);
       app.use(express.static(distDir, { index: false, maxAge: "1h" }));
       app.get("*", (req, res, next) => {
         if (req.path.startsWith("/api")) return next();
         if (req.method !== "GET" && req.method !== "HEAD") return next();
-        res.sendFile(path4.join(distDir, "index.html"), (err) => {
+        res.sendFile(path11.join(distDir, "index.html"), (err) => {
           if (err) next(err);
         });
       });
     }
     app.listen(PORT, API_BIND_HOST, () => {
       console.log(`PrepX API listening on http://${API_BIND_HOST}:${PORT}`);
-      console.log(`Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks)`);
-      if (fs3.existsSync(distDir)) {
+      console.log(
+        `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets, ${promoTotal} promo codes)`
+      );
+      if (fs10.existsSync(distDir)) {
         console.log(`Serving SPA from ${distDir}`);
       } else {
         console.warn(

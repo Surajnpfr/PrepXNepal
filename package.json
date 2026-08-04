@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "clean": "node -e \"for (const d of ['dist','dist-server']) require('fs').rmSync(d,{recursive:true,force:true})\"",
     "lint": "tsc --noEmit",
+    "test:seo-static": "tsx scripts/test-seo-static-files.ts && tsx scripts/verify-sitemap-headers.ts",
     "test:routes": "tsx scripts/test-app-routes.ts",
     "test:mapper": "tsx scripts/test-clerk-mapper.ts",
     "test:entitlements": "tsx scripts/test-plan-entitlements.ts",

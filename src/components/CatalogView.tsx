@@ -77,8 +77,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const givenIds = givenMockIdSet(pastReports);
 
   /** Catalog list: Fixed papers for Fixed/All; hide moderator dynamic blueprints (users self-serve). */
-  const filteredMocks = (() => {
-    const base = mockTests.filter((m) => {
+  const filteredMocks: MockTest[] = (() => {
+    const base: MockTest[] = mockTests.filter((m) => {
       if (!m.isPublished) return false;
       const mode = resolveMode(m);
       const scope = resolveScope(m);

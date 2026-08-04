@@ -1,53 +1,33 @@
 import React, { useCallback } from 'react';
-import { SignInButton, SignUpButton, useClerk } from '@clerk/clerk-react';
+import { useClerk } from '@clerk/clerk-react';
 import { captureReferralCodeFromLocation } from '../lib/referralCapture';
+import { CLERK_SOFT_REDIRECT } from '../lib/clerkUi';
 import { Button } from './ui';
-
-const REDIRECT = '/home';
-
-const CLERK_REDIRECT = {
-  fallbackRedirectUrl: REDIRECT,
-  forceRedirectUrl: REDIRECT,
-  signUpFallbackRedirectUrl: REDIRECT,
-  signUpForceRedirectUrl: REDIRECT,
-} as const;
 
 type ClerkAuthControlsProps = {
   layout?: 'topbar';
 };
 
 /**
- * Topbar Clerk sign-in / sign-up.
+ * Topbar Clerk sign-in / sign-up — same openSign* API as landing (no forceRedirect).
  */
 export const ClerkAuthControls: React.FC<ClerkAuthControlsProps> = () => {
-  const onAuthIntent = () => {
-    captureReferralCodeFromLocation();
-  };
+  const { promptSignIn, promptSignUp } = useLandingAuthModals();
 
   return (
     <div className="flex items-center gap-1.5 sm:gap-2">
-      <SignInButton
-        mode="modal"
-        fallbackRedirectUrl={REDIRECT}
-        forceRedirectUrl={REDIRECT}
-        signUpFallbackRedirectUrl={REDIRECT}
-        signUpForceRedirectUrl={REDIRECT}
+      <Button type="button" size="sm" onClick={promptSignIn}>
+        Sign In
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="hidden sm:inline-flex"
+        onClick={promptSignUp}
       >
-        <Button type="button" size="sm" onClick={onAuthIntent}>
-          Sign In
-        </Button>
-      </SignInButton>
-      <SignUpButton mode="modal" fallbackRedirectUrl={REDIRECT} forceRedirectUrl={REDIRECT}>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="hidden sm:inline-flex"
-          onClick={onAuthIntent}
-        >
-          Sign Up
-        </Button>
-      </SignUpButton>
+        Sign Up
+      </Button>
     </div>
   );
 };
@@ -70,20 +50,19 @@ const LANDING_SIGNUP_DESKTOP_CLASS =
 const LANDING_SIGNUP_MOBILE_CLASS =
   'w-full py-2.5 text-sm font-medium text-white bg-[#2563EB] rounded-lg cursor-pointer';
 
-/** Shared landing auth openers (Sign In / Sign Up modals). */
+/** Shared landing auth openers (Sign In / Sign Up modals). Soft redirects only. */
 export function useLandingAuthModals() {
   const { openSignIn, openSignUp } = useClerk();
 
   const promptSignIn = useCallback(() => {
     captureReferralCodeFromLocation();
-    void openSignIn({ ...CLERK_REDIRECT });
+    void openSignIn({ ...CLERK_SOFT_REDIRECT });
   }, [openSignIn]);
 
   const promptSignUp = useCallback(() => {
     captureReferralCodeFromLocation();
     void openSignUp({
-      fallbackRedirectUrl: REDIRECT,
-      forceRedirectUrl: REDIRECT,
+      fallbackRedirectUrl: CLERK_SOFT_REDIRECT.fallbackRedirectUrl,
     });
   }, [openSignUp]);
 

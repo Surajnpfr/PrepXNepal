@@ -30,6 +30,7 @@ import { HelpSupportView } from './components/HelpSupportView';
 import { ClerkLoadGuard } from './components/ClerkLoadGuard';
 import { SeoHead } from './components/SeoHead';
 import { AboutView } from './components/AboutView';
+import { BrandLogo } from './components/BrandLogo';
 import { seoForTab } from './lib/siteSeo';
 import { FREE_PLAN_MOCK_ACCESS_ERROR } from './lib/mockAccess';
 
@@ -539,14 +540,20 @@ export function App() {
   // (/reports, /help, /payment, /contact) so crawlers and share links see indexable content;
   // other app URLs still require sign-in.
   const PUBLIC_SEO_TABS = useMemo(() => new Set(['reports', 'policies', 'payment', 'about']), []);
+  const [authHandoff, setAuthHandoff] = useState(false);
 
   useEffect(() => {
     if (!isLoaded) return;
     if (isSignedIn && showLanding) {
-      enterApp('home', true);
-      return;
+      // Defer shell swap so Clerk can finish closing the OTP modal (no forceRedirect thrash).
+      setAuthHandoff(true);
+      const id = window.setTimeout(() => {
+        enterApp('home', true);
+      }, 450);
+      return () => window.clearTimeout(id);
     }
     if (!isSignedIn && !showLanding && !showNotFound && !PUBLIC_SEO_TABS.has(activeTab)) {
+      setAuthHandoff(false);
       goToLanding(true);
     }
   }, [
@@ -560,10 +567,18 @@ export function App() {
     PUBLIC_SEO_TABS,
   ]);
 
+  useEffect(() => {
+    if (!showLanding && isSignedIn) {
+      setAuthHandoff(false);
+    }
+  }, [showLanding, isSignedIn]);
+
   const showPublicSeo =
     isLoaded && !isSignedIn && !showLanding && !showNotFound && PUBLIC_SEO_TABS.has(activeTab);
-  const showWelcome = !isLoaded || (!isSignedIn && !showPublicSeo) || (isSignedIn && showLanding);
-  const showAppShell = isLoaded && isSignedIn && !showLanding && !showNotFound;
+  const showWelcome =
+    !authHandoff &&
+    (!isLoaded || (!isSignedIn && !showPublicSeo) || (isSignedIn && showLanding));
+  const showAppShell = isLoaded && isSignedIn && !showLanding && !showNotFound && !authHandoff;
   const showAppNotFound = isLoaded && isSignedIn && showNotFound && !showLanding;
   const pageSeo = seoForTab(
     showPublicSeo || showAppShell ? activeTab : null,
@@ -1584,6 +1599,24 @@ export function App() {
     <div className="min-h-screen bg-[var(--px-bg)] text-[var(--px-body)] flex flex-col font-sans antialiased relative overflow-x-hidden">
       <ClerkLoadGuard />
       <SeoHead page={pageSeo} />
+      {authHandoff && (
+        <div
+          className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-4 bg-[#F4F7FC] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(59,130,246,0.14),rgba(255,255,255,0))] text-slate-900"
+          role="status"
+          aria-live="polite"
+          aria-label="Signing you in"
+        >
+          <BrandLogo size={48} decorative />
+          <div className="text-center space-y-1.5 px-6">
+            <p className="text-lg font-bold tracking-tight text-slate-900">Signing you in…</p>
+            <p className="text-sm text-slate-600">Opening your PrepX Nepal dashboard.</p>
+          </div>
+          <div
+            className="mt-2 h-8 w-8 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"
+            aria-hidden
+          />
+        </div>
+      )}
       {showWelcome && (
         <BrainLanding
           onNavigatePublic={(tab, subTab) => {

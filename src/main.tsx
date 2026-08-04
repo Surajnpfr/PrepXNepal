@@ -4,6 +4,7 @@ import {createRoot} from 'react-dom/client';
 import {ClerkProvider} from '@clerk/clerk-react';
 import App from './App.tsx';
 import { FeedbackProvider } from './components/FeedbackProvider';
+import { CLERK_SOFT_REDIRECT, clerkAppearance } from './lib/clerkUi';
 import './index.css';
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -14,13 +15,12 @@ if (!PUBLISHABLE_KEY) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ClerkProvider 
+    <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
-      signInFallbackRedirectUrl="/home"
-      signUpFallbackRedirectUrl="/home"
-      signInForceRedirectUrl="/home"
-      signUpForceRedirectUrl="/home"
+      signInFallbackRedirectUrl={CLERK_SOFT_REDIRECT.fallbackRedirectUrl}
+      signUpFallbackRedirectUrl={CLERK_SOFT_REDIRECT.signUpFallbackRedirectUrl}
       afterSignOutUrl="/"
+      appearance={clerkAppearance as never}
     >
       <FeedbackProvider>
         <App />

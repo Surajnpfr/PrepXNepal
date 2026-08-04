@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClerkClient, verifyToken } from '@clerk/backend';
 import { createAppRepositories, resolveDbMode } from './db/index.ts';
+import { registerSeoStaticRoutes } from './seoStaticFiles.ts';
 import { parseImportBatch, parseQuestionUpdate } from './questionsDomain.ts';
 import {
   ceeAllocationForChapter,
@@ -366,7 +367,7 @@ async function assertStudyAccess(
   const freeGate = assertFreePlanMockAccess(opts?.plan, opts?.mockId, {
     staffBypass: opts?.staffBypass,
   });
-  if (!freeGate.ok) {
+  if (freeGate.ok === false) {
     const err: any = new Error(freeGate.error);
     err.status = freeGate.status;
     throw err;
@@ -1001,7 +1002,7 @@ app.post('/api/mocks/practice', requireAuth, async (req, res) => {
     const { profile, userId } = (req as any).auth;
     const staffQs = canManageQuestions(profile.role, profile.email);
     const practiceGate = assertFreePlanPracticeAccess(profile.plan, { staffBypass: staffQs });
-    if (!practiceGate.ok) {
+    if (practiceGate.ok === false) {
       return res.status(practiceGate.status).json({ error: practiceGate.error });
     }
     const body = (req.body || {}) as Record<string, unknown>;
@@ -1445,7 +1446,7 @@ app.post('/api/mocks/:id/start', requireAuth, async (req, res) => {
 
     const staffQs = canManageQuestions(profile.role, profile.email);
     const freeGate = rejectUnlessFreePlanMockAllowed(profile.plan, mock.id, staffQs);
-    if (!freeGate.ok) {
+    if (freeGate.ok === false) {
       return res.status(freeGate.status).json({ error: freeGate.error });
     }
 
@@ -3147,6 +3148,10 @@ async function boot() {
     // Serve Vite production build from the same Node process (Hostinger-friendly).
     const distDir = path.join(root, 'dist');
     if (fs.existsSync(distDir)) {
+      // Sitemap/robots BEFORE express.static: always 200 + XML body (no 304).
+      // GSC often fails "Sitemap could not be read" on empty 304 responses.
+      registerSeoStaticRoutes(app, distDir);
+
       app.use(express.static(distDir, { index: false, maxAge: '1h' }));
       app.get('*', (req, res, next) => {
         if (req.path.startsWith('/api')) return next();

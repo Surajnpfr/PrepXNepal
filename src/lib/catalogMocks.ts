@@ -52,6 +52,10 @@ export function sortCatalogMocks<T extends { id: string; title: string; createdA
   sortMode: CatalogSortMode
 ): T[] {
   const copy = [...mocks];
-  copy.sort(sortMode === 'new' ? compareMocksNew : compareMocksSerial);
+  if (sortMode === 'new') {
+    copy.sort((a, b) => compareMocksNew(a, b));
+  } else {
+    copy.sort((a, b) => compareMocksSerial(a, b));
+  }
   return copy;
 }
