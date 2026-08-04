@@ -115,7 +115,7 @@ export function createMysqlPromoCodesRepo(pool: Pool): PromoCodesRepository {
           (id, code, description, discount_type, discount_value, applicable_plan_codes,
            max_redemptions, redemption_count, starts_at, expires_at, active,
            created_at, updated_at, created_by_clerk_id, created_by_name)
-         VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.id,
           input.code,
@@ -157,7 +157,7 @@ export function createMysqlPromoCodesRepo(pool: Pool): PromoCodesRepository {
       await pool.query(
         `UPDATE promo_codes
          SET description = ?, discount_type = ?, discount_value = ?,
-             applicable_plan_codes = CAST(? AS JSON), max_redemptions = ?,
+             applicable_plan_codes = ?, max_redemptions = ?,
              starts_at = ?, expires_at = ?, active = ?, updated_at = ?
          WHERE id = ?`,
         [

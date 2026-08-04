@@ -215,7 +215,7 @@ export function createMysqlQuestionsRepo(pool: Pool): QuestionsRepository {
         `INSERT INTO questions (
           id, subject, chapter, stem, image_url, options_json, option_images_json, correct_option_key, explanation,
           tags_json, language, status, source, flag_count, batch_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?, CAST(? AS JSON), ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           question.id,
           question.subject,
@@ -250,7 +250,7 @@ export function createMysqlQuestionsRepo(pool: Pool): QuestionsRepository {
             `INSERT INTO questions (
               id, subject, chapter, stem, image_url, options_json, option_images_json, correct_option_key, explanation,
               tags_json, language, status, source, flag_count, batch_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?, CAST(? AS JSON), ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
               subject=VALUES(subject),
               chapter=VALUES(chapter),
@@ -309,9 +309,9 @@ export function createMysqlQuestionsRepo(pool: Pool): QuestionsRepository {
         question.batchId !== undefined ? question.batchId ?? null : existing.batch_id;
       await pool.query(
         `UPDATE questions SET
-          subject = ?, chapter = ?, stem = ?, image_url = ?, options_json = CAST(? AS JSON),
-          option_images_json = CAST(? AS JSON), correct_option_key = ?,
-          explanation = ?, tags_json = CAST(? AS JSON), language = ?, status = ?, source = ?,
+          subject = ?, chapter = ?, stem = ?, image_url = ?, options_json = ?,
+          option_images_json = ?, correct_option_key = ?,
+          explanation = ?, tags_json = ?, language = ?, status = ?, source = ?,
           flag_count = ?, batch_id = ?, updated_at = ?
          WHERE id = ?`,
         [

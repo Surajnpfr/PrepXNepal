@@ -381,7 +381,7 @@ function createMysqlQuestionsRepo(pool) {
         `INSERT INTO questions (
           id, subject, chapter, stem, image_url, options_json, option_images_json, correct_option_key, explanation,
           tags_json, language, status, source, flag_count, batch_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?, CAST(? AS JSON), ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           question.id,
           question.subject,
@@ -415,7 +415,7 @@ function createMysqlQuestionsRepo(pool) {
             `INSERT INTO questions (
               id, subject, chapter, stem, image_url, options_json, option_images_json, correct_option_key, explanation,
               tags_json, language, status, source, flag_count, batch_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?, CAST(? AS JSON), ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
               subject=VALUES(subject),
               chapter=VALUES(chapter),
@@ -472,9 +472,9 @@ function createMysqlQuestionsRepo(pool) {
       const batchId = question.batchId !== void 0 ? question.batchId ?? null : existing.batch_id;
       await pool.query(
         `UPDATE questions SET
-          subject = ?, chapter = ?, stem = ?, image_url = ?, options_json = CAST(? AS JSON),
-          option_images_json = CAST(? AS JSON), correct_option_key = ?,
-          explanation = ?, tags_json = CAST(? AS JSON), language = ?, status = ?, source = ?,
+          subject = ?, chapter = ?, stem = ?, image_url = ?, options_json = ?,
+          option_images_json = ?, correct_option_key = ?,
+          explanation = ?, tags_json = ?, language = ?, status = ?, source = ?,
           flag_count = ?, batch_id = ?, updated_at = ?
          WHERE id = ?`,
         [
@@ -852,7 +852,7 @@ function createMysqlMocksRepo(pool) {
           id, title, exam_type, mode, scope, subject, chapter_name, duration_sec,
           total_questions, questions_per_page, correct_marks, wrong_marks, unanswered_marks,
           is_published, coin_price, year, allocation_json, import_batch_id, created_at, updated_at
-        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), NULL, ?, ?)`,
+        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
         [
           mock.id,
           mock.title,
@@ -896,7 +896,7 @@ function createMysqlMocksRepo(pool) {
         `UPDATE mock_tests SET
           title = ?, is_published = ?, duration_sec = ?, questions_per_page = ?,
           correct_marks = ?, wrong_marks = ?, unanswered_marks = ?, coin_price = ?,
-          allocation_json = CAST(? AS JSON), total_questions = ?, updated_at = ?
+          allocation_json = ?, total_questions = ?, updated_at = ?
          WHERE id = ?`,
         [
           next.title,
@@ -1859,7 +1859,7 @@ function createMysqlPromoCodesRepo(pool) {
           (id, code, description, discount_type, discount_value, applicable_plan_codes,
            max_redemptions, redemption_count, starts_at, expires_at, active,
            created_at, updated_at, created_by_clerk_id, created_by_name)
-         VALUES (?, ?, ?, ?, ?, CAST(? AS JSON), ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.id,
           input.code,
@@ -1895,7 +1895,7 @@ function createMysqlPromoCodesRepo(pool) {
       await pool.query(
         `UPDATE promo_codes
          SET description = ?, discount_type = ?, discount_value = ?,
-             applicable_plan_codes = CAST(? AS JSON), max_redemptions = ?,
+             applicable_plan_codes = ?, max_redemptions = ?,
              starts_at = ?, expires_at = ?, active = ?, updated_at = ?
          WHERE id = ?`,
         [

@@ -261,7 +261,7 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
           id, title, exam_type, mode, scope, subject, chapter_name, duration_sec,
           total_questions, questions_per_page, correct_marks, wrong_marks, unanswered_marks,
           is_published, coin_price, year, allocation_json, import_batch_id, created_at, updated_at
-        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), NULL, ?, ?)`,
+        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
         [
           mock.id,
           mock.title,
@@ -306,7 +306,7 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
         `UPDATE mock_tests SET
           title = ?, is_published = ?, duration_sec = ?, questions_per_page = ?,
           correct_marks = ?, wrong_marks = ?, unanswered_marks = ?, coin_price = ?,
-          allocation_json = CAST(? AS JSON), total_questions = ?, updated_at = ?
+          allocation_json = ?, total_questions = ?, updated_at = ?
          WHERE id = ?`,
         [
           next.title,
