@@ -27,6 +27,7 @@ import {
 } from './mocksDomain.ts';
 import { isSubject } from './questionsDomain.ts';
 import type {
+  AttemptReportsRepository,
   FormulasRepository,
   MocksRepository,
   PaymentClaimsRepository,
@@ -133,6 +134,7 @@ let paymentClaimsRepo: PaymentClaimsRepository;
 let supportIssuesRepo: SupportIssuesRepository;
 let formulasRepo: FormulasRepository;
 let promoCodesRepo: PromoCodesRepository;
+let attemptReportsRepo: AttemptReportsRepository;
 
 type AppMeta = {
   plan?: string;
@@ -1788,12 +1790,31 @@ app.post('/api/mocks/score', requireAuth, async (req, res) => {
       return { ok: true, next: draft };
     });
 
+    const fullReport = {
+      ...report,
+      paperQuestions: ordered.map((q) => toClientQuestion(q, true)),
+      paperAnswers: answers,
+    };
+
+    try {
+      await attemptReportsRepo.insert({
+        id: report.id,
+        clerkUserId: userId,
+        userId: profile.id,
+        attemptId: report.attemptId,
+        mockId: report.mockId,
+        mockTitle: report.mockTitle,
+        completedAt: report.completedAt,
+        overallScore: report.overallScore,
+        maxScore: report.maxScore,
+        report: fullReport,
+      });
+    } catch (persistErr: any) {
+      console.error('Failed to persist attempt report:', persistErr?.message || persistErr);
+    }
+
     res.json({
-      report: {
-        ...report,
-        paperQuestions: ordered.map((q) => toClientQuestion(q, true)),
-        paperAnswers: answers,
-      },
+      report: fullReport,
       coinReward: MOCK_COMPLETE_COINS,
       user: updatedUser,
       syncedAt: new Date().toISOString(),
@@ -2984,6 +3005,23 @@ app.get('/api/support-issues', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/api/reports', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    const staff = isStaff(profile.role, profile.email);
+    const rows = staff
+      ? await attemptReportsRepo.listAll()
+      : await attemptReportsRepo.listByClerkUserId(userId);
+    res.json({
+      reports: rows.map((r) => r.report),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('GET /api/reports failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load reports') });
+  }
+});
+
 /** Staff: mark issue resolved. */
 app.post('/api/support-issues/:id/resolve', requireAuth, async (req, res) => {
   try {
@@ -3153,6 +3191,7 @@ async function boot() {
     supportIssuesRepo = repos.supportIssues;
     formulasRepo = repos.formulas;
     promoCodesRepo = repos.promoCodes;
+    attemptReportsRepo = repos.attemptReports;
     const total = await questionsRepo.countAll();
     const mockTotal = (await mocksRepo.list()).length;
     const formulaTotal = await formulasRepo.countAll();

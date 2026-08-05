@@ -331,3 +331,51 @@ export interface FormulasRepository {
   close(): Promise<void>;
 }
 
+/** Full AttemptReport JSON (client shape) stored in report_json. */
+export type AttemptReportJson = Record<string, unknown> & {
+  id: string;
+  attemptId: string;
+  mockId: string;
+  mockTitle: string;
+  completedAt: string;
+  overallScore: number;
+  maxScore: number;
+};
+
+export type CreateAttemptReportInput = {
+  id: string;
+  clerkUserId: string;
+  userId: string;
+  attemptId: string;
+  mockId: string;
+  mockTitle: string;
+  completedAt: string;
+  overallScore: number;
+  maxScore: number;
+  report: AttemptReportJson;
+};
+
+export type AttemptReportRecord = {
+  id: string;
+  clerkUserId: string;
+  userId: string;
+  attemptId: string;
+  mockId: string;
+  mockTitle: string;
+  completedAt: string;
+  overallScore: number;
+  maxScore: number;
+  report: AttemptReportJson;
+  createdAt: string;
+};
+
+export interface AttemptReportsRepository {
+  readonly driver: 'mysql' | 'sqlite';
+  ensureSchema(): Promise<void>;
+  insert(input: CreateAttemptReportInput): Promise<AttemptReportRecord>;
+  listByClerkUserId(clerkUserId: string): Promise<AttemptReportRecord[]>;
+  listAll(): Promise<AttemptReportRecord[]>;
+  getById(id: string): Promise<AttemptReportRecord | null>;
+  close(): Promise<void>;
+}
+

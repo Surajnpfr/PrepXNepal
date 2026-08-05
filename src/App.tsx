@@ -82,6 +82,7 @@ import {
   updatePaymentClaim,
   type PaymentClaimEditInput,
 } from './lib/paymentClaimsApi';
+import { fetchAttemptReports } from './lib/reportsApi';
 import {
   bootstrapFromActivity,
   createNotification,
@@ -332,6 +333,35 @@ export function App() {
     }
   }, [getToken, isSignedIn, user]);
 
+  const refreshPastReports = useCallback(async () => {
+    if (!isSignedIn) return;
+    try {
+      const data = await fetchAttemptReports(getToken);
+      const serverReports = data.reports || [];
+      setPastReports((prev) => {
+        const byId = new Map<string, AttemptReport>();
+        // Server wins for same id; keep local-only reports if present.
+        for (const r of serverReports) byId.set(r.id, r);
+        for (const r of prev) {
+          if (!byId.has(r.id)) byId.set(r.id, r);
+        }
+        return [...byId.values()].sort((a, b) =>
+          String(b.completedAt).localeCompare(String(a.completedAt))
+        );
+      });
+      for (const r of serverReports) {
+        if (r.paperQuestions?.length) {
+          localStorage.setItem(
+            `prepx_paper_${r.mockId}`,
+            JSON.stringify(r.paperQuestions)
+          );
+        }
+      }
+    } catch (err: any) {
+      console.warn('Failed to load attempt reports:', err?.message || err);
+    }
+  }, [getToken, isSignedIn]);
+
   // Load + poll payment claims (dynamic shared queue).
   useEffect(() => {
     if (!isLoaded || !isSignedIn) {
@@ -344,6 +374,12 @@ export function App() {
     }, 15000);
     return () => window.clearInterval(interval);
   }, [isLoaded, isSignedIn, refreshPaymentClaims]);
+
+  // Silent hydrate of past mock reports after sign-in (local cache kept on sign-out).
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    void refreshPastReports();
+  }, [isLoaded, isSignedIn, refreshPastReports]);
 
   const refreshQuestionsBank = useCallback(async () => {
     if (!isSignedIn) {

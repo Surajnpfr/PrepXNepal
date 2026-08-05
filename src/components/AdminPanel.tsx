@@ -1008,7 +1008,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               activeTab === 'users' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
-            Users & Wallets
+            Users & Wallets ({(usersList || []).length})
           </button>
         )}
 

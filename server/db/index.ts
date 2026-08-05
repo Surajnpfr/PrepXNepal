@@ -8,6 +8,7 @@ import { createMysqlPaymentClaimsRepo } from './mysqlPaymentClaims.ts';
 import { createMysqlSupportIssuesRepo } from './mysqlSupportIssues.ts';
 import { createMysqlFormulasRepo } from './mysqlFormulas.ts';
 import { createMysqlPromoCodesRepo } from './mysqlPromoCodes.ts';
+import { createMysqlAttemptReportsRepo } from './mysqlAttemptReports.ts';
 import { createSqliteQuestionsRepo } from './sqliteQuestions.ts';
 import { createSqliteMocksRepo } from './sqliteMocks.ts';
 import { createSqliteReferralsRepo } from './sqliteReferrals.ts';
@@ -15,7 +16,9 @@ import { createSqlitePaymentClaimsRepo } from './sqlitePaymentClaims.ts';
 import { createSqliteSupportIssuesRepo } from './sqliteSupportIssues.ts';
 import { createSqliteFormulasRepo } from './sqliteFormulas.ts';
 import { createSqlitePromoCodesRepo } from './sqlitePromoCodes.ts';
+import { createSqliteAttemptReportsRepo } from './sqliteAttemptReports.ts';
 import type {
+  AttemptReportsRepository,
   FormulasRepository,
   MocksRepository,
   PaymentClaimsRepository,
@@ -76,7 +79,7 @@ export async function createMocksRepository(): Promise<MocksRepository> {
   return repo;
 }
 
-/** Shared boot helper: questions + mocks + referrals + payment claims + support + formulas + promos. */
+/** Shared boot helper: questions + mocks + referrals + payment claims + support + formulas + promos + attempt reports. */
 export async function createAppRepositories(): Promise<{
   questions: QuestionsRepository;
   mocks: MocksRepository;
@@ -85,6 +88,7 @@ export async function createAppRepositories(): Promise<{
   supportIssues: SupportIssuesRepository;
   formulas: FormulasRepository;
   promoCodes: PromoCodesRepository;
+  attemptReports: AttemptReportsRepository;
 }> {
   const mode = resolveDbMode();
   if (mode === 'mysql') {
@@ -96,6 +100,7 @@ export async function createAppRepositories(): Promise<{
     const supportIssues = createMysqlSupportIssuesRepo(pool);
     const formulas = createMysqlFormulasRepo(pool);
     const promoCodes = createMysqlPromoCodesRepo(pool);
+    const attemptReports = createMysqlAttemptReportsRepo(pool);
     await questions.ensureSchema();
     await mocks.ensureSchema();
     await referrals.ensureSchema();
@@ -103,6 +108,7 @@ export async function createAppRepositories(): Promise<{
     await supportIssues.ensureSchema();
     await formulas.ensureSchema();
     await promoCodes.ensureSchema();
+    await attemptReports.ensureSchema();
     return {
       questions,
       mocks,
@@ -111,6 +117,7 @@ export async function createAppRepositories(): Promise<{
       supportIssues,
       formulas,
       promoCodes,
+      attemptReports,
     };
   }
 
@@ -122,6 +129,7 @@ export async function createAppRepositories(): Promise<{
   const supportIssues = createSqliteSupportIssuesRepo(file);
   const formulas = createSqliteFormulasRepo(file);
   const promoCodes = createSqlitePromoCodesRepo(file);
+  const attemptReports = createSqliteAttemptReportsRepo(file);
   await questions.ensureSchema();
   await mocks.ensureSchema();
   await referrals.ensureSchema();
@@ -129,6 +137,7 @@ export async function createAppRepositories(): Promise<{
   await supportIssues.ensureSchema();
   await formulas.ensureSchema();
   await promoCodes.ensureSchema();
+  await attemptReports.ensureSchema();
   return {
     questions,
     mocks,
@@ -137,5 +146,6 @@ export async function createAppRepositories(): Promise<{
     supportIssues,
     formulas,
     promoCodes,
+    attemptReports,
   };
 }
