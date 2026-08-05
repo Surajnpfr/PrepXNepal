@@ -2,7 +2,7 @@
  * Support / issue reports domain — pure helpers for the help-desk queue.
  */
 
-export type SupportIssueCategory = 'technical' | 'content' | 'payment' | 'coins';
+export type SupportIssueCategory = 'technical' | 'content' | 'payment' | 'coins' | 'feedback';
 export type SupportIssueStatus = 'open' | 'resolved';
 
 export type SupportIssueRecord = {
@@ -25,6 +25,7 @@ export const SUPPORT_ISSUE_CATEGORIES = new Set<SupportIssueCategory>([
   'content',
   'payment',
   'coins',
+  'feedback',
 ]);
 
 export function isSupportIssueCategory(value: unknown): value is SupportIssueCategory {

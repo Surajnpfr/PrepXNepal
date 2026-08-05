@@ -24,6 +24,13 @@ assert(!canTriageSupportIssues('Student'), 'student cannot');
 assert(normalizeIssueBody('  hello   world  ') === 'hello world', 'normalize spaces');
 assert(normalizeIssueBody('This is a long enough issue description').includes('long enough'), 'normalize keep');
 
+{
+  const { isSupportIssueCategory } = await import('../server/supportDomain.ts');
+  assert(isSupportIssueCategory('feedback'), 'feedback category allowed');
+  assert(isSupportIssueCategory('technical'), 'technical category allowed');
+  assert(!isSupportIssueCategory('spam'), 'unknown category rejected');
+}
+
 const base = {
   clerkUserId: 'user_a',
   userName: 'A',

@@ -524,7 +524,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
             <AppIcon icon={CreditCard} size="card" className="text-blue-600" />
             <h3 className="font-bold text-slate-900 text-base group-hover:text-blue-700">Pricing</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Compare Free, Premium, and Unlimited mock plans before you sign up.
+              Compare Free, Standard, and Premium mock plans before you sign up.
             </p>
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600">
               View plans

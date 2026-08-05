@@ -41,7 +41,7 @@ export const FormulasView: React.FC<FormulasViewProps> = ({ sheets }) => {
     sheet: FormulaSheet,
     formulas: FormulaSheet['formulas']
   ) => {
-    const result = downloadFormulaSheetPdf(sheet, { formulas });
+    const result = await downloadFormulaSheetPdf(sheet, { formulas });
     if (result.ok === false) {
       await feedback.alert({
         variant: 'warning',

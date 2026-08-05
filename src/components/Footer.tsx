@@ -32,6 +32,7 @@ const HELP_LINKS: FooterLink[] = [
   { label: 'Frequently Asked Questions', tab: 'policies', subTab: 'faq' },
   { label: 'Payment Reference Claim', tab: 'payment' },
   { label: 'Report a Problem', tab: 'policies', subTab: 'issue', tone: 'danger' },
+  { label: 'Share Feedback', tab: 'policies', subTab: 'feedback' },
 ];
 
 const LEGAL_LINKS: FooterLink[] = [

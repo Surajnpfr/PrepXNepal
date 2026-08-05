@@ -269,7 +269,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [roleUpdateSuccessMsg, setRoleUpdateSuccessMsg] = useState<string | null>(null);
   const [showAddPlanModal, setShowAddPlanModal] = useState(false);
   const [newPlanCode, setNewPlanCode] = useState('Pro');
-  const [newPlanName, setNewPlanName] = useState('Pro Aspirant Pass');
+  const [newPlanName, setNewPlanName] = useState('Custom Plan');
   const [newPlanPrice, setNewPlanPrice] = useState('299');
   const [newPlanMocks, setNewPlanMocks] = useState('15');
   const [newPlanError, setNewPlanError] = useState<string | null>(null);
@@ -2681,9 +2681,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           onChange={(e) => onUpdateUserPlan(user.id, e.target.value as PlanTier)}
                           className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-blue-700 focus:outline-none focus:border-blue-500"
                         >
-                          <option value="Free">Free Tier</option>
-                          <option value="Premium">Standard Premium</option>
-                          <option value="Unlimited">Unlimited Elite</option>
+                          <option value="Free">Free</option>
+                          <option value="Premium">Standard</option>
+                          <option value="Unlimited">Premium</option>
                         </select>
                       </td>
 
@@ -2747,7 +2747,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 type="button"
                 onClick={() => {
                   setNewPlanCode('Pro');
-                  setNewPlanName('Pro Aspirant Pass');
+                  setNewPlanName('Custom Plan');
                   setNewPlanPrice('299');
                   setNewPlanMocks('15');
                   setNewPlanError(null);
@@ -2974,7 +2974,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 value={newPlanName}
                 onChange={(e) => setNewPlanName(e.target.value)}
                 className="w-full min-h-11 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                placeholder="Pro Aspirant Pass"
+                placeholder="Custom Plan"
               />
             </label>
             <div className="grid grid-cols-2 gap-3">

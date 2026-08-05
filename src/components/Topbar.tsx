@@ -8,6 +8,7 @@ import { UserButton } from '@clerk/clerk-react';
 import { Show } from './Show';
 import { AppNotification, UserProfile } from '../types';
 import { formatRelativeTime } from '../lib/notifications';
+import { planDisplayName } from '../lib/planDisplay';
 import { AppIcon, Input } from './ui';
 import { ClerkAuthControls } from './ClerkAuthControls';
 
@@ -218,7 +219,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                     {userProfile.name}
                   </div>
                   <span className="text-[10px] font-medium text-[var(--px-muted)] tracking-wide truncate block mt-0.5">
-                    {userProfile.role} · {userProfile.plan}
+                    {userProfile.role} · {planDisplayName(userProfile.plan)}
                   </span>
                 </div>
               </div>

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { isStaffRole } from '../lib/clerkUserMapper';
+import { planDisplayName } from '../lib/planDisplay';
 import { BrandLogo } from './BrandLogo';
 import { AppIcon } from './ui';
 
@@ -204,7 +205,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="font-semibold text-[var(--px-heading)] truncate text-[11px]">
                 {userProfile.name}
               </div>
-              <div className="text-[10px] text-[var(--px-muted)] truncate">{userProfile.plan} plan</div>
+              <div className="text-[10px] text-[var(--px-muted)] truncate">{planDisplayName(userProfile.plan)} plan</div>
             </div>
           </div>
         )}

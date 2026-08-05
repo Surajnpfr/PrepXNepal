@@ -5,46 +5,206 @@
     "title": "Mechanics High-Yield Formulas",
     "chapter": "Mechanics",
     "formulas": [
-      { "name": "Average Velocity", "formula": "v_avg = Δx / Δt", "note": "Displacement over time" },
-      { "name": "Average Speed", "formula": "s_avg = total distance / total time", "note": "Scalar; ≠ |v_avg| if path turns" },
-      { "name": "Kinematic Equation (v)", "formula": "v = u + a t", "note": "Constant acceleration" },
-      { "name": "Kinematic Equation (s)", "formula": "s = u t + (1/2) a t²", "note": "Constant acceleration" },
-      { "name": "Kinematic Equation (v²)", "formula": "v² = u² + 2 a s", "note": "Eliminate time" },
-      { "name": "Relative Velocity (1D)", "formula": "v_AB = v_A - v_B", "note": "Velocity of A w.r.t. B" },
-      { "name": "Newton's Second Law", "formula": "F = m a = dp / dt", "note": "Net external force" },
-      { "name": "Momentum", "formula": "p = m v", "note": "Vector; conserved if F_ext = 0" },
-      { "name": "Impulse", "formula": "J = F Δt = Δp", "note": "Area under F–t graph" },
-      { "name": "Friction (kinetic)", "formula": "f_k = μ_k N", "note": "Opposes relative motion" },
-      { "name": "Friction (static max)", "formula": "f_s,max = μ_s N", "note": "μ_s ≥ μ_k usually" },
-      { "name": "Centripetal Acceleration", "formula": "a_c = v² / r = ω² r", "note": "Toward center" },
-      { "name": "Centripetal Force", "formula": "F_c = m v² / r = m ω² r", "note": "Net radial force" },
-      { "name": "Angular–Linear Link", "formula": "v = ω r ; a_t = α r", "note": "r = radius" },
-      { "name": "Work", "formula": "W = F · s = F s cosθ", "note": "θ between F and s" },
-      { "name": "Kinetic Energy", "formula": "K = (1/2) m v²", "note": "Always ≥ 0" },
-      { "name": "Gravitational PE", "formula": "U = m g h", "note": "Near Earth; ref at h=0" },
-      { "name": "Work–Energy Theorem", "formula": "W_net = ΔK", "note": "Net work by all forces" },
-      { "name": "Power", "formula": "P = W / t = F · v", "note": "Instantaneous: F·v" },
-      { "name": "Elastic Collision (1D equal m)", "formula": "v1' = v2 ; v2' = v1", "note": "Velocities exchange" },
-      { "name": "Coefficient of Restitution", "formula": "e = (rel. speed after) / (rel. speed before)", "note": "e=1 elastic; e=0 plastic" },
-      { "name": "Torque", "formula": "τ = r F sinθ = I α", "note": "τ = r × F" },
-      { "name": "Moment of Inertia (rod CM)", "formula": "I = (1/12) M L²", "note": "About perpendicular axis through center" },
-      { "name": "Moment of Inertia (disc)", "formula": "I = (1/2) M R²", "note": "About central axis" },
-      { "name": "Angular Momentum", "formula": "L = I ω = r × p", "note": "Conserved if τ_ext = 0" },
-      { "name": "Rotational KE", "formula": "K_rot = (1/2) I ω²", "note": "Add to translational KE" },
-      { "name": "Rolling without Slip", "formula": "v = ω R ; a = α R", "note": "Pure rolling condition" },
-      { "name": "Gravitation Force", "formula": "F = G m1 m2 / r²", "note": "G = 6.67×10⁻¹¹ N·m²/kg²" },
-      { "name": "Gravitational Field", "formula": "g = G M / r²", "note": "Acceleration due to gravity" },
-      { "name": "Orbital Velocity", "formula": "v_o = √(G M / r)", "note": "Circular orbit" },
-      { "name": "Escape Velocity", "formula": "v_e = √(2 G M / R) = √(2 g R)", "note": "Earth ≈ 11.2 km/s" },
-      { "name": "Time Period (satellite)", "formula": "T = 2π √(r³ / G M)", "note": "Kepler's 3rd law form" },
-      { "name": "SHM Displacement", "formula": "x = A sin(ωt + φ)", "note": "A = amplitude" },
-      { "name": "SHM Angular Frequency", "formula": "ω = √(k / m) = 2π / T", "note": "Spring–mass" },
-      { "name": "SHM Velocity", "formula": "v = ω √(A² - x²)", "note": "Max at mean position" },
-      { "name": "SHM Acceleration", "formula": "a = -ω² x", "note": "Toward mean position" },
-      { "name": "SHM Energy", "formula": "E = (1/2) k A² = (1/2) m ω² A²", "note": "Total mechanical energy" },
-      { "name": "Simple Pendulum Period", "formula": "T = 2π √(L / g)", "note": "Small angle; independent of mass" },
-      { "name": "Spring–Mass Period", "formula": "T = 2π √(m / k)", "note": "k = spring constant" },
-      { "name": "Hooke's Law", "formula": "F = -k x", "note": "Restoring force" }
+      {
+        "name": "Average Velocity",
+        "formula": "v_avg = Δx / Δt",
+        "note": "Displacement over time"
+      },
+      {
+        "name": "Average Speed",
+        "formula": "s_avg = total distance / total time",
+        "note": "Scalar; ≠ |v_avg| if path turns"
+      },
+      {
+        "name": "Kinematic Equation (v)",
+        "formula": "v = u + a t",
+        "note": "Constant acceleration"
+      },
+      {
+        "name": "Kinematic Equation (s)",
+        "formula": "s = u t + (1/2) a t²",
+        "note": "Constant acceleration"
+      },
+      {
+        "name": "Kinematic Equation (v²)",
+        "formula": "v² = u² + 2 a s",
+        "note": "Eliminate time"
+      },
+      {
+        "name": "Relative Velocity (1D)",
+        "formula": "v_AB = v_A - v_B",
+        "note": "Velocity of A w.r.t. B"
+      },
+      {
+        "name": "Newton's Second Law",
+        "formula": "F = m a = dp / dt",
+        "note": "Net external force"
+      },
+      {
+        "name": "Momentum",
+        "formula": "p = m v",
+        "note": "Vector; conserved if F_ext = 0"
+      },
+      {
+        "name": "Impulse",
+        "formula": "J = F Δt = Δp",
+        "note": "Area under F–t graph"
+      },
+      {
+        "name": "Friction (kinetic)",
+        "formula": "f_k = μ_k N",
+        "note": "Opposes relative motion"
+      },
+      {
+        "name": "Friction (static max)",
+        "formula": "f_s,max = μ_s N",
+        "note": "μ_s ≥ μ_k usually"
+      },
+      {
+        "name": "Centripetal Acceleration",
+        "formula": "a_c = v² / r = ω² r",
+        "note": "Toward center"
+      },
+      {
+        "name": "Centripetal Force",
+        "formula": "F_c = m v² / r = m ω² r",
+        "note": "Net radial force"
+      },
+      {
+        "name": "Angular–Linear Link",
+        "formula": "v = ω r ; a_t = α r",
+        "note": "r = radius"
+      },
+      {
+        "name": "Work",
+        "formula": "W = F · s = F s cosθ",
+        "note": "θ between F and s"
+      },
+      {
+        "name": "Kinetic Energy",
+        "formula": "K = (1/2) m v²",
+        "note": "Always ≥ 0"
+      },
+      {
+        "name": "Gravitational PE",
+        "formula": "U = m g h",
+        "note": "Near Earth; ref at h=0"
+      },
+      {
+        "name": "Work–Energy Theorem",
+        "formula": "W_net = ΔK",
+        "note": "Net work by all forces"
+      },
+      {
+        "name": "Power",
+        "formula": "P = W / t = F · v",
+        "note": "Instantaneous: F·v"
+      },
+      {
+        "name": "Elastic Collision (1D equal m)",
+        "formula": "v1' = v2 ; v2' = v1",
+        "note": "Velocities exchange"
+      },
+      {
+        "name": "Coefficient of Restitution",
+        "formula": "e = (rel. speed after) / (rel. speed before)",
+        "note": "e=1 elastic; e=0 plastic"
+      },
+      {
+        "name": "Torque",
+        "formula": "τ = r F sinθ = I α",
+        "note": "τ = r × F"
+      },
+      {
+        "name": "Moment of Inertia (rod CM)",
+        "formula": "I = (1/12) M L²",
+        "note": "About perpendicular axis through center"
+      },
+      {
+        "name": "Moment of Inertia (disc)",
+        "formula": "I = (1/2) M R²",
+        "note": "About central axis"
+      },
+      {
+        "name": "Angular Momentum",
+        "formula": "L = I ω = r × p",
+        "note": "Conserved if τ_ext = 0"
+      },
+      {
+        "name": "Rotational KE",
+        "formula": "K_rot = (1/2) I ω²",
+        "note": "Add to translational KE"
+      },
+      {
+        "name": "Rolling without Slip",
+        "formula": "v = ω R ; a = α R",
+        "note": "Pure rolling condition"
+      },
+      {
+        "name": "Gravitation Force",
+        "formula": "F = G m1 m2 / r²",
+        "note": "G = 6.67×10⁻¹¹ N·m²/kg²"
+      },
+      {
+        "name": "Gravitational Field",
+        "formula": "g = G M / r²",
+        "note": "Acceleration due to gravity"
+      },
+      {
+        "name": "Orbital Velocity",
+        "formula": "v_o = √(G M / r)",
+        "note": "Circular orbit"
+      },
+      {
+        "name": "Escape Velocity",
+        "formula": "v_e = √(2 G M / R) = √(2 g R)",
+        "note": "Earth ≈ 11.2 km/s"
+      },
+      {
+        "name": "Time Period (satellite)",
+        "formula": "T = 2π √(r³ / G M)",
+        "note": "Kepler's 3rd law form"
+      },
+      {
+        "name": "SHM Displacement",
+        "formula": "x = A sin(ωt + φ)",
+        "note": "A = amplitude"
+      },
+      {
+        "name": "SHM Angular Frequency",
+        "formula": "ω = √(k / m) = 2π / T",
+        "note": "Spring–mass"
+      },
+      {
+        "name": "SHM Velocity",
+        "formula": "v = ω √(A² - x²)",
+        "note": "Max at mean position"
+      },
+      {
+        "name": "SHM Acceleration",
+        "formula": "a = -ω² x",
+        "note": "Toward mean position"
+      },
+      {
+        "name": "SHM Energy",
+        "formula": "E = (1/2) k A² = (1/2) m ω² A²",
+        "note": "Total mechanical energy"
+      },
+      {
+        "name": "Simple Pendulum Period",
+        "formula": "T = 2π √(L / g)",
+        "note": "Small angle; independent of mass"
+      },
+      {
+        "name": "Spring–Mass Period",
+        "formula": "T = 2π √(m / k)",
+        "note": "k = spring constant"
+      },
+      {
+        "name": "Hooke's Law",
+        "formula": "F = -k x",
+        "note": "Restoring force"
+      }
     ]
   },
   {
@@ -53,24 +213,96 @@
     "title": "Heat & Thermodynamics Formulas",
     "chapter": "Heat & Thermodynamics",
     "formulas": [
-      { "name": "Linear Expansion", "formula": "ΔL = L0 α ΔT", "note": "α = linear expansivity" },
-      { "name": "Area Expansion", "formula": "ΔA = A0 (2α) ΔT", "note": "≈ 2α for isotropic solids" },
-      { "name": "Volume Expansion", "formula": "ΔV = V0 γ ΔT", "note": "γ ≈ 3α for solids" },
-      { "name": "Heat Capacity Relation", "formula": "Q = m c ΔT", "note": "c = specific heat" },
-      { "name": "Latent Heat", "formula": "Q = m L", "note": "Phase change; ΔT = 0" },
-      { "name": "Ideal Gas Law", "formula": "P V = n R T = N k T", "note": "R = 8.314 J/(mol·K)" },
-      { "name": "First Law", "formula": "ΔU = Q + W", "note": "Sign convention: check syllabus (often W = −PΔV)" },
-      { "name": "Work (isobaric)", "formula": "W = P ΔV", "note": "Expansion work magnitude" },
-      { "name": "Isothermal Process", "formula": "ΔU = 0 ; Q = −W", "note": "Ideal gas; T constant" },
-      { "name": "Adiabatic Process", "formula": "P V^γ = const ; T V^{γ−1} = const", "note": "γ = Cp/Cv ; Q = 0" },
-      { "name": "γ Relation", "formula": "γ = Cp / Cv ; Cp − Cv = R", "note": "Per mole ideal gas" },
-      { "name": "Molar Heat (monoatomic)", "formula": "Cv = (3/2)R ; Cp = (5/2)R", "note": "Ideal monoatomic" },
-      { "name": "Efficiency (Carnot)", "formula": "η = 1 − T_C / T_H", "note": "Temperatures in kelvin" },
-      { "name": "Heat Engine Efficiency", "formula": "η = W / Q_H = 1 − Q_C / Q_H", "note": "Q_H from hot reservoir" },
-      { "name": "Thermal Conductivity", "formula": "H = dQ/dt = k A (ΔT) / L", "note": "Steady-state conduction" },
-      { "name": "Newton's Law of Cooling", "formula": "dT/dt ∝ (T − T0)", "note": "Approximate for small ΔT" },
-      { "name": "RMS Speed", "formula": "v_rms = √(3 R T / M) = √(3 k T / m)", "note": "M = molar mass" },
-      { "name": "Average KE (molecule)", "formula": "K_avg = (3/2) k T", "note": "Translational; ideal gas" }
+      {
+        "name": "Linear Expansion",
+        "formula": "ΔL = L0 α ΔT",
+        "note": "α = linear expansivity"
+      },
+      {
+        "name": "Area Expansion",
+        "formula": "ΔA = A0 (2α) ΔT",
+        "note": "≈ 2α for isotropic solids"
+      },
+      {
+        "name": "Volume Expansion",
+        "formula": "ΔV = V0 γ ΔT",
+        "note": "γ ≈ 3α for solids"
+      },
+      {
+        "name": "Heat Capacity Relation",
+        "formula": "Q = m c ΔT",
+        "note": "c = specific heat"
+      },
+      {
+        "name": "Latent Heat",
+        "formula": "Q = m L",
+        "note": "Phase change; ΔT = 0"
+      },
+      {
+        "name": "Ideal Gas Law",
+        "formula": "P V = n R T = N k T",
+        "note": "R = 8.314 J/(mol·K)"
+      },
+      {
+        "name": "First Law",
+        "formula": "ΔU = Q + W",
+        "note": "Sign convention: check syllabus (often W = −PΔV)"
+      },
+      {
+        "name": "Work (isobaric)",
+        "formula": "W = P ΔV",
+        "note": "Expansion work magnitude"
+      },
+      {
+        "name": "Isothermal Process",
+        "formula": "ΔU = 0 ; Q = −W",
+        "note": "Ideal gas; T constant"
+      },
+      {
+        "name": "Adiabatic Process",
+        "formula": "P V^γ = const ; T V^{γ−1} = const",
+        "note": "γ = Cp/Cv ; Q = 0"
+      },
+      {
+        "name": "γ Relation",
+        "formula": "γ = Cp / Cv ; Cp − Cv = R",
+        "note": "Per mole ideal gas"
+      },
+      {
+        "name": "Molar Heat (monoatomic)",
+        "formula": "Cv = (3/2)R ; Cp = (5/2)R",
+        "note": "Ideal monoatomic"
+      },
+      {
+        "name": "Efficiency (Carnot)",
+        "formula": "η = 1 − T_C / T_H",
+        "note": "Temperatures in kelvin"
+      },
+      {
+        "name": "Heat Engine Efficiency",
+        "formula": "η = W / Q_H = 1 − Q_C / Q_H",
+        "note": "Q_H from hot reservoir"
+      },
+      {
+        "name": "Thermal Conductivity",
+        "formula": "H = dQ/dt = k A (ΔT) / L",
+        "note": "Steady-state conduction"
+      },
+      {
+        "name": "Newton's Law of Cooling",
+        "formula": "dT/dt ∝ (T − T0)",
+        "note": "Approximate for small ΔT"
+      },
+      {
+        "name": "RMS Speed",
+        "formula": "v_rms = √(3 R T / M) = √(3 k T / m)",
+        "note": "M = molar mass"
+      },
+      {
+        "name": "Average KE (molecule)",
+        "formula": "K_avg = (3/2) k T",
+        "note": "Translational; ideal gas"
+      }
     ]
   },
   {
@@ -79,26 +311,106 @@
     "title": "Waves & Optics Formulas",
     "chapter": "Wave and Optics",
     "formulas": [
-      { "name": "Wave Speed", "formula": "v = f λ = ω / k", "note": "k = 2π/λ ; ω = 2πf" },
-      { "name": "String Wave Speed", "formula": "v = √(T / μ)", "note": "μ = linear mass density" },
-      { "name": "Fundamental Frequency (string)", "formula": "f1 = (1 / 2L) √(T / μ)", "note": "Both ends fixed" },
-      { "name": "Harmonics (string)", "formula": "f_n = n f1", "note": "n = 1,2,3…" },
-      { "name": "Closed Pipe Fundamental", "formula": "f1 = v / (4L)", "note": "Odd harmonics only" },
-      { "name": "Open Pipe Fundamental", "formula": "f1 = v / (2L)", "note": "All harmonics" },
-      { "name": "Beat Frequency", "formula": "f_beat = |f1 − f2|", "note": "Heard as intensity pulses" },
-      { "name": "Doppler (general idea)", "formula": "f' = f (v ± v_o) / (v ± v_s)", "note": "Sign: toward → higher f" },
-      { "name": "Intensity Level", "formula": "β = 10 log10(I / I0) dB", "note": "I0 = 10⁻¹² W/m²" },
-      { "name": "Snell's Law", "formula": "n1 sinθ1 = n2 sinθ2", "note": "n = c/v" },
-      { "name": "Critical Angle", "formula": "sinθ_c = n2 / n1", "note": "n1 > n2 ; for TIR" },
-      { "name": "Mirror / Lens Formula", "formula": "1/v − 1/u = 1/f", "note": "Sign convention important" },
-      { "name": "Magnification", "formula": "m = h'/h = v/u", "note": "Mirror/lens (Cartesian)" },
-      { "name": "Lens Maker", "formula": "1/f = (μ−1)(1/R1 − 1/R2)", "note": "Thin lens in air" },
-      { "name": "Power of Lens", "formula": "P = 1/f (f in metres) dioptre", "note": "Convex P > 0 (usual convention)" },
-      { "name": "Combination of Thin Lenses", "formula": "P = P1 + P2 ; 1/F = 1/f1 + 1/f2", "note": "In contact" },
-      { "name": "Young's Double Slit", "formula": "β = λ D / d", "note": "Fringe width" },
-      { "name": "Path Difference (YDSE)", "formula": "Δ = d sinθ ≈ d y / D", "note": "Bright: Δ = nλ" },
-      { "name": "Brewster's Law", "formula": "tanθ_p = n2 / n1", "note": "Polarizing angle" },
-      { "name": "Malus's Law", "formula": "I = I0 cos²θ", "note": "After analyzer" }
+      {
+        "name": "Wave Speed",
+        "formula": "v = f λ = ω / k",
+        "note": "k = 2π/λ ; ω = 2πf"
+      },
+      {
+        "name": "String Wave Speed",
+        "formula": "v = √(T / μ)",
+        "note": "μ = linear mass density"
+      },
+      {
+        "name": "Fundamental Frequency (string)",
+        "formula": "f1 = (1 / 2L) √(T / μ)",
+        "note": "Both ends fixed"
+      },
+      {
+        "name": "Harmonics (string)",
+        "formula": "f_n = n f1",
+        "note": "n = 1,2,3…"
+      },
+      {
+        "name": "Closed Pipe Fundamental",
+        "formula": "f1 = v / (4L)",
+        "note": "Odd harmonics only"
+      },
+      {
+        "name": "Open Pipe Fundamental",
+        "formula": "f1 = v / (2L)",
+        "note": "All harmonics"
+      },
+      {
+        "name": "Beat Frequency",
+        "formula": "f_beat = |f1 − f2|",
+        "note": "Heard as intensity pulses"
+      },
+      {
+        "name": "Doppler (general idea)",
+        "formula": "f' = f (v ± v_o) / (v ± v_s)",
+        "note": "Sign: toward → higher f"
+      },
+      {
+        "name": "Intensity Level",
+        "formula": "β = 10 log10(I / I0) dB",
+        "note": "I0 = 10⁻¹² W/m²"
+      },
+      {
+        "name": "Snell's Law",
+        "formula": "n1 sinθ1 = n2 sinθ2",
+        "note": "n = c/v"
+      },
+      {
+        "name": "Critical Angle",
+        "formula": "sinθ_c = n2 / n1",
+        "note": "n1 > n2 ; for TIR"
+      },
+      {
+        "name": "Mirror / Lens Formula",
+        "formula": "1/v − 1/u = 1/f",
+        "note": "Sign convention important"
+      },
+      {
+        "name": "Magnification",
+        "formula": "m = h'/h = v/u",
+        "note": "Mirror/lens (Cartesian)"
+      },
+      {
+        "name": "Lens Maker",
+        "formula": "1/f = (μ−1)(1/R1 − 1/R2)",
+        "note": "Thin lens in air"
+      },
+      {
+        "name": "Power of Lens",
+        "formula": "P = 1/f (f in metres) dioptre",
+        "note": "Convex P > 0 (usual convention)"
+      },
+      {
+        "name": "Combination of Thin Lenses",
+        "formula": "P = P1 + P2 ; 1/F = 1/f1 + 1/f2",
+        "note": "In contact"
+      },
+      {
+        "name": "Young's Double Slit",
+        "formula": "β = λ D / d",
+        "note": "Fringe width"
+      },
+      {
+        "name": "Path Difference (YDSE)",
+        "formula": "Δ = d sinθ ≈ d y / D",
+        "note": "Bright: Δ = nλ"
+      },
+      {
+        "name": "Brewster's Law",
+        "formula": "tanθ_p = n2 / n1",
+        "note": "Polarizing angle"
+      },
+      {
+        "name": "Malus's Law",
+        "formula": "I = I0 cos²θ",
+        "note": "After analyzer"
+      }
     ]
   },
   {
@@ -107,23 +419,91 @@
     "title": "Electrostatics & Capacitors Formulas",
     "chapter": "Electrostatics & Capacitors",
     "formulas": [
-      { "name": "Coulomb's Law", "formula": "F = k q1 q2 / r²", "note": "k = 9×10⁹ N·m²/C²" },
-      { "name": "Electric Field (point)", "formula": "E = k q / r² = F / q0", "note": "Direction: force on + test charge" },
-      { "name": "Electric Potential (point)", "formula": "V = k q / r", "note": "Scalar; V∞ = 0" },
-      { "name": "Potential–Field Link", "formula": "E = −dV/dx (1D)", "note": "E points to decreasing V" },
-      { "name": "PE of Two Charges", "formula": "U = k q1 q2 / r", "note": "System potential energy" },
-      { "name": "Dipole Moment", "formula": "p = q × 2a", "note": "From −q to +q" },
-      { "name": "Dipole Field (axial)", "formula": "E = (1/4πε0) (2p / r³)", "note": "r ≫ a" },
-      { "name": "Dipole Field (equatorial)", "formula": "E = (1/4πε0) (p / r³)", "note": "Opposite to p" },
-      { "name": "Torque on Dipole", "formula": "τ = p E sinθ", "note": "τ = p × E" },
-      { "name": "Gauss Law", "formula": "∮ E · dA = Q_enc / ε0", "note": "Φ_E = Q/ε0" },
-      { "name": "Capacitance Definition", "formula": "C = Q / V", "note": "Farad = C/V" },
-      { "name": "Parallel Plate Capacitor", "formula": "C = ε0 A / d", "note": "Vacuum/air" },
-      { "name": "Capacitor with Dielectric", "formula": "C = κ ε0 A / d", "note": "κ = dielectric constant" },
-      { "name": "Energy Stored", "formula": "U = (1/2) C V² = Q² / (2C) = (1/2) Q V", "note": "In capacitor" },
-      { "name": "Series Capacitors", "formula": "1/C = 1/C1 + 1/C2 + …", "note": "Same Q" },
-      { "name": "Parallel Capacitors", "formula": "C = C1 + C2 + …", "note": "Same V" },
-      { "name": "Energy Density", "formula": "u = (1/2) ε0 E²", "note": "In electric field" }
+      {
+        "name": "Coulomb's Law",
+        "formula": "F = k q1 q2 / r²",
+        "note": "k = 9×10⁹ N·m²/C²"
+      },
+      {
+        "name": "Electric Field (point)",
+        "formula": "E = k q / r² = F / q0",
+        "note": "Direction: force on + test charge"
+      },
+      {
+        "name": "Electric Potential (point)",
+        "formula": "V = k q / r",
+        "note": "Scalar; V∞ = 0"
+      },
+      {
+        "name": "Potential–Field Link",
+        "formula": "E = −dV/dx (1D)",
+        "note": "E points to decreasing V"
+      },
+      {
+        "name": "PE of Two Charges",
+        "formula": "U = k q1 q2 / r",
+        "note": "System potential energy"
+      },
+      {
+        "name": "Dipole Moment",
+        "formula": "p = q × 2a",
+        "note": "From −q to +q"
+      },
+      {
+        "name": "Dipole Field (axial)",
+        "formula": "E = (1/4πε0) (2p / r³)",
+        "note": "r ≫ a"
+      },
+      {
+        "name": "Dipole Field (equatorial)",
+        "formula": "E = (1/4πε0) (p / r³)",
+        "note": "Opposite to p"
+      },
+      {
+        "name": "Torque on Dipole",
+        "formula": "τ = p E sinθ",
+        "note": "τ = p × E"
+      },
+      {
+        "name": "Gauss Law",
+        "formula": "∮ E · dA = Q_enc / ε0",
+        "note": "Φ_E = Q/ε0"
+      },
+      {
+        "name": "Capacitance Definition",
+        "formula": "C = Q / V",
+        "note": "Farad = C/V"
+      },
+      {
+        "name": "Parallel Plate Capacitor",
+        "formula": "C = ε0 A / d",
+        "note": "Vacuum/air"
+      },
+      {
+        "name": "Capacitor with Dielectric",
+        "formula": "C = κ ε0 A / d",
+        "note": "κ = dielectric constant"
+      },
+      {
+        "name": "Energy Stored",
+        "formula": "U = (1/2) C V² = Q² / (2C) = (1/2) Q V",
+        "note": "In capacitor"
+      },
+      {
+        "name": "Series Capacitors",
+        "formula": "1/C = 1/C1 + 1/C2 + …",
+        "note": "Same Q"
+      },
+      {
+        "name": "Parallel Capacitors",
+        "formula": "C = C1 + C2 + …",
+        "note": "Same V"
+      },
+      {
+        "name": "Energy Density",
+        "formula": "u = (1/2) ε0 E²",
+        "note": "In electric field"
+      }
     ]
   },
   {
@@ -132,35 +512,151 @@
     "title": "Current Electricity & Magnetism Formulas",
     "chapter": "Current Electricity & Magnetism",
     "formulas": [
-      { "name": "Current", "formula": "I = Q / t = n e A v_d", "note": "v_d = drift speed" },
-      { "name": "Ohm's Law", "formula": "V = I R", "note": "Ohmic conductors" },
-      { "name": "Resistance", "formula": "R = ρ L / A", "note": "ρ = resistivity" },
-      { "name": "Resistivity–Temperature", "formula": "ρ = ρ0 (1 + α ΔT)", "note": "Metals: α > 0" },
-      { "name": "Series Resistors", "formula": "R = R1 + R2 + …", "note": "Same I" },
-      { "name": "Parallel Resistors", "formula": "1/R = 1/R1 + 1/R2 + …", "note": "Same V" },
-      { "name": "Electric Power", "formula": "P = V I = I² R = V² / R", "note": "Joule heating: I²R" },
-      { "name": "Emf & Internal Resistance", "formula": "V = E − I r", "note": "Terminal voltage" },
-      { "name": "Kirchhoff Junction", "formula": "Σ I_in = Σ I_out", "note": "Charge conservation" },
-      { "name": "Kirchhoff Loop", "formula": "Σ ΔV = 0", "note": "Energy conservation" },
-      { "name": "Wheatstone Bridge", "formula": "P/Q = R/S (balanced)", "note": "No galvanometer current" },
-      { "name": "Magnetic Force on Charge", "formula": "F = q v B sinθ", "note": "F = q (v × B)" },
-      { "name": "Radius of Circular Path", "formula": "r = m v / (q B)", "note": "Perpendicular B" },
-      { "name": "Cyclotron Frequency", "formula": "f = q B / (2π m)", "note": "Independent of v" },
-      { "name": "Force on Current Wire", "formula": "F = I L B sinθ", "note": "F = I (L × B)" },
-      { "name": "Biot–Savart (wire)", "formula": "B = (μ0 / 4π) (I dl sinθ / r²)", "note": "μ0 = 4π×10⁻⁷" },
-      { "name": "B at Center of Loop", "formula": "B = μ0 I / (2 R)", "note": "Single turn" },
-      { "name": "B on Axis of Solenoid", "formula": "B = μ0 n I", "note": "n = turns per metre" },
-      { "name": "Ampere's Law", "formula": "∮ B · dl = μ0 I_enc", "note": "Steady currents" },
-      { "name": "Faraday's Law", "formula": "ε = −dΦ_B / dt", "note": "Induced emf" },
-      { "name": "Magnetic Flux", "formula": "Φ_B = B A cosθ", "note": "Weber" },
-      { "name": "Motional Emf", "formula": "ε = B ℓ v", "note": "Rod on rails (⊥)" },
-      { "name": "Self Inductance", "formula": "ε = −L dI/dt ; Φ = L I", "note": "L in henry" },
-      { "name": "Energy in Inductor", "formula": "U = (1/2) L I²", "note": "Stored magnetic energy" },
-      { "name": "AC Instantaneous", "formula": "v = V_m sinωt ; i = I_m sin(ωt±φ)", "note": "φ = phase" },
-      { "name": "RMS Values", "formula": "V_rms = V_m / √2 ; I_rms = I_m / √2", "note": "Sinusoidal" },
-      { "name": "Impedance (series RLC)", "formula": "Z = √[R² + (X_L − X_C)²]", "note": "X_L=ωL ; X_C=1/(ωC)" },
-      { "name": "Resonant Frequency", "formula": "ω0 = 1/√(LC) ; f0 = 1/(2π√(LC))", "note": "X_L = X_C" },
-      { "name": "AC Power", "formula": "P = V_rms I_rms cosφ", "note": "cosφ = power factor" }
+      {
+        "name": "Current",
+        "formula": "I = Q / t = n e A v_d",
+        "note": "v_d = drift speed"
+      },
+      {
+        "name": "Ohm's Law",
+        "formula": "V = I R",
+        "note": "Ohmic conductors"
+      },
+      {
+        "name": "Resistance",
+        "formula": "R = ρ L / A",
+        "note": "ρ = resistivity"
+      },
+      {
+        "name": "Resistivity–Temperature",
+        "formula": "ρ = ρ0 (1 + α ΔT)",
+        "note": "Metals: α > 0"
+      },
+      {
+        "name": "Series Resistors",
+        "formula": "R = R1 + R2 + …",
+        "note": "Same I"
+      },
+      {
+        "name": "Parallel Resistors",
+        "formula": "1/R = 1/R1 + 1/R2 + …",
+        "note": "Same V"
+      },
+      {
+        "name": "Electric Power",
+        "formula": "P = V I = I² R = V² / R",
+        "note": "Joule heating: I²R"
+      },
+      {
+        "name": "Emf & Internal Resistance",
+        "formula": "V = E − I r",
+        "note": "Terminal voltage"
+      },
+      {
+        "name": "Kirchhoff Junction",
+        "formula": "Σ I_in = Σ I_out",
+        "note": "Charge conservation"
+      },
+      {
+        "name": "Kirchhoff Loop",
+        "formula": "Σ ΔV = 0",
+        "note": "Energy conservation"
+      },
+      {
+        "name": "Wheatstone Bridge",
+        "formula": "P/Q = R/S (balanced)",
+        "note": "No galvanometer current"
+      },
+      {
+        "name": "Magnetic Force on Charge",
+        "formula": "F = q v B sinθ",
+        "note": "F = q (v × B)"
+      },
+      {
+        "name": "Radius of Circular Path",
+        "formula": "r = m v / (q B)",
+        "note": "Perpendicular B"
+      },
+      {
+        "name": "Cyclotron Frequency",
+        "formula": "f = q B / (2π m)",
+        "note": "Independent of v"
+      },
+      {
+        "name": "Force on Current Wire",
+        "formula": "F = I L B sinθ",
+        "note": "F = I (L × B)"
+      },
+      {
+        "name": "Biot–Savart (wire)",
+        "formula": "B = (μ0 / 4π) (I dl sinθ / r²)",
+        "note": "μ0 = 4π×10⁻⁷"
+      },
+      {
+        "name": "B at Center of Loop",
+        "formula": "B = μ0 I / (2 R)",
+        "note": "Single turn"
+      },
+      {
+        "name": "B on Axis of Solenoid",
+        "formula": "B = μ0 n I",
+        "note": "n = turns per metre"
+      },
+      {
+        "name": "Ampere's Law",
+        "formula": "∮ B · dl = μ0 I_enc",
+        "note": "Steady currents"
+      },
+      {
+        "name": "Faraday's Law",
+        "formula": "ε = −dΦ_B / dt",
+        "note": "Induced emf"
+      },
+      {
+        "name": "Magnetic Flux",
+        "formula": "Φ_B = B A cosθ",
+        "note": "Weber"
+      },
+      {
+        "name": "Motional Emf",
+        "formula": "ε = B ℓ v",
+        "note": "Rod on rails (⊥)"
+      },
+      {
+        "name": "Self Inductance",
+        "formula": "ε = −L dI/dt ; Φ = L I",
+        "note": "L in henry"
+      },
+      {
+        "name": "Energy in Inductor",
+        "formula": "U = (1/2) L I²",
+        "note": "Stored magnetic energy"
+      },
+      {
+        "name": "AC Instantaneous",
+        "formula": "v = V_m sinωt ; i = I_m sin(ωt±φ)",
+        "note": "φ = phase"
+      },
+      {
+        "name": "RMS Values",
+        "formula": "V_rms = V_m / √2 ; I_rms = I_m / √2",
+        "note": "Sinusoidal"
+      },
+      {
+        "name": "Impedance (series RLC)",
+        "formula": "Z = √[R² + (X_L − X_C)²]",
+        "note": "X_L=ωL ; X_C=1/(ωC)"
+      },
+      {
+        "name": "Resonant Frequency",
+        "formula": "ω0 = 1/√(LC) ; f0 = 1/(2π√(LC))",
+        "note": "X_L = X_C"
+      },
+      {
+        "name": "AC Power",
+        "formula": "P = V_rms I_rms cosφ",
+        "note": "cosφ = power factor"
+      }
     ]
   },
   {
@@ -169,21 +665,81 @@
     "title": "Modern Physics Formulas",
     "chapter": "Modern Physics",
     "formulas": [
-      { "name": "Photon Energy", "formula": "E = h f = h c / λ", "note": "h = 6.626×10⁻³⁴ J·s" },
-      { "name": "Photoelectric Equation", "formula": "h f = φ + K_max", "note": "φ = work function" },
-      { "name": "Stopping Potential", "formula": "e V0 = K_max", "note": "Max KE of photoelectrons" },
-      { "name": "de Broglie Wavelength", "formula": "λ = h / p = h / (m v)", "note": "Matter waves" },
-      { "name": "de Broglie (electron, eV)", "formula": "λ (Å) ≈ 12.27 / √V", "note": "Accelerated by V volts" },
-      { "name": "Bohr Radius", "formula": "r_n = n² a0 ; a0 ≈ 0.529 Å", "note": "H-atom" },
-      { "name": "Bohr Energy Levels", "formula": "E_n = −13.6 / n² eV", "note": "Hydrogen" },
-      { "name": "Spectral Line (H)", "formula": "1/λ = R (1/n1² − 1/n2²)", "note": "R ≈ 1.097×10⁷ m⁻¹" },
-      { "name": "Mass–Energy", "formula": "E = m c²", "note": "Rest energy" },
-      { "name": "Nuclear Binding Energy", "formula": "BE = Δm c²", "note": "Δm = mass defect" },
-      { "name": "Radioactive Decay Law", "formula": "N = N0 e^{−λt}", "note": "λ = decay constant" },
-      { "name": "Half-Life", "formula": "T_1/2 = ln2 / λ ≈ 0.693 / λ", "note": "Activity A = λN" },
-      { "name": "Mean Life", "formula": "τ = 1 / λ = T_1/2 / 0.693", "note": "Average lifetime" },
-      { "name": "Activity", "formula": "A = A0 e^{−λt} = λ N", "note": "Becquerel = decays/s" },
-      { "name": "X-ray Minimum Wavelength", "formula": "λ_min = h c / (e V)", "note": "Duane–Hunt law" }
+      {
+        "name": "Photon Energy",
+        "formula": "E = h f = h c / λ",
+        "note": "h = 6.626×10⁻³⁴ J·s"
+      },
+      {
+        "name": "Photoelectric Equation",
+        "formula": "h f = φ + K_max",
+        "note": "φ = work function"
+      },
+      {
+        "name": "Stopping Potential",
+        "formula": "e V0 = K_max",
+        "note": "Max KE of photoelectrons"
+      },
+      {
+        "name": "de Broglie Wavelength",
+        "formula": "λ = h / p = h / (m v)",
+        "note": "Matter waves"
+      },
+      {
+        "name": "de Broglie (electron, eV)",
+        "formula": "λ (Å) ≈ 12.27 / √V",
+        "note": "Accelerated by V volts"
+      },
+      {
+        "name": "Bohr Radius",
+        "formula": "r_n = n² a0 ; a0 ≈ 0.529 Å",
+        "note": "H-atom"
+      },
+      {
+        "name": "Bohr Energy Levels",
+        "formula": "E_n = −13.6 / n² eV",
+        "note": "Hydrogen"
+      },
+      {
+        "name": "Spectral Line (H)",
+        "formula": "1/λ = R (1/n1² − 1/n2²)",
+        "note": "R ≈ 1.097×10⁷ m⁻¹"
+      },
+      {
+        "name": "Mass–Energy",
+        "formula": "E = m c²",
+        "note": "Rest energy"
+      },
+      {
+        "name": "Nuclear Binding Energy",
+        "formula": "BE = Δm c²",
+        "note": "Δm = mass defect"
+      },
+      {
+        "name": "Radioactive Decay Law",
+        "formula": "N = N0 e^{−λt}",
+        "note": "λ = decay constant"
+      },
+      {
+        "name": "Half-Life",
+        "formula": "T_1/2 = ln2 / λ ≈ 0.693 / λ",
+        "note": "Activity A = λN"
+      },
+      {
+        "name": "Mean Life",
+        "formula": "τ = 1 / λ = T_1/2 / 0.693",
+        "note": "Average lifetime"
+      },
+      {
+        "name": "Activity",
+        "formula": "A = A0 e^{−λt} = λ N",
+        "note": "Becquerel = decays/s"
+      },
+      {
+        "name": "X-ray Minimum Wavelength",
+        "formula": "λ_min = h c / (e V)",
+        "note": "Duane–Hunt law"
+      }
     ]
   },
   {
@@ -192,38 +748,166 @@
     "title": "Physical Chemistry Key Formulas",
     "chapter": "Physical Chemistry",
     "formulas": [
-      { "name": "Mole Concept", "formula": "n = m / M = N / N_A", "note": "N_A = 6.022×10²³" },
-      { "name": "Molarity", "formula": "M = moles solute / litres solution", "note": "Temperature dependent" },
-      { "name": "Molality", "formula": "m = moles solute / kg solvent", "note": "T-independent" },
-      { "name": "Mole Fraction", "formula": "x_i = n_i / n_total", "note": "Σ x_i = 1" },
-      { "name": "Ideal Gas Equation", "formula": "P V = n R T", "note": "R = 0.0821 L·atm/(mol·K) or 8.314 J/(mol·K)" },
-      { "name": "Dalton's Law", "formula": "P_total = Σ p_i ; p_i = x_i P_total", "note": "Partial pressures" },
-      { "name": "Graham's Law", "formula": "r1 / r2 = √(M2 / M1)", "note": "Effusion/diffusion rates" },
-      { "name": "First Law of Thermodynamics", "formula": "ΔU = q + w", "note": "Often w = −PΔV" },
-      { "name": "Enthalpy", "formula": "H = U + P V ; ΔH = ΔU + Δn_g R T", "note": "Ideal gas approx." },
-      { "name": "Hess's Law", "formula": "ΔH_overall = Σ ΔH_steps", "note": "State function" },
-      { "name": "Entropy (2nd law)", "formula": "ΔS_univ = ΔS_sys + ΔS_surr ≥ 0", "note": "Spontaneous if > 0" },
-      { "name": "Gibbs Free Energy", "formula": "ΔG = ΔH − T ΔS", "note": "Spontaneous if ΔG < 0" },
-      { "name": "Standard Free Energy & K", "formula": "ΔG° = −R T ln K", "note": "K = equilibrium constant" },
-      { "name": "Equilibrium Constant (Kc)", "formula": "Kc = [products]^coeff / [reactants]^coeff", "note": "Homogeneous aq/gas" },
-      { "name": "Kp–Kc Relation", "formula": "Kp = Kc (R T)^{Δn}", "note": "Δn = moles gas products − reactants" },
-      { "name": "pH Definition", "formula": "pH = −log10[H⁺] ; pOH = −log10[OH⁻]", "note": "pH + pOH = 14 (25°C)" },
-      { "name": "Kw", "formula": "Kw = [H⁺][OH⁻] = 1.0×10⁻¹⁴ (25°C)", "note": "Water ion product" },
-      { "name": "Henderson–Hasselbalch", "formula": "pH = pKa + log([A⁻]/[HA])", "note": "Buffer equation" },
-      { "name": "Rate Law", "formula": "rate = k [A]^m [B]^n", "note": "Order = m+n (expt.)" },
-      { "name": "First-Order Half-Life", "formula": "t_1/2 = 0.693 / k", "note": "Independent of [A]0" },
-      { "name": "Arrhenius Equation", "formula": "k = A e^{−Ea/(R T)}", "note": "Ea = activation energy" },
-      { "name": "Arrhenius Linear Form", "formula": "ln k = ln A − Ea/(R T)", "note": "Plot ln k vs 1/T" },
-      { "name": "Raoult's Law", "formula": "p_i = x_i p_i°", "note": "Ideal solutions" },
-      { "name": "Relative Lowering of VP", "formula": "(p° − p)/p° = x_solute", "note": "Non-volatile solute" },
-      { "name": "Elevation of Boiling Point", "formula": "ΔT_b = K_b m i", "note": "i = van't Hoff factor" },
-      { "name": "Depression of Freezing Point", "formula": "ΔT_f = K_f m i", "note": "Colligative" },
-      { "name": "Osmotic Pressure", "formula": "π = C R T i", "note": "C = molarity" },
-      { "name": "Nernst Equation", "formula": "E = E° − (0.0591/n) log Q (25°C)", "note": "Or (RT/nF) ln Q" },
-      { "name": "Cell Potential & ΔG", "formula": "ΔG = −n F E_cell", "note": "F ≈ 96500 C/mol" },
-      { "name": "Faraday's 1st Law", "formula": "m = (E × I × t) / 96500", "note": "E = equivalent weight" },
-      { "name": "Conductivity", "formula": "κ = 1/ρ ; Λ_m = κ / C", "note": "Λ_m = molar conductivity" },
-      { "name": "Beer–Lambert Law", "formula": "A = ε c l", "note": "Absorbance vs concentration" }
+      {
+        "name": "Mole Concept",
+        "formula": "n = m / M = N / N_A",
+        "note": "N_A = 6.022×10²³"
+      },
+      {
+        "name": "Molarity",
+        "formula": "M = moles solute / litres solution",
+        "note": "Temperature dependent"
+      },
+      {
+        "name": "Molality",
+        "formula": "m = moles solute / kg solvent",
+        "note": "T-independent"
+      },
+      {
+        "name": "Mole Fraction",
+        "formula": "x_i = n_i / n_total",
+        "note": "Σ x_i = 1"
+      },
+      {
+        "name": "Ideal Gas Equation",
+        "formula": "P V = n R T",
+        "note": "R = 0.0821 L·atm/(mol·K) or 8.314 J/(mol·K)"
+      },
+      {
+        "name": "Dalton's Law",
+        "formula": "P_total = Σ p_i ; p_i = x_i P_total",
+        "note": "Partial pressures"
+      },
+      {
+        "name": "Graham's Law",
+        "formula": "r1 / r2 = √(M2 / M1)",
+        "note": "Effusion/diffusion rates"
+      },
+      {
+        "name": "First Law of Thermodynamics",
+        "formula": "ΔU = q + w",
+        "note": "Often w = −PΔV"
+      },
+      {
+        "name": "Enthalpy",
+        "formula": "H = U + P V ; ΔH = ΔU + Δn_g R T",
+        "note": "Ideal gas approx."
+      },
+      {
+        "name": "Hess's Law",
+        "formula": "ΔH_overall = Σ ΔH_steps",
+        "note": "State function"
+      },
+      {
+        "name": "Entropy (2nd law)",
+        "formula": "ΔS_univ = ΔS_sys + ΔS_surr ≥ 0",
+        "note": "Spontaneous if > 0"
+      },
+      {
+        "name": "Gibbs Free Energy",
+        "formula": "ΔG = ΔH − T ΔS",
+        "note": "Spontaneous if ΔG < 0"
+      },
+      {
+        "name": "Standard Free Energy & K",
+        "formula": "ΔG° = −R T ln K",
+        "note": "K = equilibrium constant"
+      },
+      {
+        "name": "Equilibrium Constant (Kc)",
+        "formula": "Kc = [products]^coeff / [reactants]^coeff",
+        "note": "Homogeneous aq/gas"
+      },
+      {
+        "name": "Kp–Kc Relation",
+        "formula": "Kp = Kc (R T)^{Δn}",
+        "note": "Δn = moles gas products − reactants"
+      },
+      {
+        "name": "pH Definition",
+        "formula": "pH = −log10[H⁺] ; pOH = −log10[OH⁻]",
+        "note": "pH + pOH = 14 (25°C)"
+      },
+      {
+        "name": "Kw",
+        "formula": "Kw = [H⁺][OH⁻] = 1.0×10⁻¹⁴ (25°C)",
+        "note": "Water ion product"
+      },
+      {
+        "name": "Henderson–Hasselbalch",
+        "formula": "pH = pKa + log([A⁻]/[HA])",
+        "note": "Buffer equation"
+      },
+      {
+        "name": "Rate Law",
+        "formula": "rate = k [A]^m [B]^n",
+        "note": "Order = m+n (expt.)"
+      },
+      {
+        "name": "First-Order Half-Life",
+        "formula": "t_1/2 = 0.693 / k",
+        "note": "Independent of [A]0"
+      },
+      {
+        "name": "Arrhenius Equation",
+        "formula": "k = A e^{−Ea/(R T)}",
+        "note": "Ea = activation energy"
+      },
+      {
+        "name": "Arrhenius Linear Form",
+        "formula": "ln k = ln A − Ea/(R T)",
+        "note": "Plot ln k vs 1/T"
+      },
+      {
+        "name": "Raoult's Law",
+        "formula": "p_i = x_i p_i°",
+        "note": "Ideal solutions"
+      },
+      {
+        "name": "Relative Lowering of VP",
+        "formula": "(p° − p)/p° = x_solute",
+        "note": "Non-volatile solute"
+      },
+      {
+        "name": "Elevation of Boiling Point",
+        "formula": "ΔT_b = K_b m i",
+        "note": "i = van't Hoff factor"
+      },
+      {
+        "name": "Depression of Freezing Point",
+        "formula": "ΔT_f = K_f m i",
+        "note": "Colligative"
+      },
+      {
+        "name": "Osmotic Pressure",
+        "formula": "π = C R T i",
+        "note": "C = molarity"
+      },
+      {
+        "name": "Nernst Equation",
+        "formula": "E = E° − (0.0591/n) log Q (25°C)",
+        "note": "Or (RT/nF) ln Q"
+      },
+      {
+        "name": "Cell Potential & ΔG",
+        "formula": "ΔG = −n F E_cell",
+        "note": "F ≈ 96500 C/mol"
+      },
+      {
+        "name": "Faraday's 1st Law",
+        "formula": "m = (E × I × t) / 96500",
+        "note": "E = equivalent weight"
+      },
+      {
+        "name": "Conductivity",
+        "formula": "κ = 1/ρ ; Λ_m = κ / C",
+        "note": "Λ_m = molar conductivity"
+      },
+      {
+        "name": "Beer–Lambert Law",
+        "formula": "A = ε c l",
+        "note": "Absorbance vs concentration"
+      }
     ]
   },
   {
@@ -232,21 +916,81 @@
     "title": "Inorganic Chemistry High-Yield Relations",
     "chapter": "Inorganic Chemistry",
     "formulas": [
-      { "name": "Effective Nuclear Charge", "formula": "Z_eff ≈ Z − S", "note": "S = screening constant" },
-      { "name": "Ionization Energy Trend", "formula": "IE increases → across period; decreases ↓ group", "note": "Exceptions: Be>B, N>O" },
-      { "name": "Electronegativity (Pauling idea)", "formula": "χ difference predicts bond polarity", "note": "F highest EN" },
-      { "name": "Lattice Energy (Born–Landé idea)", "formula": "U ∝ (|z⁺ z⁻|) / r0", "note": "Higher charge, smaller ions → larger |U|" },
-      { "name": "Formal Charge", "formula": "FC = V − N_nonbonding − (1/2)N_bonding", "note": "Best Lewis structure: FC≈0" },
-      { "name": "Oxidation Number Check", "formula": "Σ ox. nos. = charge of species", "note": "Use for redox balancing" },
-      { "name": "Percentage Composition", "formula": "% element = (mass of element / molar mass) × 100", "note": "Empirical formula from %" },
-      { "name": "Equivalent Weight (acid)", "formula": "Eq.wt = molar mass / basicity", "note": "Basicity = replaceable H⁺" },
-      { "name": "Equivalent Weight (base)", "formula": "Eq.wt = molar mass / acidity", "note": "Acidity = replaceable OH⁻" },
-      { "name": "Normality", "formula": "N = equivalents / litre = M × n-factor", "note": "N1 V1 = N2 V2" },
-      { "name": "Hard–Soft Acid–Base", "formula": "Hard acids prefer hard bases; soft–soft preferred", "note": "HSAB rule" },
-      { "name": "Crystal Field Splitting (octahedral)", "formula": "Δ_o = 10 Dq ; pairing energy vs Δ_o", "note": "High/low spin decision" },
-      { "name": "Magnetic Moment (spin only)", "formula": "μ = √[n(n+2)] BM", "note": "n = unpaired electrons" },
-      { "name": "Hybridization Quick Map", "formula": "steric number 2→sp, 3→sp², 4→sp³, 5→sp³d, 6→sp³d²", "note": "SN = σ bonds + lone pairs" },
-      { "name": "VSEPR Bond Angle Trend", "formula": "LP–LP > LP–BP > BP–BP repulsion", "note": "Explains NH3 < CH4 angle" }
+      {
+        "name": "Effective Nuclear Charge",
+        "formula": "Z_eff ≈ Z − S",
+        "note": "S = screening constant"
+      },
+      {
+        "name": "Ionization Energy Trend",
+        "formula": "IE increases → across period; decreases ↓ group",
+        "note": "Exceptions: Be>B, N>O"
+      },
+      {
+        "name": "Electronegativity (Pauling idea)",
+        "formula": "χ difference predicts bond polarity",
+        "note": "F highest EN"
+      },
+      {
+        "name": "Lattice Energy (Born–Landé idea)",
+        "formula": "U ∝ (|z⁺ z⁻|) / r0",
+        "note": "Higher charge, smaller ions → larger |U|"
+      },
+      {
+        "name": "Formal Charge",
+        "formula": "FC = V − N_nonbonding − (1/2)N_bonding",
+        "note": "Best Lewis structure: FC≈0"
+      },
+      {
+        "name": "Oxidation Number Check",
+        "formula": "Σ ox. nos. = charge of species",
+        "note": "Use for redox balancing"
+      },
+      {
+        "name": "Percentage Composition",
+        "formula": "% element = (mass of element / molar mass) × 100",
+        "note": "Empirical formula from %"
+      },
+      {
+        "name": "Equivalent Weight (acid)",
+        "formula": "Eq.wt = molar mass / basicity",
+        "note": "Basicity = replaceable H⁺"
+      },
+      {
+        "name": "Equivalent Weight (base)",
+        "formula": "Eq.wt = molar mass / acidity",
+        "note": "Acidity = replaceable OH⁻"
+      },
+      {
+        "name": "Normality",
+        "formula": "N = equivalents / litre = M × n-factor",
+        "note": "N1 V1 = N2 V2"
+      },
+      {
+        "name": "Hard–Soft Acid–Base",
+        "formula": "Hard acids prefer hard bases; soft–soft preferred",
+        "note": "HSAB rule"
+      },
+      {
+        "name": "Crystal Field Splitting (octahedral)",
+        "formula": "Δ_o = 10 Dq ; pairing energy vs Δ_o",
+        "note": "High/low spin decision"
+      },
+      {
+        "name": "Magnetic Moment (spin only)",
+        "formula": "μ = √[n(n+2)] BM",
+        "note": "n = unpaired electrons"
+      },
+      {
+        "name": "Hybridization Quick Map",
+        "formula": "steric number 2→sp, 3→sp², 4→sp³, 5→sp³d, 6→sp³d²",
+        "note": "SN = σ bonds + lone pairs"
+      },
+      {
+        "name": "VSEPR Bond Angle Trend",
+        "formula": "LP–LP > LP–BP > BP–BP repulsion",
+        "note": "Explains NH3 < CH4 angle"
+      }
     ]
   },
   {
@@ -255,23 +999,91 @@
     "title": "Organic Chemistry Key Relations",
     "chapter": "Organic Chemistry",
     "formulas": [
-      { "name": "General Formula (alkane)", "formula": "C_n H_{2n+2}", "note": "Saturated acyclic" },
-      { "name": "General Formula (alkene)", "formula": "C_n H_{2n}", "note": "One C=C; also cycloalkane" },
-      { "name": "General Formula (alkyne)", "formula": "C_n H_{2n−2}", "note": "One C≡C" },
-      { "name": "Degree of Unsaturation", "formula": "DU = (2C + 2 − H − X + N) / 2", "note": "Rings + π bonds" },
-      { "name": "Isomer Count Reminder", "formula": "Structural + stereo isomers increase with C chain complexity", "note": "CEE: practice common C4–C6 cases" },
-      { "name": "Inductive Effect Order", "formula": "−NO2 > −CN > −COOH > −F > −Cl > −Br > −I (−I strength)", "note": "Approximate teaching order" },
-      { "name": "Carbocation Stability", "formula": "3° > 2° > 1° > methyl", "note": "Hyperconjugation + inductive" },
-      { "name": "Carbanion Stability", "formula": "methyl > 1° > 2° > 3° (alkyl)", "note": "Opposite to carbocation" },
-      { "name": "SN1 Rate Law", "formula": "rate = k [alkyl halide]", "note": "Unimolecular; racemization" },
-      { "name": "SN2 Rate Law", "formula": "rate = k [alkyl halide][nucleophile]", "note": "Inversion of configuration" },
-      { "name": "E1 vs E2", "formula": "E1: rate=k[RX]; E2: rate=k[RX][base]", "note": "Zaitsev product often major" },
-      { "name": "Markovnikov Addition", "formula": "H adds to C with more H; X to more substituted C", "note": "Electrophilic addition to alkenes" },
-      { "name": "Anti-Markovnikov (peroxide)", "formula": "HBr + ROOR → Br on less substituted C", "note": "Free-radical addition" },
-      { "name": "Optical Activity", "formula": "enantiomers rotate plane-polarized light equally opposite", "note": "Racemic mix: optically inactive" },
-      { "name": "Specific Rotation", "formula": "[α] = α_obs / (c × l)", "note": "c in g/mL; l in dm" },
-      { "name": "Aromaticity (Hückel)", "formula": "4n + 2 π electrons (planar, cyclic, conjugated)", "note": "n = 0,1,2…" },
-      { "name": "Acidity Order (approx.)", "formula": "RCOOH > PhOH > ROH > RC≡CH > NH3", "note": "Conjugate base stability" }
+      {
+        "name": "General Formula (alkane)",
+        "formula": "C_n H_{2n+2}",
+        "note": "Saturated acyclic"
+      },
+      {
+        "name": "General Formula (alkene)",
+        "formula": "C_n H_{2n}",
+        "note": "One C=C; also cycloalkane"
+      },
+      {
+        "name": "General Formula (alkyne)",
+        "formula": "C_n H_{2n−2}",
+        "note": "One C≡C"
+      },
+      {
+        "name": "Degree of Unsaturation",
+        "formula": "DU = (2C + 2 − H − X + N) / 2",
+        "note": "Rings + π bonds"
+      },
+      {
+        "name": "Isomer Count Reminder",
+        "formula": "Structural + stereo isomers increase with C chain complexity",
+        "note": "CEE: practice common C4–C6 cases"
+      },
+      {
+        "name": "Inductive Effect Order",
+        "formula": "−NO2 > −CN > −COOH > −F > −Cl > −Br > −I (−I strength)",
+        "note": "Approximate teaching order"
+      },
+      {
+        "name": "Carbocation Stability",
+        "formula": "3° > 2° > 1° > methyl",
+        "note": "Hyperconjugation + inductive"
+      },
+      {
+        "name": "Carbanion Stability",
+        "formula": "methyl > 1° > 2° > 3° (alkyl)",
+        "note": "Opposite to carbocation"
+      },
+      {
+        "name": "SN1 Rate Law",
+        "formula": "rate = k [alkyl halide]",
+        "note": "Unimolecular; racemization"
+      },
+      {
+        "name": "SN2 Rate Law",
+        "formula": "rate = k [alkyl halide][nucleophile]",
+        "note": "Inversion of configuration"
+      },
+      {
+        "name": "E1 vs E2",
+        "formula": "E1: rate=k[RX]; E2: rate=k[RX][base]",
+        "note": "Zaitsev product often major"
+      },
+      {
+        "name": "Markovnikov Addition",
+        "formula": "H adds to C with more H; X to more substituted C",
+        "note": "Electrophilic addition to alkenes"
+      },
+      {
+        "name": "Anti-Markovnikov (peroxide)",
+        "formula": "HBr + ROOR → Br on less substituted C",
+        "note": "Free-radical addition"
+      },
+      {
+        "name": "Optical Activity",
+        "formula": "enantiomers rotate plane-polarized light equally opposite",
+        "note": "Racemic mix: optically inactive"
+      },
+      {
+        "name": "Specific Rotation",
+        "formula": "[α] = α_obs / (c × l)",
+        "note": "c in g/mL; l in dm"
+      },
+      {
+        "name": "Aromaticity (Hückel)",
+        "formula": "4n + 2 π electrons (planar, cyclic, conjugated)",
+        "note": "n = 0,1,2…"
+      },
+      {
+        "name": "Acidity Order (approx.)",
+        "formula": "RCOOH > PhOH > ROH > RC≡CH > NH3",
+        "note": "Conjugate base stability"
+      }
     ]
   },
   {
@@ -280,14 +1092,46 @@
     "title": "Analytical & Applied Chemistry Formulas",
     "chapter": "Analytical Chemistry",
     "formulas": [
-      { "name": "Titration Relation", "formula": "N1 V1 = N2 V2", "note": "Equivalence point" },
-      { "name": "Percentage Purity", "formula": "% purity = (pure mass / sample mass) × 100", "note": "From titration/gravimetry" },
-      { "name": "Gravimetric Factor", "formula": "mass sought = mass ppt × (GF)", "note": "GF from stoichiometry" },
-      { "name": "ppm Definition", "formula": "1 ppm = 1 mg / L (dilute aq.) ≈ 1 mg/kg", "note": "Trace concentration" },
-      { "name": "Hardness of Water (approx.)", "formula": "hardness (ppm CaCO3) from EDTA titre stoichiometry", "note": "Complexometric titration" },
-      { "name": "Empirical Formula Steps", "formula": "% → moles → simplest whole-number ratio", "note": "Then molecular via molar mass" },
-      { "name": "Limiting Reagent", "formula": "compare available moles / stoichiometric coefficient", "note": "Smallest ratio limits product" },
-      { "name": "Percent Yield", "formula": "% yield = (actual / theoretical) × 100", "note": "Theoretical from limiting reagent" }
+      {
+        "name": "Titration Relation",
+        "formula": "N1 V1 = N2 V2",
+        "note": "Equivalence point"
+      },
+      {
+        "name": "Percentage Purity",
+        "formula": "% purity = (pure mass / sample mass) × 100",
+        "note": "From titration/gravimetry"
+      },
+      {
+        "name": "Gravimetric Factor",
+        "formula": "mass sought = mass ppt × (GF)",
+        "note": "GF from stoichiometry"
+      },
+      {
+        "name": "ppm Definition",
+        "formula": "1 ppm = 1 mg / L (dilute aq.) ≈ 1 mg/kg",
+        "note": "Trace concentration"
+      },
+      {
+        "name": "Hardness of Water (approx.)",
+        "formula": "hardness (ppm CaCO3) from EDTA titre stoichiometry",
+        "note": "Complexometric titration"
+      },
+      {
+        "name": "Empirical Formula Steps",
+        "formula": "% → moles → simplest whole-number ratio",
+        "note": "Then molecular via molar mass"
+      },
+      {
+        "name": "Limiting Reagent",
+        "formula": "compare available moles / stoichiometric coefficient",
+        "note": "Smallest ratio limits product"
+      },
+      {
+        "name": "Percent Yield",
+        "formula": "% yield = (actual / theoretical) × 100",
+        "note": "Theoretical from limiting reagent"
+      }
     ]
   },
   {
@@ -296,20 +1140,76 @@
     "title": "Plant Physiology High-Yield Formulas",
     "chapter": "Plant Physiology",
     "formulas": [
-      { "name": "Overall Photosynthesis", "formula": "6CO₂ + 12H₂O + Light → C₆H₁₂O₆ + 6O₂ + 6H₂O", "note": "Chloroplast; O₂ from H₂O" },
-      { "name": "Light Reaction Summary", "formula": "2H₂O → 4H⁺ + 4e⁻ + O₂ ; ATP + NADPH formed", "note": "Thylakoid membrane" },
-      { "name": "Calvin Cycle CO₂ Fixation", "formula": "RuBP + CO₂ → 2×3-PGA (Rubisco)", "note": "C3 pathway" },
-      { "name": "C4 Initial Fixation", "formula": "PEP + CO₂ → oxaloacetate (PEPcase)", "note": "Mesophyll; then bundle sheath" },
-      { "name": "Respiration Overall", "formula": "C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energy (ATP)", "note": "Aerobic" },
-      { "name": "Glycolysis Net", "formula": "Glucose → 2 pyruvate + 2 ATP + 2 NADH", "note": "Cytoplasm" },
-      { "name": "ATP Yield (aerobic, classic)", "formula": "~36–38 ATP per glucose", "note": "Depends on shuttle system" },
-      { "name": "RQ (Respiratory Quotient)", "formula": "RQ = CO₂ released / O₂ consumed", "note": "Carbs≈1; fats<1; organic acids>1" },
-      { "name": "Water Potential", "formula": "Ψ = Ψ_s + Ψ_p", "note": "Ψ_s = −iCRT (solute)" },
-      { "name": "Solute Potential", "formula": "Ψ_s = −i C R T", "note": "C in mol/L; R,T standard" },
-      { "name": "Plasmolysis Condition", "formula": "Ψ_cell > Ψ_external (hypertonic external)", "note": "Water leaves cell" },
-      { "name": "Transpiration Pull Idea", "formula": "cohesion–tension: continuous H₂O column in xylem", "note": "Driven by leaf Ψ drop" },
-      { "name": "Photosynthetic Efficiency (idea)", "formula": "efficiency = (chemical energy stored / light energy absorbed) × 100", "note": "Usually low in field" },
-      { "name": "Nernst Potential (ion)", "formula": "E = (RT/zF) ln([out]/[in])", "note": "Membrane potential theory" }
+      {
+        "name": "Overall Photosynthesis",
+        "formula": "6CO₂ + 12H₂O + Light → C₆H₁₂O₆ + 6O₂ + 6H₂O",
+        "note": "Chloroplast; O₂ from H₂O"
+      },
+      {
+        "name": "Light Reaction Summary",
+        "formula": "2H₂O → 4H⁺ + 4e⁻ + O₂ ; ATP + NADPH formed",
+        "note": "Thylakoid membrane"
+      },
+      {
+        "name": "Calvin Cycle CO₂ Fixation",
+        "formula": "RuBP + CO₂ → 2×3-PGA (Rubisco)",
+        "note": "C3 pathway"
+      },
+      {
+        "name": "C4 Initial Fixation",
+        "formula": "PEP + CO₂ → oxaloacetate (PEPcase)",
+        "note": "Mesophyll; then bundle sheath"
+      },
+      {
+        "name": "Respiration Overall",
+        "formula": "C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + Energy (ATP)",
+        "note": "Aerobic"
+      },
+      {
+        "name": "Glycolysis Net",
+        "formula": "Glucose → 2 pyruvate + 2 ATP + 2 NADH",
+        "note": "Cytoplasm"
+      },
+      {
+        "name": "ATP Yield (aerobic, classic)",
+        "formula": "~36–38 ATP per glucose",
+        "note": "Depends on shuttle system"
+      },
+      {
+        "name": "RQ (Respiratory Quotient)",
+        "formula": "RQ = CO₂ released / O₂ consumed",
+        "note": "Carbs≈1; fats<1; organic acids>1"
+      },
+      {
+        "name": "Water Potential",
+        "formula": "Ψ = Ψ_s + Ψ_p",
+        "note": "Ψ_s = −iCRT (solute)"
+      },
+      {
+        "name": "Solute Potential",
+        "formula": "Ψ_s = −i C R T",
+        "note": "C in mol/L; R,T standard"
+      },
+      {
+        "name": "Plasmolysis Condition",
+        "formula": "Ψ_cell > Ψ_external (hypertonic external)",
+        "note": "Water leaves cell"
+      },
+      {
+        "name": "Transpiration Pull Idea",
+        "formula": "cohesion–tension: continuous H₂O column in xylem",
+        "note": "Driven by leaf Ψ drop"
+      },
+      {
+        "name": "Photosynthetic Efficiency (idea)",
+        "formula": "efficiency = (chemical energy stored / light energy absorbed) × 100",
+        "note": "Usually low in field"
+      },
+      {
+        "name": "Nernst Potential (ion)",
+        "formula": "E = (RT/zF) ln([out]/[in])",
+        "note": "Membrane potential theory"
+      }
     ]
   },
   {
@@ -318,17 +1218,61 @@
     "title": "Genetics & Cell Biology Formulas",
     "chapter": "Genetics",
     "formulas": [
-      { "name": "Monohybrid F2 Ratio", "formula": "Phenotype 3:1 ; Genotype 1:2:1", "note": "Complete dominance" },
-      { "name": "Dihybrid F2 Ratio", "formula": "9:3:3:1", "note": "Independent assortment" },
-      { "name": "Test Cross (monohybrid)", "formula": "1:1", "note": "Heterozygote × recessive" },
-      { "name": "Test Cross (dihybrid)", "formula": "1:1:1:1", "note": "If independent" },
-      { "name": "Hardy–Weinberg", "formula": "p² + 2pq + q² = 1 ; p + q = 1", "note": "p,q allele frequencies" },
-      { "name": "Map Distance", "formula": "map units = (recombinants / total offspring) × 100", "note": "cM ≈ % recombination" },
-      { "name": "Chi-Square (genetics)", "formula": "χ² = Σ (O − E)² / E", "note": "Goodness of fit" },
-      { "name": "DNA Amount After Replication", "formula": "DNA content doubles in S phase; halves at mitosis", "note": "Track C-value carefully" },
-      { "name": "Mitosis Products", "formula": "1 → 2 identical diploid cells", "note": "Growth & repair" },
-      { "name": "Meiosis Products", "formula": "1 → 4 haploid cells", "note": "Gametes/spores" },
-      { "name": "Chromosome Number Relation", "formula": "2n → n in meiosis I", "note": "Reductional division" }
+      {
+        "name": "Monohybrid F2 Ratio",
+        "formula": "Phenotype 3:1 ; Genotype 1:2:1",
+        "note": "Complete dominance"
+      },
+      {
+        "name": "Dihybrid F2 Ratio",
+        "formula": "9:3:3:1",
+        "note": "Independent assortment"
+      },
+      {
+        "name": "Test Cross (monohybrid)",
+        "formula": "1:1",
+        "note": "Heterozygote × recessive"
+      },
+      {
+        "name": "Test Cross (dihybrid)",
+        "formula": "1:1:1:1",
+        "note": "If independent"
+      },
+      {
+        "name": "Hardy–Weinberg",
+        "formula": "p² + 2pq + q² = 1 ; p + q = 1",
+        "note": "p,q allele frequencies"
+      },
+      {
+        "name": "Map Distance",
+        "formula": "map units = (recombinants / total offspring) × 100",
+        "note": "cM ≈ % recombination"
+      },
+      {
+        "name": "Chi-Square (genetics)",
+        "formula": "χ² = Σ (O − E)² / E",
+        "note": "Goodness of fit"
+      },
+      {
+        "name": "DNA Amount After Replication",
+        "formula": "DNA content doubles in S phase; halves at mitosis",
+        "note": "Track C-value carefully"
+      },
+      {
+        "name": "Mitosis Products",
+        "formula": "1 → 2 identical diploid cells",
+        "note": "Growth & repair"
+      },
+      {
+        "name": "Meiosis Products",
+        "formula": "1 → 4 haploid cells",
+        "note": "Gametes/spores"
+      },
+      {
+        "name": "Chromosome Number Relation",
+        "formula": "2n → n in meiosis I",
+        "note": "Reductional division"
+      }
     ]
   },
   {
@@ -337,15 +1281,51 @@
     "title": "Ecology, Biodiversity & Anatomy Quick Relations",
     "chapter": "Ecology & Vegetation",
     "formulas": [
-      { "name": "Population Growth (exponential)", "formula": "dN/dt = r N", "note": "r = intrinsic rate" },
-      { "name": "Logistic Growth", "formula": "dN/dt = r N (1 − N/K)", "note": "K = carrying capacity" },
-      { "name": "Growth Rate (finite)", "formula": "r = (births − deaths) / N", "note": "Simplified" },
-      { "name": "Species Diversity (idea)", "formula": "higher richness + evenness → higher diversity", "note": "Shannon index conceptually" },
-      { "name": "Productivity Relation", "formula": "NPP = GPP − autotrophic respiration", "note": "Energy flow" },
-      { "name": "10% Law (Lindeman)", "formula": "~10% energy transfers to next trophic level", "note": "Rule of thumb" },
-      { "name": "Pyramid of Energy", "formula": "always upright", "note": "Unlike numbers/biomass sometimes" },
-      { "name": "Water Cycle Balance (idea)", "formula": "precipitation = runoff + infiltration + ET", "note": "ET = evapotranspiration" },
-      { "name": "Xylem vs Phloem Transport", "formula": "xylem: H₂O/minerals upward; phloem: assimilates bidirectional", "note": "Anatomy–physiology link" }
+      {
+        "name": "Population Growth (exponential)",
+        "formula": "dN/dt = r N",
+        "note": "r = intrinsic rate"
+      },
+      {
+        "name": "Logistic Growth",
+        "formula": "dN/dt = r N (1 − N/K)",
+        "note": "K = carrying capacity"
+      },
+      {
+        "name": "Growth Rate (finite)",
+        "formula": "r = (births − deaths) / N",
+        "note": "Simplified"
+      },
+      {
+        "name": "Species Diversity (idea)",
+        "formula": "higher richness + evenness → higher diversity",
+        "note": "Shannon index conceptually"
+      },
+      {
+        "name": "Productivity Relation",
+        "formula": "NPP = GPP − autotrophic respiration",
+        "note": "Energy flow"
+      },
+      {
+        "name": "10% Law (Lindeman)",
+        "formula": "~10% energy transfers to next trophic level",
+        "note": "Rule of thumb"
+      },
+      {
+        "name": "Pyramid of Energy",
+        "formula": "always upright",
+        "note": "Unlike numbers/biomass sometimes"
+      },
+      {
+        "name": "Water Cycle Balance (idea)",
+        "formula": "precipitation = runoff + infiltration + ET",
+        "note": "ET = evapotranspiration"
+      },
+      {
+        "name": "Xylem vs Phloem Transport",
+        "formula": "xylem: H₂O/minerals upward; phloem: assimilates bidirectional",
+        "note": "Anatomy–physiology link"
+      }
     ]
   },
   {
@@ -354,23 +1334,91 @@
     "title": "Human Physiology High-Yield Formulas",
     "chapter": "Human Biology & Physiology",
     "formulas": [
-      { "name": "Cardiac Output", "formula": "CO = stroke volume × heart rate", "note": "~5 L/min resting adult" },
-      { "name": "Stroke Volume", "formula": "SV = EDV − ESV", "note": "End-diastolic − end-systolic volume" },
-      { "name": "Blood Pressure", "formula": "BP = CO × TPR", "note": "TPR = total peripheral resistance" },
-      { "name": "Pulse Pressure", "formula": "PP = systolic − diastolic", "note": "Rough SV indicator" },
-      { "name": "Mean Arterial Pressure", "formula": "MAP ≈ diastolic + (1/3) PP", "note": "Or (SBP + 2×DBP)/3" },
-      { "name": "Vital Capacity", "formula": "VC = TV + IRV + ERV", "note": "Spirometry" },
-      { "name": "Total Lung Capacity", "formula": "TLC = VC + RV", "note": "RV = residual volume" },
-      { "name": "Minute Ventilation", "formula": "V̇E = tidal volume × respiratory rate", "note": "Pulmonary ventilation" },
-      { "name": "GFR Concept", "formula": "GFR ≈ 125 mL/min (adult)", "note": "Glomerular filtration rate" },
-      { "name": "Net Filtration Pressure", "formula": "NFP = GHP − (CHP + BCOP)", "note": "Starling forces at glomerulus" },
-      { "name": "Clearance", "formula": "C = (U × V) / P", "note": "U,P concentrations; V urine flow" },
-      { "name": "BMI", "formula": "BMI = mass(kg) / height(m)²", "note": "Screening metric" },
-      { "name": "Ideal Gas–like O₂ Content Idea", "formula": "O₂ delivery ≈ CO × CaO₂", "note": "CaO₂ depends on Hb × saturation" },
-      { "name": "Nernst (neuron resting idea)", "formula": "E_K ≈ 61 log([K]_o / [K]_i) mV (approx 37°C form)", "note": "K⁺ dominates resting potential" },
-      { "name": "Action Potential Sequence", "formula": "depolarization (Na⁺ in) → repolarization (K⁺ out)", "note": "All-or-none axon spike" },
-      { "name": "Enzyme Kinetics (Michaelis–Menten)", "formula": "v = V_max [S] / (K_m + [S])", "note": "K_m = [S] at v = V_max/2" },
-      { "name": "Hormonal Feedback (idea)", "formula": "↑ hormone effect → ↓ tropic stimulus (negative feedback)", "note": "HPT, HPA axes" }
+      {
+        "name": "Cardiac Output",
+        "formula": "CO = stroke volume × heart rate",
+        "note": "~5 L/min resting adult"
+      },
+      {
+        "name": "Stroke Volume",
+        "formula": "SV = EDV − ESV",
+        "note": "End-diastolic − end-systolic volume"
+      },
+      {
+        "name": "Blood Pressure",
+        "formula": "BP = CO × TPR",
+        "note": "TPR = total peripheral resistance"
+      },
+      {
+        "name": "Pulse Pressure",
+        "formula": "PP = systolic − diastolic",
+        "note": "Rough SV indicator"
+      },
+      {
+        "name": "Mean Arterial Pressure",
+        "formula": "MAP ≈ diastolic + (1/3) PP",
+        "note": "Or (SBP + 2×DBP)/3"
+      },
+      {
+        "name": "Vital Capacity",
+        "formula": "VC = TV + IRV + ERV",
+        "note": "Spirometry"
+      },
+      {
+        "name": "Total Lung Capacity",
+        "formula": "TLC = VC + RV",
+        "note": "RV = residual volume"
+      },
+      {
+        "name": "Minute Ventilation",
+        "formula": "V̇E = tidal volume × respiratory rate",
+        "note": "Pulmonary ventilation"
+      },
+      {
+        "name": "GFR Concept",
+        "formula": "GFR ≈ 125 mL/min (adult)",
+        "note": "Glomerular filtration rate"
+      },
+      {
+        "name": "Net Filtration Pressure",
+        "formula": "NFP = GHP − (CHP + BCOP)",
+        "note": "Starling forces at glomerulus"
+      },
+      {
+        "name": "Clearance",
+        "formula": "C = (U × V) / P",
+        "note": "U,P concentrations; V urine flow"
+      },
+      {
+        "name": "BMI",
+        "formula": "BMI = mass(kg) / height(m)²",
+        "note": "Screening metric"
+      },
+      {
+        "name": "Ideal Gas–like O₂ Content Idea",
+        "formula": "O₂ delivery ≈ CO × CaO₂",
+        "note": "CaO₂ depends on Hb × saturation"
+      },
+      {
+        "name": "Nernst (neuron resting idea)",
+        "formula": "E_K ≈ 61 log([K]_o / [K]_i) mV (approx 37°C form)",
+        "note": "K⁺ dominates resting potential"
+      },
+      {
+        "name": "Action Potential Sequence",
+        "formula": "depolarization (Na⁺ in) → repolarization (K⁺ out)",
+        "note": "All-or-none axon spike"
+      },
+      {
+        "name": "Enzyme Kinetics (Michaelis–Menten)",
+        "formula": "v = V_max [S] / (K_m + [S])",
+        "note": "K_m = [S] at v = V_max/2"
+      },
+      {
+        "name": "Hormonal Feedback (idea)",
+        "formula": "↑ hormone effect → ↓ tropic stimulus (negative feedback)",
+        "note": "HPT, HPA axes"
+      }
     ]
   },
   {
@@ -379,15 +1427,51 @@
     "title": "Genetics, Evolution & Immunity Relations",
     "chapter": "Evolutionary Biology",
     "formulas": [
-      { "name": "Hardy–Weinberg (same as botany)", "formula": "p² + 2pq + q² = 1", "note": "No selection/mutation/migration/drift; random mating" },
-      { "name": "Allele Frequency from Phenotype", "formula": "q = √(recessive phenotype frequency)", "note": "If H–W holds" },
-      { "name": "Sex-linked Recessive (males)", "formula": "affected male frequency ≈ q", "note": "X-linked; hemizygous" },
-      { "name": "Blood Group Alleles", "formula": "I^A, I^B dominant to i; I^A & I^B codominant", "note": "ABO system" },
-      { "name": "Mendelian Probability", "formula": "P(and) = P1 × P2 (independent)", "note": "Pedigree problem tool" },
-      { "name": "Selection Coefficient Idea", "formula": "fitness w = 1 − s", "note": "s = selection against genotype" },
-      { "name": "Antibody–Antigen Fit", "formula": "specificity: lock-and-key / induced fit", "note": "Humoral immunity" },
-      { "name": "Primary vs Secondary Response", "formula": "secondary: faster, higher IgG titre", "note": "Memory B cells" },
-      { "name": "Vaccine Principle", "formula": "exposure to antigen → adaptive memory without full disease", "note": "Active artificial immunity" }
+      {
+        "name": "Hardy–Weinberg (same as botany)",
+        "formula": "p² + 2pq + q² = 1",
+        "note": "No selection/mutation/migration/drift; random mating"
+      },
+      {
+        "name": "Allele Frequency from Phenotype",
+        "formula": "q = √(recessive phenotype frequency)",
+        "note": "If H–W holds"
+      },
+      {
+        "name": "Sex-linked Recessive (males)",
+        "formula": "affected male frequency ≈ q",
+        "note": "X-linked; hemizygous"
+      },
+      {
+        "name": "Blood Group Alleles",
+        "formula": "I^A, I^B dominant to i; I^A & I^B codominant",
+        "note": "ABO system"
+      },
+      {
+        "name": "Mendelian Probability",
+        "formula": "P(and) = P1 × P2 (independent)",
+        "note": "Pedigree problem tool"
+      },
+      {
+        "name": "Selection Coefficient Idea",
+        "formula": "fitness w = 1 − s",
+        "note": "s = selection against genotype"
+      },
+      {
+        "name": "Antibody–Antigen Fit",
+        "formula": "specificity: lock-and-key / induced fit",
+        "note": "Humoral immunity"
+      },
+      {
+        "name": "Primary vs Secondary Response",
+        "formula": "secondary: faster, higher IgG titre",
+        "note": "Memory B cells"
+      },
+      {
+        "name": "Vaccine Principle",
+        "formula": "exposure to antigen → adaptive memory without full disease",
+        "note": "Active artificial immunity"
+      }
     ]
   },
   {
@@ -396,13 +1480,41 @@
     "title": "Applied Biology & Disease Relations",
     "chapter": "Microbial Diseases & Immunology",
     "formulas": [
-      { "name": "Incidence Rate (idea)", "formula": "new cases / population at risk (per time)", "note": "Epidemiology basic" },
-      { "name": "Prevalence (idea)", "formula": "existing cases / population", "note": "Point or period" },
-      { "name": "Case Fatality", "formula": "deaths from disease / diagnosed cases", "note": "Severity indicator" },
-      { "name": "BMI Categories (WHO idea)", "formula": "BMI <18.5 under; 18.5–24.9 normal; ≥25 overweight", "note": "Screening cut-offs" },
-      { "name": "Blood Glucose Fasting Cut-off (approx teaching)", "formula": "diabetes suspicion if fasting ≥126 mg/dL", "note": "Confirm with guidelines; CEE recall value" },
-      { "name": "PCR Amplification Idea", "formula": "DNA copies ≈ 2^n after n cycles", "note": "Exponential amplification" },
-      { "name": "Karyotype Count (human)", "formula": "2n = 46 ; n = 23", "note": "22 pairs autosomes + sex chromosomes" }
+      {
+        "name": "Incidence Rate (idea)",
+        "formula": "new cases / population at risk (per time)",
+        "note": "Epidemiology basic"
+      },
+      {
+        "name": "Prevalence (idea)",
+        "formula": "existing cases / population",
+        "note": "Point or period"
+      },
+      {
+        "name": "Case Fatality",
+        "formula": "deaths from disease / diagnosed cases",
+        "note": "Severity indicator"
+      },
+      {
+        "name": "BMI Categories (WHO idea)",
+        "formula": "BMI <18.5 under; 18.5–24.9 normal; ≥25 overweight",
+        "note": "Screening cut-offs"
+      },
+      {
+        "name": "Blood Glucose Fasting Cut-off (approx teaching)",
+        "formula": "diabetes suspicion if fasting ≥126 mg/dL",
+        "note": "Confirm with guidelines; CEE recall value"
+      },
+      {
+        "name": "PCR Amplification Idea",
+        "formula": "DNA copies ≈ 2^n after n cycles",
+        "note": "Exponential amplification"
+      },
+      {
+        "name": "Karyotype Count (human)",
+        "formula": "2n = 46 ; n = 23",
+        "note": "22 pairs autosomes + sex chromosomes"
+      }
     ]
   },
   {
@@ -411,31 +1523,1812 @@
     "title": "MAT Quantitative Aptitude Formulas",
     "chapter": "All Subsections",
     "formulas": [
-      { "name": "Percentage", "formula": "x% of N = (x/100) × N", "note": "Increase: N(1 + r/100)" },
-      { "name": "Percentage Change", "formula": "% change = ((new − old)/old) × 100", "note": "Signed" },
-      { "name": "Successive Percentage", "formula": "net = a + b + (a b)/100", "note": "Two successive changes a%, b%" },
-      { "name": "Simple Interest", "formula": "SI = (P × R × T) / 100", "note": "Amount = P + SI" },
-      { "name": "Compound Interest", "formula": "A = P (1 + R/100)^T", "note": "CI = A − P" },
-      { "name": "Ratio Division", "formula": "part A = (a/(a+b)) × total", "note": "a:b share" },
-      { "name": "Partnership", "formula": "profit share ∝ capital × time", "note": "Unless otherwise stated" },
-      { "name": "Average", "formula": "avg = sum / n", "note": "Weighted avg = Σ w x / Σ w" },
-      { "name": "Speed–Distance–Time", "formula": "v = d / t", "note": "t = d/v ; d = v t" },
-      { "name": "Average Speed (equal distance)", "formula": "2 v1 v2 / (v1 + v2)", "note": "Harmonic mean" },
-      { "name": "Relative Speed (same direction)", "formula": "v_rel = |v1 − v2|", "note": "Opposite: v1 + v2" },
-      { "name": "Train Crossing Platform", "formula": "t = (L_train + L_platform) / v", "note": "Same units" },
-      { "name": "Boat Upstream/Downstream", "formula": "u = (d − u_stream); d = (b + u_stream)", "note": "b = boat in still water" },
-      { "name": "Work Rate", "formula": "work/day = 1 / days_to_finish", "note": "Together: sum of rates" },
-      { "name": "Pipes & Cisterns", "formula": "net rate = fill rates − leak rates", "note": "Time = capacity / net rate" },
-      { "name": "Permutation", "formula": "P(n,r) = n! / (n−r)!", "note": "Order matters" },
-      { "name": "Combination", "formula": "C(n,r) = n! / (r! (n−r)!)", "note": "Order irrelevant" },
-      { "name": "Probability", "formula": "P = favorable / total equally likely", "note": "0 ≤ P ≤ 1" },
-      { "name": "Odds", "formula": "odds in favor = fav : unfav", "note": "P = fav/(fav+unfav)" },
-      { "name": "AP nth Term", "formula": "a_n = a + (n−1)d", "note": "Sum S_n = n/2 [2a+(n−1)d]" },
-      { "name": "GP nth Term", "formula": "a_n = a r^{n−1}", "note": "Sum S_n = a(r^n−1)/(r−1)" },
-      { "name": "Quadratic Roots Sum/Product", "formula": "sum = −b/a ; product = c/a", "note": "ax² + bx + c = 0" },
-      { "name": "Age Problems", "formula": "present ages satisfy linear equations from ratios/sums", "note": "Shift ages by ±t years carefully" },
-      { "name": "Clock Angle", "formula": "θ = |30H − 5.5 M|", "note": "Take min(θ, 360−θ)" },
-      { "name": "Calendar Odd Days", "formula": "ordinary year 1; leap year 2 odd days", "note": "Mod 7 for weekday" }
+      {
+        "name": "Percentage",
+        "formula": "x% of N = (x/100) × N",
+        "note": "Increase: N(1 + r/100)"
+      },
+      {
+        "name": "Percentage Change",
+        "formula": "% change = ((new − old)/old) × 100",
+        "note": "Signed"
+      },
+      {
+        "name": "Successive Percentage",
+        "formula": "net = a + b + (a b)/100",
+        "note": "Two successive changes a%, b%"
+      },
+      {
+        "name": "Simple Interest",
+        "formula": "SI = (P × R × T) / 100",
+        "note": "Amount = P + SI"
+      },
+      {
+        "name": "Compound Interest",
+        "formula": "A = P (1 + R/100)^T",
+        "note": "CI = A − P"
+      },
+      {
+        "name": "Ratio Division",
+        "formula": "part A = (a/(a+b)) × total",
+        "note": "a:b share"
+      },
+      {
+        "name": "Partnership",
+        "formula": "profit share ∝ capital × time",
+        "note": "Unless otherwise stated"
+      },
+      {
+        "name": "Average",
+        "formula": "avg = sum / n",
+        "note": "Weighted avg = Σ w x / Σ w"
+      },
+      {
+        "name": "Speed–Distance–Time",
+        "formula": "v = d / t",
+        "note": "t = d/v ; d = v t"
+      },
+      {
+        "name": "Average Speed (equal distance)",
+        "formula": "2 v1 v2 / (v1 + v2)",
+        "note": "Harmonic mean"
+      },
+      {
+        "name": "Relative Speed (same direction)",
+        "formula": "v_rel = |v1 − v2|",
+        "note": "Opposite: v1 + v2"
+      },
+      {
+        "name": "Train Crossing Platform",
+        "formula": "t = (L_train + L_platform) / v",
+        "note": "Same units"
+      },
+      {
+        "name": "Boat Upstream/Downstream",
+        "formula": "u = (d − u_stream); d = (b + u_stream)",
+        "note": "b = boat in still water"
+      },
+      {
+        "name": "Work Rate",
+        "formula": "work/day = 1 / days_to_finish",
+        "note": "Together: sum of rates"
+      },
+      {
+        "name": "Pipes & Cisterns",
+        "formula": "net rate = fill rates − leak rates",
+        "note": "Time = capacity / net rate"
+      },
+      {
+        "name": "Permutation",
+        "formula": "P(n,r) = n! / (n−r)!",
+        "note": "Order matters"
+      },
+      {
+        "name": "Combination",
+        "formula": "C(n,r) = n! / (r! (n−r)!)",
+        "note": "Order irrelevant"
+      },
+      {
+        "name": "Probability",
+        "formula": "P = favorable / total equally likely",
+        "note": "0 ≤ P ≤ 1"
+      },
+      {
+        "name": "Odds",
+        "formula": "odds in favor = fav : unfav",
+        "note": "P = fav/(fav+unfav)"
+      },
+      {
+        "name": "AP nth Term",
+        "formula": "a_n = a + (n−1)d",
+        "note": "Sum S_n = n/2 [2a+(n−1)d]"
+      },
+      {
+        "name": "GP nth Term",
+        "formula": "a_n = a r^{n−1}",
+        "note": "Sum S_n = a(r^n−1)/(r−1)"
+      },
+      {
+        "name": "Quadratic Roots Sum/Product",
+        "formula": "sum = −b/a ; product = c/a",
+        "note": "ax² + bx + c = 0"
+      },
+      {
+        "name": "Age Problems",
+        "formula": "present ages satisfy linear equations from ratios/sums",
+        "note": "Shift ages by ±t years carefully"
+      },
+      {
+        "name": "Clock Angle",
+        "formula": "θ = |30H − 5.5 M|",
+        "note": "Take min(θ, 360−θ)"
+      },
+      {
+        "name": "Calendar Odd Days",
+        "formula": "ordinary year 1; leap year 2 odd days",
+        "note": "Mod 7 for weekday"
+      }
+    ]
+  },
+  {
+    "id": "fs-phy-fluids-elasticity",
+    "subject": "Physics",
+    "title": "Fluids, Elasticity & Error Analysis",
+    "chapter": "Mechanics",
+    "formulas": [
+      {
+        "name": "Projectile Range",
+        "formula": "R = (u² sin 2θ) / g",
+        "note": "Max range at θ = 45° (level ground)"
+      },
+      {
+        "name": "Projectile Max Height",
+        "formula": "H = (u² sin²θ) / (2 g)",
+        "note": "Vertical component only"
+      },
+      {
+        "name": "Projectile Time of Flight",
+        "formula": "T = (2 u sinθ) / g",
+        "note": "Level ground"
+      },
+      {
+        "name": "Banking of Road (no friction)",
+        "formula": "tanθ = v² / (r g)",
+        "note": "Ideal banking angle"
+      },
+      {
+        "name": "Young Modulus",
+        "formula": "Y = (F/A) / (ΔL/L) = stress / longitudinal strain",
+        "note": "Elasticity of stretch"
+      },
+      {
+        "name": "Bulk Modulus",
+        "formula": "B = -ΔP / (ΔV/V)",
+        "note": "Negative: volume decreases with pressure"
+      },
+      {
+        "name": "Shear Modulus",
+        "formula": "η = (F/A) / φ",
+        "note": "φ = shear strain (angle)"
+      },
+      {
+        "name": "Elastic Potential Energy",
+        "formula": "U = (1/2) × stress × strain × volume",
+        "note": "Also (1/2) Y (ΔL/L)² × AL"
+      },
+      {
+        "name": "Poisson Ratio",
+        "formula": "σ = −(lateral strain) / (longitudinal strain)",
+        "note": "Typically 0 to 0.5"
+      },
+      {
+        "name": "Continuity Equation",
+        "formula": "A1 v1 = A2 v2",
+        "note": "Incompressible steady flow"
+      },
+      {
+        "name": "Bernoulli Equation",
+        "formula": "P + ρ g h + (1/2) ρ v² = constant",
+        "note": "Along a streamline"
+      },
+      {
+        "name": "Torricelli Speed",
+        "formula": "v = √(2 g h)",
+        "note": "Efflux from tank"
+      },
+      {
+        "name": "Viscous Force (Newton)",
+        "formula": "F = η A (dv/dx)",
+        "note": "η = coefficient of viscosity"
+      },
+      {
+        "name": "Stokes Law",
+        "formula": "F = 6 π η r v",
+        "note": "Sphere in viscous fluid"
+      },
+      {
+        "name": "Terminal Velocity (Stokes)",
+        "formula": "v_t = (2/9) (r² (ρ−σ) g) / η",
+        "note": "σ = fluid density"
+      },
+      {
+        "name": "Poiseuille Flow",
+        "formula": "Q = (π r⁴ ΔP) / (8 η L)",
+        "note": "Volume flow rate in tube"
+      },
+      {
+        "name": "Surface Tension",
+        "formula": "T = F / L = W / A",
+        "note": "Force per length; energy per area"
+      },
+      {
+        "name": "Capillary Rise",
+        "formula": "h = (2 T cosθ) / (ρ g r)",
+        "note": "Narrow tube"
+      },
+      {
+        "name": "Excess Pressure (drop)",
+        "formula": "ΔP = 2 T / r",
+        "note": "Soap bubble: 4T/r"
+      },
+      {
+        "name": "Absolute Error",
+        "formula": "Δa = |a_measured − a_true|",
+        "note": "Or least count contribution"
+      },
+      {
+        "name": "Relative / Percentage Error",
+        "formula": "δa = Δa/a ; % error = (Δa/a)×100",
+        "note": "Propagate via differentials"
+      },
+      {
+        "name": "Error Propagation (product)",
+        "formula": "Δz/z = Δx/x + Δy/y (for z=xy)",
+        "note": "Powers: n Δx/x for x^n"
+      },
+      {
+        "name": "Dimensions Check",
+        "formula": "[LHS] = [RHS] for any physical equation",
+        "note": "CEE dimensional analysis"
+      }
+    ]
+  },
+  {
+    "id": "fs-phy-semiconductor-devices",
+    "subject": "Physics",
+    "title": "Semiconductors, Nuclei & Devices Extra",
+    "chapter": "Modern Physics",
+    "formulas": [
+      {
+        "name": "Intrinsic Carrier Relation",
+        "formula": "n_i² = n_e n_h",
+        "note": "Thermal equilibrium"
+      },
+      {
+        "name": "Conductivity (semiconductor)",
+        "formula": "σ = e (n_e μ_e + n_h μ_h)",
+        "note": "μ = mobility"
+      },
+      {
+        "name": "Rectifier Average Output (half-wave)",
+        "formula": "V_avg = V_m / π",
+        "note": "Ideal diode approximation"
+      },
+      {
+        "name": "Rectifier Average Output (full-wave)",
+        "formula": "V_avg = 2 V_m / π",
+        "note": "Bridge/center-tap"
+      },
+      {
+        "name": "Transformer Relation",
+        "formula": "V_s / V_p = N_s / N_p = I_p / I_s",
+        "note": "Ideal transformer"
+      },
+      {
+        "name": "Transformer Efficiency",
+        "formula": "η = (P_out / P_in) × 100%",
+        "note": "Copper + iron losses"
+      },
+      {
+        "name": "Binding Energy per Nucleon",
+        "formula": "BE/A = (Δm c²) / A",
+        "note": "Stability curve peak near Fe"
+      },
+      {
+        "name": "Q-value of Reaction",
+        "formula": "Q = (m_initial − m_final) c²",
+        "note": "Exoergic if Q > 0"
+      },
+      {
+        "name": "Pair Production Threshold",
+        "formula": "E_γ ≥ 1.022 MeV",
+        "note": "Near nucleus; e⁻ + e⁺"
+      },
+      {
+        "name": "Compton Shift",
+        "formula": "Δλ = (h / m_e c) (1 − cosθ)",
+        "note": "λ_C ≈ 0.0243 Å"
+      },
+      {
+        "name": "Bragg Law",
+        "formula": "2 d sinθ = n λ",
+        "note": "X-ray crystal diffraction"
+      },
+      {
+        "name": "Uncertainty Principle",
+        "formula": "Δx Δp ≥ h / (4π)",
+        "note": "Also ΔE Δt ≥ h/(4π)"
+      }
+    ]
+  },
+  {
+    "id": "fs-chem-gas-equilibrium-extra",
+    "subject": "Chemistry",
+    "title": "Gas Laws, Colligative & Equilibrium Extra",
+    "chapter": "Physical Chemistry",
+    "formulas": [
+      {
+        "name": "Boyle Law",
+        "formula": "P V = constant (T fixed)",
+        "note": "P1 V1 = P2 V2"
+      },
+      {
+        "name": "Charles Law",
+        "formula": "V / T = constant (P fixed)",
+        "note": "T in kelvin"
+      },
+      {
+        "name": "Gay-Lussac Law",
+        "formula": "P / T = constant (V fixed)",
+        "note": "Pressure–temperature"
+      },
+      {
+        "name": "Avogadro Law",
+        "formula": "V ∝ n (P,T fixed)",
+        "note": "Equal volumes → equal moles"
+      },
+      {
+        "name": "Combined Gas Law",
+        "formula": "P1 V1 / T1 = P2 V2 / T2",
+        "note": "Fixed amount of gas"
+      },
+      {
+        "name": "van der Waals Equation",
+        "formula": "(P + a n²/V²)(V − n b) = n R T",
+        "note": "a,b real-gas constants"
+      },
+      {
+        "name": "Henry Law",
+        "formula": "p = K_H x",
+        "note": "Gas solubility vs partial pressure"
+      },
+      {
+        "name": "Ostwald Dilution Law",
+        "formula": "K_a = α² C / (1 − α) ≈ α² C",
+        "note": "Weak electrolyte"
+      },
+      {
+        "name": "Common Ion Effect",
+        "formula": "suppresses dissociation of weak electrolyte",
+        "note": "Le Chatelier"
+      },
+      {
+        "name": "Solubility Product",
+        "formula": "K_sp = [A^{n+}]^m [B^{m−}]^n",
+        "note": "For A_m B_n(s)"
+      },
+      {
+        "name": "Ionic Strength (idea)",
+        "formula": "I = (1/2) Σ c_i z_i²",
+        "note": "Affects activity"
+      },
+      {
+        "name": "Buffer Capacity Idea",
+        "formula": "max near pH = pKa with equal [HA],[A−]",
+        "note": "Henderson region"
+      },
+      {
+        "name": "Degree of Dissociation",
+        "formula": "α = Λ_m / Λ_m°",
+        "note": "From conductivity"
+      },
+      {
+        "name": "Kohlrausch Law",
+        "formula": "Λ_m° = λ°_+ + λ°_−",
+        "note": "Infinite dilution"
+      },
+      {
+        "name": "Cell Constant",
+        "formula": "G* = ℓ / A = κ / G",
+        "note": "Conductivity cell"
+      },
+      {
+        "name": "Relation Kp and partial pressures",
+        "formula": "for aA+bB⇌cC+dD: Kp = (P_C^c P_D^d)/(P_A^a P_B^b)",
+        "note": "Gases; pure solids omitted"
+      }
+    ]
+  },
+  {
+    "id": "fs-chem-applied",
+    "subject": "Chemistry",
+    "title": "Applied & Environmental Chemistry Formulas",
+    "chapter": "Applied Chemistry",
+    "formulas": [
+      {
+        "name": "Calorific Value Idea",
+        "formula": "energy released per unit mass (or volume) of fuel",
+        "note": "Higher vs lower CV"
+      },
+      {
+        "name": "Octane / Cetane Idea",
+        "formula": "knock resistance (petrol) / ignition quality (diesel)",
+        "note": "Fuel rating"
+      },
+      {
+        "name": "BOD Definition",
+        "formula": "O₂ consumed by microbes to oxidize organic matter (mg/L)",
+        "note": "Water pollution index"
+      },
+      {
+        "name": "COD Definition",
+        "formula": "O₂ equivalent to oxidize all oxidizable matter chemically",
+        "note": "Usually COD > BOD"
+      },
+      {
+        "name": "DO Saturation Idea",
+        "formula": "dissolved O₂ decreases as T increases",
+        "note": "Aquatic life stress"
+      },
+      {
+        "name": "Hardness as CaCO3",
+        "formula": "ppm CaCO3 = (mass CaCO3 equivalent / sample mass) × 10⁶",
+        "note": "Temporary vs permanent"
+      },
+      {
+        "name": "Saponification Reaction Idea",
+        "formula": "fat/oil + NaOH → soap + glycerol",
+        "note": "Alkaline hydrolysis"
+      },
+      {
+        "name": "Polymerization DP Idea",
+        "formula": "M_polymer ≈ DP × M_monomer",
+        "note": "Degree of polymerization"
+      },
+      {
+        "name": "Fertilizer NPK Idea",
+        "formula": "label %N − %P2O5 − %K2O",
+        "note": "Nutrient grades"
+      },
+      {
+        "name": "Green Chemistry Atom Economy",
+        "formula": "atom economy = (MW desired product / Σ MW reactants) × 100%",
+        "note": "Efficiency metric"
+      }
+    ]
+  },
+  {
+    "id": "fs-chem-inorganic-extra",
+    "subject": "Chemistry",
+    "title": "Inorganic Bonding & Coordination Extra",
+    "chapter": "Inorganic Chemistry",
+    "formulas": [
+      {
+        "name": "Bond Order (MO idea)",
+        "formula": "BO = (N_b − N_a) / 2",
+        "note": "Higher BO → shorter/stronger bond"
+      },
+      {
+        "name": "Percent Ionic Character (Pauling approx)",
+        "formula": "% ionic ≈ [1 − exp(−(Δχ)²/4)] × 100",
+        "note": "Δχ = EN difference"
+      },
+      {
+        "name": "Radius Ratio Rule",
+        "formula": "r_cation / r_anion predicts coordination",
+        "note": "e.g. 0.414–0.732 → octahedral"
+      },
+      {
+        "name": "EAN Rule (Sidgwick)",
+        "formula": "EAN = Z − ox.state + electrons from ligands",
+        "note": "Often 36/54/86 for stability"
+      },
+      {
+        "name": "CFSE Octahedral",
+        "formula": "CFSE = (−0.4 n_t + 0.6 n_e) Δ_o (+ pairing if needed)",
+        "note": "t2g / eg count"
+      },
+      {
+        "name": "Spectrochemical Series Idea",
+        "formula": "I− < Br− < Cl− < F− < OH− < H2O < NH3 < CN−",
+        "note": "Increasing Δ"
+      },
+      {
+        "name": "18-Electron Rule",
+        "formula": "valence e− count ≈ 18 for many organometallics",
+        "note": "Heuristic stability"
+      },
+      {
+        "name": "Amphoteric Oxide Trend",
+        "formula": "BeO, Al2O3, ZnO, PbO amphoteric examples",
+        "note": "Acid + base both"
+      },
+      {
+        "name": "Disproportionation Check",
+        "formula": "same element oxidized and reduced",
+        "note": "e.g. 2H2O2 → 2H2O + O2"
+      },
+      {
+        "name": "Isoelectronic Species",
+        "formula": "same number of electrons (often similar structure)",
+        "note": "CO, N2, CN− examples"
+      }
+    ]
+  },
+  {
+    "id": "fs-chem-organic-extra",
+    "subject": "Chemistry",
+    "title": "Organic Reaction & Isomer Extra",
+    "chapter": "Organic Chemistry",
+    "formulas": [
+      {
+        "name": "General Formula (alcohol)",
+        "formula": "C_n H_{2n+2} O",
+        "note": "Saturated monohydric"
+      },
+      {
+        "name": "General Formula (aldehyde/ketone)",
+        "formula": "C_n H_{2n} O",
+        "note": "One carbonyl"
+      },
+      {
+        "name": "General Formula (carboxylic acid)",
+        "formula": "C_n H_{2n} O2",
+        "note": "−COOH"
+      },
+      {
+        "name": "Saytzeff Rule",
+        "formula": "more substituted alkene preferred in elimination",
+        "note": "Often major product"
+      },
+      {
+        "name": "Hoffmann Elimination",
+        "formula": "less substituted alkene with bulky leaving/base cases",
+        "note": "Contrast Zaitsev"
+      },
+      {
+        "name": "Aldol Condensation Idea",
+        "formula": "2 carbonyl (α-H) → β-hydroxy carbonyl → enone",
+        "note": "Base/acid catalyzed"
+      },
+      {
+        "name": "Cannizzaro Reaction Idea",
+        "formula": "2 PhCHO → PhCH2OH + PhCOO− (no α-H)",
+        "note": "Disproportionation"
+      },
+      {
+        "name": "Grignard Addition Idea",
+        "formula": "RMgX + carbonyl → alcohol after H3O+",
+        "note": "Nucleophilic C−"
+      },
+      {
+        "name": "Optical Isomers Count (n chiral C)",
+        "formula": "max 2^n stereoisomers (if no meso)",
+        "note": "Reduce if meso forms"
+      },
+      {
+        "name": "Racemic Mixture",
+        "formula": "50:50 enantiomers → [α] = 0",
+        "note": "Externally compensated"
+      },
+      {
+        "name": "Hyperconjugation Condition",
+        "formula": "α-H on C adjacent to unsaturated system",
+        "note": "Stabilizes carbocation/alkene"
+      },
+      {
+        "name": "Resonance Energy Idea",
+        "formula": "extra stability vs localized Lewis structure",
+        "note": "Benzene classic"
+      }
+    ]
+  },
+  {
+    "id": "fs-bot-cell-anatomy",
+    "subject": "Botany",
+    "title": "Cell Biology & Plant Anatomy Formulas",
+    "chapter": "Cell Biology",
+    "formulas": [
+      {
+        "name": "Surface–Volume Ratio",
+        "formula": "SA/V decreases as cell size increases",
+        "note": "Limits cell size"
+      },
+      {
+        "name": "Magnification",
+        "formula": "M = image size / actual size",
+        "note": "Microscopy"
+      },
+      {
+        "name": "Resolution Limit (idea)",
+        "formula": "d ≈ 0.61 λ / NA",
+        "note": "Light microscope limit ~0.2 μm"
+      },
+      {
+        "name": "DNA Replication Semi-conservative",
+        "formula": "each daughter gets 1 old + 1 new strand",
+        "note": "Meselson–Stahl"
+      },
+      {
+        "name": "Transcription Idea",
+        "formula": "DNA → mRNA (same language, U for T)",
+        "note": "Nucleus (eukaryote)"
+      },
+      {
+        "name": "Translation Codon",
+        "formula": "3 nucleotides → 1 amino acid",
+        "note": "64 codons; 20 AA"
+      },
+      {
+        "name": "Ploidy After S Phase",
+        "formula": "DNA = 4C but chromosome number still 2n",
+        "note": "Until anaphase"
+      },
+      {
+        "name": "Crossing Over Timing",
+        "formula": "prophase I (pachytene) of meiosis",
+        "note": "Recombination"
+      },
+      {
+        "name": "Apoplast vs Symplast",
+        "formula": "apoplast: cell wall/xylem; symplast: via plasmodesmata",
+        "note": "Water/solute paths"
+      },
+      {
+        "name": "Secondary Growth Idea",
+        "formula": "vascular cambium → secondary xylem/phloem",
+        "note": "Dicots/gymnosperms"
+      },
+      {
+        "name": "Stomatal Index",
+        "formula": "I = [S / (E + S)] × 100",
+        "note": "S=stomata; E=epidermal cells"
+      },
+      {
+        "name": "Vein Islet / Vein Termination",
+        "formula": "used in leaf morphometrics",
+        "note": "Taxonomy/anatomy labs"
+      }
+    ]
+  },
+  {
+    "id": "fs-bot-biodiversity-dev",
+    "subject": "Botany",
+    "title": "Biodiversity, Development & Applied Botany",
+    "chapter": "Biodiversity",
+    "formulas": [
+      {
+        "name": "Species–Area Relation",
+        "formula": "S = C A^z",
+        "note": "Arrhenius; log S = log C + z log A"
+      },
+      {
+        "name": "Simpson / Shannon Idea",
+        "formula": "diversity rises with richness + evenness",
+        "note": "CEE conceptual"
+      },
+      {
+        "name": "Population Density",
+        "formula": "D = N / Area",
+        "note": "Or volume for aquatic"
+      },
+      {
+        "name": "Birth Rate / Death Rate",
+        "formula": "b = B/N ; d = D/N",
+        "note": "Per capita"
+      },
+      {
+        "name": "Intrinsic Rate",
+        "formula": "r = b − d",
+        "note": "Exponential model"
+      },
+      {
+        "name": "Doubling Time (approx)",
+        "formula": "t_d ≈ 0.693 / r",
+        "note": "If continuous exponential"
+      },
+      {
+        "name": "Seed Viability Idea",
+        "formula": "germination % = (germinated / tested) × 100",
+        "note": "Applied botany"
+      },
+      {
+        "name": "Harvest Index",
+        "formula": "HI = (economic yield / biological yield) × 100",
+        "note": "Crop breeding"
+      },
+      {
+        "name": "Photoperiodism Classes",
+        "formula": "SDP / LDP / DNP plants",
+        "note": "Flowering control"
+      },
+      {
+        "name": "Vernalization Idea",
+        "formula": "cold treatment promotes flowering in some plants",
+        "note": "Winter cereals"
+      },
+      {
+        "name": "Totipotency",
+        "formula": "plant cell → whole plant (tissue culture)",
+        "note": "Applied botany"
+      },
+      {
+        "name": "Embryo Sac (Polygonum)",
+        "formula": "7 cells / 8 nuclei",
+        "note": "Developmental botany"
+      },
+      {
+        "name": "Double Fertilization",
+        "formula": "syngamy + triple fusion → zygote + endosperm",
+        "note": "Angiosperm unique"
+      }
+    ]
+  },
+  {
+    "id": "fs-zoo-tissues-diversity",
+    "subject": "Zoology",
+    "title": "Tissues, Diversity & Animal Study Relations",
+    "chapter": "Animal Tissues & Histology",
+    "formulas": [
+      {
+        "name": "Epithelium Classification Idea",
+        "formula": "simple vs stratified; squamous/cuboidal/columnar",
+        "note": "Structure–function"
+      },
+      {
+        "name": "Connective Tissue Matrix",
+        "formula": "cells + fibers + ground substance",
+        "note": "Bone, cartilage, blood"
+      },
+      {
+        "name": "Sarcomere Shortening",
+        "formula": "actin–myosin sliding; A band length constant",
+        "note": "Muscle contraction"
+      },
+      {
+        "name": "Neuron Resting Potential",
+        "formula": "~ −70 mV (typical neuron teaching value)",
+        "note": "K+ diffusion dominant"
+      },
+      {
+        "name": "Synaptic Delay Idea",
+        "formula": "chemical synapse slower than electrical",
+        "note": "Neurotransmission"
+      },
+      {
+        "name": "Taxonomic Hierarchy",
+        "formula": "Kingdom→Phylum→Class→Order→Family→Genus→Species",
+        "note": "Binomial: Genus species"
+      },
+      {
+        "name": "Body Plans",
+        "formula": "asymmetry / radial / bilateral",
+        "note": "Animal diversity"
+      },
+      {
+        "name": "Coelom Types",
+        "formula": "acoelomate / pseudocoelomate / coelomate",
+        "note": "Classification trait"
+      },
+      {
+        "name": "Metamorphosis Types",
+        "formula": "complete (egg–larva–pupa–adult) vs incomplete",
+        "note": "Insects"
+      },
+      {
+        "name": "Open vs Closed Circulation",
+        "formula": "hemolymph bathing tissues vs vessels+heart",
+        "note": "Arthropods vs vertebrates"
+      },
+      {
+        "name": "Excretion Products",
+        "formula": "ammonotelic / ureotelic / uricotelic",
+        "note": "Habitat adaptation"
+      },
+      {
+        "name": "Dental Formula (human adult)",
+        "formula": "2123 / 2123 × 2 = 32",
+        "note": "I C P M"
+      }
+    ]
+  },
+  {
+    "id": "fs-zoo-physio-extra",
+    "subject": "Zoology",
+    "title": "Physiology & Medical Tech Extra Formulas",
+    "chapter": "Human Biology & Physiology",
+    "formulas": [
+      {
+        "name": "Ejection Fraction",
+        "formula": "EF = SV / EDV",
+        "note": "Often ≈ 0.55–0.70 healthy"
+      },
+      {
+        "name": "Alveolar Gas Idea",
+        "formula": "gas exchange driven by partial pressure gradients",
+        "note": "O2 in / CO2 out"
+      },
+      {
+        "name": "Oxygen–Hb Dissociation Shift",
+        "formula": "right shift: ↑CO2, ↑H+, ↑temp, ↑2,3-BPG",
+        "note": "Bohr effect related"
+      },
+      {
+        "name": "Filtered Load",
+        "formula": "filtered load = GFR × plasma [substance]",
+        "note": "Nephron math"
+      },
+      {
+        "name": "Excretion Rate",
+        "formula": "excretion = filtration − reabsorption + secretion",
+        "note": "Renal handling"
+      },
+      {
+        "name": "Insulin–Glucagon Balance",
+        "formula": "fed: ↑insulin; fasting: ↑glucagon",
+        "note": "Blood glucose homeostasis"
+      },
+      {
+        "name": "Feedback Loop (thyroid)",
+        "formula": "TRH → TSH → T3/T4 ; T3/T4 inhibit TRH/TSH",
+        "note": "Negative feedback"
+      },
+      {
+        "name": "Menstrual Cycle Phases",
+        "formula": "menstrual → follicular → ovulation → luteal",
+        "note": "~28 day teaching cycle"
+      },
+      {
+        "name": "FSH / LH Roles",
+        "formula": "FSH: follicle/spermatogenesis; LH: ovulation/Leydig testosterone",
+        "note": "Gonadotropins"
+      },
+      {
+        "name": "ELISA Principle",
+        "formula": "Ag–Ab binding + enzyme label → color signal",
+        "note": "Medical technology"
+      },
+      {
+        "name": "PCR Cycle Temperatures Idea",
+        "formula": "denature → anneal → extend (repeat)",
+        "note": "Thermal cycling"
+      },
+      {
+        "name": "Blood Group Compatibility Idea",
+        "formula": "recipient antibodies must not attack donor antigens",
+        "note": "ABO + Rh"
+      }
+    ]
+  },
+  {
+    "id": "fs-mat-mensuration-profit",
+    "subject": "MAT",
+    "title": "MAT Mensuration, Profit & Mixtures",
+    "chapter": "All Subsections",
+    "formulas": [
+      {
+        "name": "Profit / Loss",
+        "formula": "Profit = SP − CP ; Loss = CP − SP",
+        "note": "% on CP usually"
+      },
+      {
+        "name": "Profit %",
+        "formula": "Profit% = (Profit/CP)×100",
+        "note": "Loss% similar"
+      },
+      {
+        "name": "SP from Profit%",
+        "formula": "SP = CP (100+P%)/100",
+        "note": "Discount on marked price separate"
+      },
+      {
+        "name": "Discount",
+        "formula": "Discount% = ((MP − SP)/MP)×100",
+        "note": "MP = marked price"
+      },
+      {
+        "name": "Successive Discounts",
+        "formula": "net = a + b − (a b)/100",
+        "note": "Two discounts a%, b%"
+      },
+      {
+        "name": "Allegation Rule",
+        "formula": "cheaper:dearer = (d−m):(m−c)",
+        "note": "m = mean price/quality"
+      },
+      {
+        "name": "Mixture Concentration",
+        "formula": "final = (Σ c_i V_i) / Σ V_i",
+        "note": "Same solute"
+      },
+      {
+        "name": "Area of Triangle",
+        "formula": "A = (1/2) b h = √[s(s−a)(s−b)(s−c)]",
+        "note": "Heron; s = semi-perimeter"
+      },
+      {
+        "name": "Area of Circle",
+        "formula": "A = π r² ; C = 2 π r",
+        "note": "C = circumference"
+      },
+      {
+        "name": "Area of Sector",
+        "formula": "A = (θ/360) π r²",
+        "note": "θ in degrees"
+      },
+      {
+        "name": "Arc Length",
+        "formula": "ℓ = (θ/360) 2 π r",
+        "note": "Degrees"
+      },
+      {
+        "name": "Area of Trapezium",
+        "formula": "A = (1/2)(a+b) h",
+        "note": "Parallel sides a,b"
+      },
+      {
+        "name": "Volume of Cuboid",
+        "formula": "V = l b h ; SA = 2(lb+bh+hl)",
+        "note": "Rectangular box"
+      },
+      {
+        "name": "Volume of Cube",
+        "formula": "V = a³ ; SA = 6 a²",
+        "note": "Edge a"
+      },
+      {
+        "name": "Volume of Cylinder",
+        "formula": "V = π r² h ; CSA = 2 π r h",
+        "note": "Right circular"
+      },
+      {
+        "name": "Volume of Cone",
+        "formula": "V = (1/3) π r² h ; CSA = π r l",
+        "note": "l = slant = √(r²+h²)"
+      },
+      {
+        "name": "Volume of Sphere",
+        "formula": "V = (4/3) π r³ ; A = 4 π r²",
+        "note": "Surface area"
+      },
+      {
+        "name": "Volume of Hemisphere",
+        "formula": "V = (2/3) π r³ ; CSA = 2 π r²",
+        "note": "Curved surface"
+      },
+      {
+        "name": "Pythagoras",
+        "formula": "c² = a² + b²",
+        "note": "Right triangle"
+      },
+      {
+        "name": "Distance Formula (2D)",
+        "formula": "d = √[(x2−x1)² + (y2−y1)²]",
+        "note": "Coordinate geometry"
+      },
+      {
+        "name": "Section Formula",
+        "formula": "x = (m x2 + n x1)/(m+n)",
+        "note": "Internal division m:n"
+      },
+      {
+        "name": "Simple Interest vs CI Diff (2 yr)",
+        "formula": "CI − SI = P (R/100)²",
+        "note": "Annual compounding"
+      }
+    ]
+  },
+  {
+    "id": "fs-mat-logic-number",
+    "subject": "MAT",
+    "title": "MAT Number System & Logical Shortcuts",
+    "chapter": "All Subsections",
+    "formulas": [
+      {
+        "name": "Divisibility 3 / 9",
+        "formula": "sum of digits divisible by 3 / 9",
+        "note": "Quick check"
+      },
+      {
+        "name": "Divisibility 4 / 8",
+        "formula": "last 2 / last 3 digits form number divisible by 4 / 8",
+        "note": "Base 10"
+      },
+      {
+        "name": "Divisibility 11",
+        "formula": "alternating digit sum divisible by 11",
+        "note": "Including 0"
+      },
+      {
+        "name": "HCF × LCM (2 numbers)",
+        "formula": "HCF(a,b) × LCM(a,b) = a × b",
+        "note": "Positive integers"
+      },
+      {
+        "name": "Remainder (idea)",
+        "formula": "a = b q + r ; 0 ≤ r < b",
+        "note": "Division algorithm"
+      },
+      {
+        "name": "Unit Digit Cycles",
+        "formula": "powers of 2,3,4… cycle with small period",
+        "note": "Find unit digit fast"
+      },
+      {
+        "name": "Square of (a+b)",
+        "formula": "(a+b)² = a² + 2ab + b²",
+        "note": "Also (a−b)²"
+      },
+      {
+        "name": "Difference of Squares",
+        "formula": "a² − b² = (a−b)(a+b)",
+        "note": "Factorization"
+      },
+      {
+        "name": "Cube Sum/Diff",
+        "formula": "a³ ± b³ = (a ± b)(a² ∓ ab + b²)",
+        "note": "Standard identities"
+      },
+      {
+        "name": "Arithmetic Mean",
+        "formula": "AM = (x1+…+xn)/n",
+        "note": "AM ≥ GM ≥ HM"
+      },
+      {
+        "name": "Geometric Mean (2)",
+        "formula": "GM = √(ab)",
+        "note": "Positive a,b"
+      },
+      {
+        "name": "Harmonic Mean (2)",
+        "formula": "HM = 2ab/(a+b)",
+        "note": "Same as equal-distance avg speed form"
+      },
+      {
+        "name": "Work: A+B Together",
+        "formula": "1/T = 1/A + 1/B",
+        "note": "T = AB/(A+B) days"
+      },
+      {
+        "name": "Upstream/Downstream Speed",
+        "formula": "down = b+c ; up = b−c",
+        "note": "b boat; c current"
+      },
+      {
+        "name": "Circular Race Relative",
+        "formula": "time to meet = circumference / |v1±v2|",
+        "note": "Same/opposite direction"
+      },
+      {
+        "name": "Calendar Leap Year",
+        "formula": "div by 4; century leap if div by 400",
+        "note": "Odd days rules"
+      },
+      {
+        "name": "Coding–Letter Shift",
+        "formula": "new = (old − A + k) mod 26 + A",
+        "note": "Caesar-style pattern"
+      },
+      {
+        "name": "Series Missing Term Idea",
+        "formula": "check +/−/×/÷ or square/cube patterns",
+        "note": "MAT staple"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-units-dimensions-measurement",
+    "subject": "Physics",
+    "title": "Units, Dimensions & Measurement Formula Sheet",
+    "chapter": "Units, Dimensions & Measurement",
+    "formulas": [
+      {
+        "name": "Least Count of Vernier Caliper",
+        "formula": "LC = 1 MSD - 1 VSD = 1 MSD / N",
+        "note": "MSD = Main Scale Division, VSD = Vernier Scale Division, N = number of vernier divisions"
+      },
+      {
+        "name": "Least Count of Screw Gauge",
+        "formula": "LC = Pitch / Total Circular Scale Divisions",
+        "note": "Pitch = distance moved on linear scale per complete rotation"
+      },
+      {
+        "name": "Percentage Error",
+        "formula": "Percentage Error = (ΔA / A_mean) × 100%",
+        "note": "ΔA = absolute error, A_mean = mean value of measurement"
+      },
+      {
+        "name": "Error Propagation in Multiplication/Division",
+        "formula": "If Z = A^a B^b / C^c, then ΔZ/Z = a(ΔA/A) + b(ΔB/B) + c(ΔC/C)",
+        "note": "Relative errors add up in worst-case analysis"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-vectors",
+    "subject": "Physics",
+    "title": "Vectors Formula Sheet",
+    "chapter": "Vectors",
+    "formulas": [
+      {
+        "name": "Magnitude of Resultant Vector",
+        "formula": "R = √(A² + B² + 2 A B cos θ)",
+        "note": "θ is the angle between vectors A and B"
+      },
+      {
+        "name": "Direction of Resultant Vector",
+        "formula": "tan α = (B sin θ) / (A + B cos θ)",
+        "note": "α is the angle of resultant R with vector A"
+      },
+      {
+        "name": "Dot Product (Scalar Product)",
+        "formula": "A · B = A B cos θ = A_x B_x + A_y B_y + A_z B_z",
+        "note": "Result is a scalar quantity; A · B = 0 if A ⊥ B"
+      },
+      {
+        "name": "Cross Product Magnitude (Vector Product)",
+        "formula": "|A × B| = A B sin θ",
+        "note": "Direction given by right-hand thumb rule; A × B = 0 if A ∥ B"
+      },
+      {
+        "name": "Unit Vector",
+        "formula": "A_hat = A / |A|",
+        "note": "Vector of unit magnitude in direction of A"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-kinematics",
+    "subject": "Physics",
+    "title": "Kinematics Formula Sheet",
+    "chapter": "Kinematics",
+    "formulas": [
+      {
+        "name": "Equations of Uniformly Accelerated Motion",
+        "formula": "v = u + a t ,  s = u t + 1/2 a t² ,  v² = u² + 2 a s",
+        "note": "u = initial velocity, v = final velocity, a = uniform acceleration, t = time"
+      },
+      {
+        "name": "Distance in nth Second",
+        "formula": "s_nth = u + 1/2 a (2n - 1)",
+        "note": "Distance traveled strictly during the nth second"
+      },
+      {
+        "name": "Projectile Maximum Height",
+        "formula": "H_max = (u² sin² θ) / (2 g)",
+        "note": "Maximum vertical displacement reached"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-laws-of-motion",
+    "subject": "Physics",
+    "title": "Laws of Motion & Friction Formula Sheet",
+    "chapter": "Laws of Motion",
+    "formulas": [
+      {
+        "name": "Newton's Second Law & Momentum",
+        "formula": "F_net = m a = d p / dt",
+        "note": "p = m v is linear momentum"
+      },
+      {
+        "name": "Impulse-Momentum Theorem",
+        "formula": "J = ∫ F dt = Δp = m (v - u)",
+        "note": "Impulse equals total change in linear momentum"
+      },
+      {
+        "name": "Limiting Static Friction",
+        "formula": "f_s(max) = μ_s N",
+        "note": "μ_s = coefficient of static friction, N = normal force"
+      },
+      {
+        "name": "Apparent Weight in an Elevator",
+        "formula": "N = m (g ± a)",
+        "note": "+a for upward acceleration, -a for downward acceleration"
+      },
+      {
+        "name": "Acceleration of Connected Bodies (Atwood Machine)",
+        "formula": "a = ((m2 - m1) g) / (m1 + m2) ,  T = (2 m1 m2 g) / (m1 + m2)",
+        "note": "m2 > m1, string is light and inextensible"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-work-energy-power",
+    "subject": "Physics",
+    "title": "Work, Energy & Power Formula Sheet",
+    "chapter": "Work, Energy & Power",
+    "formulas": [
+      {
+        "name": "Work Done by Constant Force",
+        "formula": "W = F · d = F d cos θ",
+        "note": "θ = angle between force F and displacement d"
+      },
+      {
+        "name": "Work-Energy Theorem",
+        "formula": "W_net = ΔKE = 1/2 m v² - 1/2 m u²",
+        "note": "Net work done by all forces equals change in kinetic energy"
+      },
+      {
+        "name": "Relation Between KE and Linear Momentum",
+        "formula": "KE = p² / (2m)  =>  p = √(2 m KE)",
+        "note": "p = linear momentum, m = mass"
+      },
+      {
+        "name": "Instantaneous Power",
+        "formula": "P = dW/dt = F · v = F v cos θ",
+        "note": "v = instantaneous velocity"
+      },
+      {
+        "name": "Efficiency of a Machine",
+        "formula": "η = (W_out / W_in) × 100% = (P_out / P_in) × 100%",
+        "note": "Ratio of useful output power to total input power"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-circular-motion",
+    "subject": "Physics",
+    "title": "Circular Motion Formula Sheet",
+    "chapter": "Circular Motion",
+    "formulas": [
+      {
+        "name": "Optimum Banking Speed of Roads",
+        "formula": "v = √(r g tan θ)",
+        "note": "θ = angle of banking without reliance on friction"
+      },
+      {
+        "name": "Conical Pendulum Time Period",
+        "formula": "T = 2π √((L cos θ) / g)",
+        "note": "L = length of string, θ = semi-vertical angle"
+      },
+      {
+        "name": "Critical Speed in Vertical Circle",
+        "formula": "v_bottom = √(5 g r) ,  v_top = √(g r)",
+        "note": "Minimum speeds at lowest and highest points for complete loop"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-gravitation",
+    "subject": "Physics",
+    "title": "Gravitation Formula Sheet",
+    "chapter": "Gravitation",
+    "formulas": [
+      {
+        "name": "Newton's Law of Universal Gravitation",
+        "formula": "F = G (m1 m2) / r²",
+        "note": "G = 6.674 × 10⁻¹¹ N m²/kg²"
+      },
+      {
+        "name": "Acceleration Due to Gravity at Height h",
+        "formula": "g_h = g (1 - 2h/R)  for h << R  or  g_h = G M / (R + h)²",
+        "note": "R = Earth radius, M = Earth mass"
+      },
+      {
+        "name": "Acceleration Due to Gravity at Depth d",
+        "formula": "g_d = g (1 - d/R)",
+        "note": "Decreases linearly to zero at Earth's center"
+      },
+      {
+        "name": "Orbital Velocity of Satellite Near Earth Surface",
+        "formula": "v_o = √((G M) / R) = √(g R) ≈ 7.9 km/s",
+        "note": "v_e = √2 v_o"
+      },
+      {
+        "name": "Kepler's Third Law",
+        "formula": "T² = ((4π²) / (G M)) r³  =>  T² ∝ r³",
+        "note": "T = orbital period, r = semi-major axis"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-shm",
+    "subject": "Physics",
+    "title": "Simple Harmonic Motion (SHM) Formula Sheet",
+    "chapter": "SHM",
+    "formulas": [
+      {
+        "name": "SHM Displacement Equation",
+        "formula": "x(t) = A sin(ω t + ϕ)",
+        "note": "A = amplitude, ω = angular frequency, ϕ = initial phase"
+      },
+      {
+        "name": "Total Energy in SHM",
+        "formula": "E_total = KE + PE = 1/2 m ω² A² = 1/2 k A²",
+        "note": "Constant for ideal undamped oscillator"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-waves",
+    "subject": "Physics",
+    "title": "Waves & Sound Formula Sheet",
+    "chapter": "Waves",
+    "formulas": [
+      {
+        "name": "Fundamental Frequency of Open Organ Pipe",
+        "formula": "f_open = v / (2 L)",
+        "note": "Contains all harmonics (n = 1, 2, 3...)"
+      },
+      {
+        "name": "Fundamental Frequency of Closed Organ Pipe",
+        "formula": "f_closed = v / (4 L)",
+        "note": "Contains odd harmonics only (n = 1, 3, 5...)"
+      },
+      {
+        "name": "Doppler Effect Apparent Frequency",
+        "formula": "f' = f ((v ± v_o) / (v ∓ v_s))",
+        "note": "v = speed of sound, v_o = observer velocity, v_s = source velocity"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-heat-thermodynamics",
+    "subject": "Physics",
+    "title": "Heat & Thermodynamics Formula Sheet",
+    "chapter": "Heat & Thermodynamics",
+    "formulas": [
+      {
+        "name": "Heat Capacity & Latent Heat",
+        "formula": "Q = m c ΔT  ,  Q = m L",
+        "note": "c = specific heat capacity, L = latent heat of phase change"
+      },
+      {
+        "name": "First Law of Thermodynamics",
+        "formula": "ΔQ = ΔU + ΔW",
+        "note": "ΔQ = heat added, ΔU = change in internal energy, ΔW = work done by system"
+      },
+      {
+        "name": "Work Done in Isothermal Process",
+        "formula": "W = n R T ln(V2 / V1) = 2.303 n R T log10(V2 / V1)",
+        "note": "Temperature remains constant (ΔU = 0)"
+      },
+      {
+        "name": "Work Done in Adiabatic Process",
+        "formula": "W = (P1 V1 - P2 V2) / (γ - 1) = (n R (T1 - T2)) / (γ - 1)",
+        "note": "γ = C_p / C_v Poisson's ratio; Q = 0"
+      },
+      {
+        "name": "Efficiency of Carnot Engine",
+        "formula": "η = 1 - T2 / T1 = (T1 - T2) / T1 = 1 - Q2 / Q1",
+        "note": "T1 = source temp (K), T2 = sink temp (K)"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-electrostatics",
+    "subject": "Physics",
+    "title": "Electrostatics Formula Sheet",
+    "chapter": "Electrostatics",
+    "formulas": [
+      {
+        "name": "Electric Field of Point Charge",
+        "formula": "E = F / q = (1 / (4π ε0)) (q / r²)",
+        "note": "Force per unit positive test charge"
+      },
+      {
+        "name": "Electric Potential of Point Charge",
+        "formula": "V = (1 / (4π ε0)) (q / r)",
+        "note": "Work done per unit charge in bringing test charge from infinity"
+      },
+      {
+        "name": "Capacitance of Parallel Plate Capacitor",
+        "formula": "C = (ε0 A) / d  (or C = (K ε0 A) / d with dielectric K)",
+        "note": "A = plate area, d = separation distance"
+      },
+      {
+        "name": "Energy Stored in Capacitor",
+        "formula": "U = 1/2 C V² = 1/2 Q V = Q² / (2 C)",
+        "note": "Stored in electrostatic field between plates"
+      },
+      {
+        "name": "Equivalent Capacitance in Series and Parallel",
+        "formula": "1/C_series = 1/C1 + 1/C2 + ...  ,  C_parallel = C1 + C2 + ...",
+        "note": "Opposite rules compared to resistors"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-current-electricity",
+    "subject": "Physics",
+    "title": "Current Electricity Formula Sheet",
+    "chapter": "Current Electricity",
+    "formulas": [
+      {
+        "name": "Ohm's Law & Resistance",
+        "formula": "V = I R  ,  R = ρ L / A",
+        "note": "ρ = resistivity of material, L = length, A = cross-sectional area"
+      },
+      {
+        "name": "Temperature Dependence of Resistance",
+        "formula": "R_T = R_0 (1 + α ΔT)",
+        "note": "α = temperature coefficient of resistance"
+      },
+      {
+        "name": "Equivalent Resistance Series and Parallel",
+        "formula": "R_series = R1 + R2 + ...  ,  1/R_parallel = 1/R1 + 1/R2 + ...",
+        "note": "Series adds values; parallel adds reciprocals"
+      },
+      {
+        "name": "Balanced Wheatstone Bridge Condition",
+        "formula": "P / Q = R / S",
+        "note": "Zero current flows through galvanometer when P S = Q R"
+      },
+      {
+        "name": "Potentiometer Comparison of EMFs",
+        "formula": "E1 / E2 = l1 / l2",
+        "note": "l1, l2 = balancing lengths on potentiometer wire"
+      },
+      {
+        "name": "Joule's Law of Heating",
+        "formula": "H = I² R t = V I t = (V² / R) t",
+        "note": "Heat produced in resistor of resistance R"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-magnetism-emi",
+    "subject": "Physics",
+    "title": "Magnetism & Electromagnetic Induction (EMI) Formula Sheet",
+    "chapter": "Magnetism & EMI",
+    "formulas": [
+      {
+        "name": "Lorentz Force on Moving Charge",
+        "formula": "F = q (v × B)  =>  |F| = q v B sin θ",
+        "note": "θ = angle between velocity v and magnetic field B"
+      },
+      {
+        "name": "Magnetic Force on Current-Carrying Conductor",
+        "formula": "F = I (L × B)  =>  |F| = I L B sin θ",
+        "note": "L = vector along current direction"
+      },
+      {
+        "name": "Faraday's Law of Electromagnetic Induction",
+        "formula": "ε = -dΦ_B / dt = -N (dΦ_B / dt)",
+        "note": "Negative sign represents Lenz's Law"
+      },
+      {
+        "name": "Energy Stored in Inductor",
+        "formula": "U = 1/2 L I²",
+        "note": "L = self-inductance (Henry), I = current"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-ac",
+    "subject": "Physics",
+    "title": "Alternating Current (AC) Formula Sheet",
+    "chapter": "AC",
+    "formulas": [
+      {
+        "name": "Root Mean Square (RMS) Current & Voltage",
+        "formula": "I_rms = I_0 / √2 ≈ 0.707 I_0  ,  V_rms = V_0 / √2 ≈ 0.707 V_0",
+        "note": "I_0, V_0 = peak amplitude values"
+      },
+      {
+        "name": "Inductive and Capacitive Reactance",
+        "formula": "X_L = ω L = 2π f L  ,  X_C = 1 / (ω C) = 1 / (2π f C)",
+        "note": "X_L increases with frequency; X_C decreases with frequency"
+      },
+      {
+        "name": "Impedance of Series LCR Circuit",
+        "formula": "Z = √(R² + (X_L - X_C)²)",
+        "note": "Total opposition to AC current"
+      },
+      {
+        "name": "Resonant Frequency of LCR Circuit",
+        "formula": "f_r = 1 / (2π √(L C))",
+        "note": "Occurs when X_L = X_C (minimum impedance Z = R)"
+      },
+      {
+        "name": "Power Factor in AC Circuit",
+        "formula": "Power Factor = cos Φ = R / Z",
+        "note": "Average Power P_avg = V_rms I_rms cos Φ"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-optics",
+    "subject": "Physics",
+    "title": "Optics Formula Sheet",
+    "chapter": "Optics",
+    "formulas": [
+      {
+        "name": "Mirror Formula and Magnification",
+        "formula": "1/f = 1/v + 1/u  ,  m = -v / u = h_i / h_o",
+        "note": "u = object distance, v = image distance, f = focal length"
+      },
+      {
+        "name": "Snell's Law of Refraction",
+        "formula": "μ1 sin i = μ2 sin r  =>  μ = sin i / sin r = c / v",
+        "note": "μ = refractive index of medium"
+      },
+      {
+        "name": "Critical Angle for Total Internal Reflection",
+        "formula": "sin C = 1 / μ = μ_rarer / μ_denser",
+        "note": "Occurs when light travels from denser to rarer medium"
+      },
+      {
+        "name": "Lens Formula and Lens Maker's Formula",
+        "formula": "1/f = 1/v - 1/u  ,  1/f = (μ - 1) (1/R1 - 1/R2)",
+        "note": "R1, R2 = radii of curvature of lens surfaces"
+      },
+      {
+        "name": "Power of Lens Combination",
+        "formula": "P = 1/f(m)  ,  P_total = P1 + P2 + ...",
+        "note": "P measured in Diopters (D)"
+      },
+      {
+        "name": "Fringe Width in Young's Double Slit Experiment",
+        "formula": "β = (λ D) / d",
+        "note": "λ = wavelength, D = slit-screen distance, d = slit separation"
+      }
+    ]
+  },
+  {
+    "id": "fs-physics-modern-physics",
+    "subject": "Physics",
+    "title": "Modern Physics Formula Sheet",
+    "chapter": "Modern Physics",
+    "formulas": [
+      {
+        "name": "Einstein's Photoelectric Equation",
+        "formula": "E_k(max) = h ν - Φ = h ν - h ν0 = e V_s",
+        "note": "Φ = work function, ν0 = threshold frequency, V_s = stopping potential"
+      },
+      {
+        "name": "Bohr Radius and Energy Levels in Hydrogen",
+        "formula": "r_n = 0.529 (n² / Z) Å  ,  E_n = -13.6 (Z² / n²) eV",
+        "note": "n = principal quantum number, Z = atomic number"
+      },
+      {
+        "name": "Rydberg Formula for Hydrogen Spectrum",
+        "formula": "1 / λ = R_H Z² (1/n1² - 1/n2²)",
+        "note": "R_H = Rydberg constant ≈ 1.097 × 10⁷ m⁻¹"
+      },
+      {
+        "name": "Law of Radioactive Decay & Half-Life",
+        "formula": "N(t) = N0 e^(-λ t)  ,  T_1/2 = ln 2 / λ = 0.693 / λ",
+        "note": "N0 = initial nuclei count, λ = decay constant"
+      },
+      {
+        "name": "Einstein Mass-Energy Equivalence",
+        "formula": "E = Δm c²",
+        "note": "Δm = mass defect in nuclear reactions, c = 3 × 10⁸ m/s"
+      }
+    ]
+  },
+  {
+    "id": "fs-chemistry-mole-concept",
+    "subject": "Chemistry",
+    "title": "Mole Concept & Stoichiometry Formula Sheet",
+    "chapter": "Mole Concept",
+    "formulas": [
+      {
+        "name": "Molar Quantity Calculation",
+        "formula": "Moles (n) = Mass / Molar Mass = N / N_A = Volume at STP (L) / 22.4 L",
+        "note": "N_A = Avogadro constant (6.022 × 10²³ mol⁻¹)"
+      },
+      {
+        "name": "Molarity (M)",
+        "formula": "Molarity (M) = Moles of solute / Volume of solution in Liters",
+        "note": "Temperature dependent concentration unit"
+      },
+      {
+        "name": "Normality (N)",
+        "formula": "Normality (N) = Gram equivalents of solute / Volume of solution in Liters = Molarity × n-factor",
+        "note": "n-factor = acidity/basicity or valence change"
+      },
+      {
+        "name": "Molality (m)",
+        "formula": "Molality (m) = Moles of solute / Mass of solvent in Kilograms",
+        "note": "Temperature independent concentration unit"
+      },
+      {
+        "name": "Dilution Law",
+        "formula": "M1 V1 = M2 V2  (or N1 V1 = N2 V2)",
+        "note": "Conservation of moles/equivalents upon dilution"
+      }
+    ]
+  },
+  {
+    "id": "fs-chemistry-atomic-structure",
+    "subject": "Chemistry",
+    "title": "Atomic Structure Formula Sheet",
+    "chapter": "Atomic Structure",
+    "formulas": [
+      {
+        "name": "Bohr Angular Momentum Quantization",
+        "formula": "m v r = (n h) / (2π)",
+        "note": "n = 1, 2, 3... principal quantum number"
+      },
+      {
+        "name": "Planck's Quantum Energy Equation",
+        "formula": "E = h ν = (h c) / λ",
+        "note": "h = 6.626 × 10⁻³⁴ J·s, c = 3 × 10⁸ m/s"
+      },
+      {
+        "name": "Heisenberg Uncertainty Principle",
+        "formula": "Δx · Δp ≥ h / (4π)",
+        "note": "Δx = position uncertainty, Δp = momentum uncertainty"
+      },
+      {
+        "name": "Maximum Electrons in Shell / Subshell",
+        "formula": "Max e⁻ in shell n = 2 n²  ,  Max e⁻ in subshell l = 2 (2l + 1)",
+        "note": "l = 0(s), 1(p), 2(d), 3(f)"
+      }
+    ]
+  },
+  {
+    "id": "fs-chemistry-chemical-bonding",
+    "subject": "Chemistry",
+    "title": "Chemical Bonding Formula Sheet",
+    "chapter": "Chemical Bonding",
+    "formulas": [
+      {
+        "name": "Electric Dipole Moment of Molecule",
+        "formula": "μ = q × d",
+        "note": "q = charge magnitude, d = bond distance; 1 Debye = 3.335 × 10⁻³⁰ C·m"
+      },
+      {
+        "name": "Molecular Orbital Theory Bond Order",
+        "formula": "Bond Order = 1/2 (N_b - N_a)",
+        "note": "N_b = bonding electrons, N_a = antibonding electrons"
+      }
+    ]
+  },
+  {
+    "id": "fs-chemistry-states-of-matter",
+    "subject": "Chemistry",
+    "title": "States of Matter & Gas Laws Formula Sheet",
+    "chapter": "States of Matter",
+    "formulas": [
+      {
+        "name": "Dalton's Law of Partial Pressures",
+        "formula": "P_i = X_i P_total",
+        "note": "P_i = partial pressure, X_i = mole fraction of gas i"
+      },
+      {
+        "name": "Graham's Law of Diffusion / Effusion",
+        "formula": "r1 / r2 = √(M2 / M1) = √(d2 / d1)",
+        "note": "r = rate of diffusion, M = molar mass, d = gas density"
+      },
+      {
+        "name": "Root Mean Square Speed (v_rms)",
+        "formula": "v_rms = √((3 R T) / M) = √((3 P) / d)",
+        "note": "M = molar mass in kg/mol"
+      },
+      {
+        "name": "Van der Waals Equation for Real Gases",
+        "formula": "(P + (a n²) / V²) (V - n b) = n R T",
+        "note": "a = intermolecular attraction factor, b = molecular co-volume"
+      }
+    ]
+  },
+  {
+    "id": "fs-chemistry-thermodynamics",
+    "subject": "Chemistry",
+    "title": "Chemical Thermodynamics Formula Sheet",
+    "chapter": "Thermodynamics",
+    "formulas": [
+      {
+        "name": "Enthalpy and Internal Energy Relation",
+        "formula": "ΔH = ΔU + Δn_g R T",
+        "note": "Δn_g = moles of gaseous products - moles of gaseous reactants"
+      },
+      {
+        "name": "Gibbs Free Energy Equation and Spontaneity",
+        "formula": "ΔG = ΔH - T ΔS",
+        "note": "ΔG < 0 (spontaneous), ΔG = 0 (equilibrium), ΔG > 0 (non-spontaneous)"
+      },
+      {
+        "name": "Standard Free Energy & Equilibrium Constant",
+        "formula": "ΔG° = -2.303 R T log10 K_eq",
+        "note": "Relates thermodynamic feasibility to equilibrium constant"
+      },
+      {
+        "name": "Hess's Law of Constant Heat Summation",
+        "formula": "ΔH_overall = ∑ ΔH_products - ∑ ΔH_reactants",
+        "note": "Enthalpy change is independent of reaction pathway"
+      }
+    ]
+  },
+  {
+    "id": "fs-chemistry-equilibrium",
+    "subject": "Chemistry",
+    "title": "Chemical & Ionic Equilibrium Formula Sheet",
+    "chapter": "Equilibrium",
+    "formulas": [
+      {
+        "name": "Relation Between Kp and Kc",
+        "formula": "K_p = K_c (R T)^(Δn_g)",
+        "note": "Δn_g = gaseous moles change in balanced chemical equation"
+      },
+      {
+        "name": "pH and pOH Definition",
+        "formula": "pH = -log10 [H⁺]  ,  pOH = -log10 [OH⁻]  ,  pH + pOH = 14 (at 25°C)",
+        "note": "K_w = [H⁺][OH⁻] = 1.0 × 10⁻¹⁴ at 25°C"
+      },
+      {
+        "name": "Henderson-Hasselbalch Equation for Acidic Buffer",
+        "formula": "pH = pK_a + log10 ([Salt] / [Acid])",
+        "note": "pK_a = -log10 K_a"
+      },
+      {
+        "name": "Henderson-Hasselbalch Equation for Basic Buffer",
+        "formula": "pOH = pK_b + log10 ([Salt] / [Base])",
+        "note": "pK_b = -log10 K_b"
+      },
+      {
+        "name": "Solubility Product Expression",
+        "formula": "K_sp = x^x y^y s^(x+y)  for salt A_x B_y",
+        "note": "s = molar solubility of salt in mol/L"
+      }
+    ]
+  },
+  {
+    "id": "fs-chemistry-electrochemistry",
+    "subject": "Chemistry",
+    "title": "Electrochemistry Formula Sheet",
+    "chapter": "Electrochemistry",
+    "formulas": [
+      {
+        "name": "Standard Cell Potential (EMF)",
+        "formula": "E°_cell = E°_reduction(cathode) - E°_reduction(anode)",
+        "note": "Measured under standard conditions (1 M, 1 atm, 298 K)"
+      },
+      {
+        "name": "Nernst Equation for Cell Potential",
+        "formula": "E_cell = E°_cell - (0.0591 / n) log10 Q  (at 298 K)",
+        "note": "n = moles of transferred e⁻, Q = reaction quotient"
+      },
+      {
+        "name": "Faraday's First Law of Electrolysis",
+        "formula": "m = Z Q = Z I t = (M / (n F)) I t",
+        "note": "Z = electrochemical equivalent, F = 96500 C/mol"
+      },
+      {
+        "name": "Kohlrausch Law of Independent Migration",
+        "formula": "Λ°_m = ν+ λ°_+ + ν- λ°_-",
+        "note": "Molar conductivity at infinite dilution equals sum of ionic conductivities"
+      }
+    ]
+  },
+  {
+    "id": "fs-chemistry-kinetics",
+    "subject": "Chemistry",
+    "title": "Chemical Kinetics Formula Sheet",
+    "chapter": "Kinetics",
+    "formulas": [
+      {
+        "name": "Integrated Rate Law for First-Order Reaction",
+        "formula": "k = (2.303 / t) log10 ([A]0 / [A]_t)",
+        "note": "[A]0 = initial reactant concentration, [A]_t = concentration at time t"
+      },
+      {
+        "name": "Half-Life of First-Order Reaction",
+        "formula": "t_1/2 = ln 2 / k = 0.693 / k",
+        "note": "Independent of initial reactant concentration [A]0"
+      },
+      {
+        "name": "Half-Life of Zero-Order Reaction",
+        "formula": "t_1/2 = [A]0 / (2 k)",
+        "note": "Directly proportional to initial reactant concentration [A]0"
+      },
+      {
+        "name": "Arrhenius Equation for Temperature Dependence",
+        "formula": "k = A e^(-E_a / (R T))  =>  log10 (k2 / k1) = (E_a / (2.303 R)) (1/T1 - 1/T2)",
+        "note": "E_a = activation energy, A = frequency factor"
+      }
+    ]
+  },
+  {
+    "id": "fs-chemistry-general-organic-chemistry",
+    "subject": "Chemistry",
+    "title": "Organic Chemistry Fundamentals Formula Sheet",
+    "chapter": "General Organic Chemistry",
+    "formulas": [
+      {
+        "name": "Degree of Unsaturation / Index of Hydrogen Deficiency (IHD)",
+        "formula": "IHD = C + 1 - (H / 2) - (X / 2) + (N / 2)",
+        "note": "C = carbons, H = hydrogens, X = halogens, N = nitrogens"
+      },
+      {
+        "name": "General Formula of Hydrocarbons",
+        "formula": "Alkanes: C_n H_(2n+2)  ,  Alkenes: C_n H_(2n)  ,  Alkynes: C_n H_(2n-2)",
+        "note": "n = number of carbon atoms"
+      }
     ]
   }
 ]

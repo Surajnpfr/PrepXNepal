@@ -18,6 +18,7 @@ import {
 import { useAuth } from '@clerk/clerk-react';
 import { PaymentClaim, UserProfile, PricingPlan } from '../types';
 import { validatePromoCode, type PromoValidation } from '../lib/promoCodesApi';
+import { planDisplayName } from '../lib/planDisplay';
 import { useFeedback } from './FeedbackProvider';
 import { AppIcon } from './ui';
 import { LandingSignInButton, LandingSignUpButton } from './ClerkAuthControls';
@@ -248,7 +249,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     },
     {
       q: "Do purchased mock attempts expire?",
-      a: "No. Standard plan mock attempts stay available until you use them. Unlimited plan access lasts for your full preparation term."
+      a: "No. Standard plan mock attempts stay available until you use them. Premium plan access lasts for your full preparation term."
     },
     {
       q: "What happens if my payment claim is rejected?",
@@ -278,7 +279,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           {!guestMode && (
             <div className="flex flex-wrap items-center gap-3 pt-1 text-sm">
               <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
-                Current plan: <span className="font-semibold text-slate-900">{userProfile.plan}</span>
+                Current plan: <span className="font-semibold text-slate-900">{planDisplayName(userProfile.plan)}</span>
               </div>
               <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
                 Mocks left:{' '}
@@ -404,7 +405,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
               <div className="space-y-4">
                 <div>
                   <span className="text-[10px] uppercase font-mono text-slate-400 font-extrabold tracking-wider">
-                    {plan.tier} Access
+                    {planDisplayName(plan.tier)} Access
                   </span>
                   <h3 className={`text-lg font-black mt-1 ${isUnlimited ? 'text-white' : 'text-slate-900'}`}>
                     {plan.name}
@@ -448,7 +449,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   disabled 
                   className="w-full py-2.5 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl cursor-not-allowed text-center border border-slate-200"
                 >
-                  {guestMode ? 'Included free' : isCurrent ? 'Active Free Tier' : 'Default Tier'}
+                  {guestMode ? 'Included free' : isCurrent ? 'Active Free' : 'Default Free'}
                 </button>
               ) : guestMode ? (
                 <LandingSignUpButton className="w-full py-2.5 text-xs font-black rounded-xl shadow-md cursor-pointer text-center bg-blue-600 hover:bg-blue-700 text-white">

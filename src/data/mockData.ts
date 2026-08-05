@@ -453,7 +453,7 @@ export const INITIAL_PRICING_PLANS: PricingPlan[] = [
   {
     id: 'plan-free',
     code: 'Free',
-    name: 'Free Aspirant',
+    name: 'Free',
     tier: 'Free',
     priceNpr: 0,
     originalPriceNpr: 0,
@@ -472,7 +472,7 @@ export const INITIAL_PRICING_PLANS: PricingPlan[] = [
   {
     id: 'plan-premium-standard',
     code: 'Premium',
-    name: 'Standard Premium',
+    name: 'Standard',
     tier: 'Premium',
     priceNpr: 149,
     originalPriceNpr: 299,
@@ -494,7 +494,7 @@ export const INITIAL_PRICING_PLANS: PricingPlan[] = [
   {
     id: 'plan-unlimited-elite',
     code: 'Unlimited',
-    name: 'Unlimited Elite Pass',
+    name: 'Premium',
     tier: 'Unlimited',
     priceNpr: 999,
     originalPriceNpr: 1999,

@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import type { FormulaSheet } from '../types';
 import { formulaPlainPreview, tokenizeFormula, type FormulaToken } from './formulaTokens';
+import { applyPdfDocumentBranding, loadPdfLogoDataUrl } from './pdfPageBranding';
 
 function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
   return doc.splitTextToSize(text || '', maxWidth) as string[];
@@ -84,15 +85,16 @@ function measureFormulaWidth(doc: jsPDF, tokens: FormulaToken[], baseSize = 10):
  * mirroring the Formula Library card layout (subject, title, name, formula, note).
  * Formulas use the same tokenizer as the web UI for subscripts/superscripts.
  */
-export function downloadFormulaSheetPdf(
+export async function downloadFormulaSheetPdf(
   sheet: FormulaSheet,
   options?: { formulas?: FormulaSheet['formulas'] }
-): { ok: true } | { ok: false; error: string } {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const formulas = options?.formulas ?? sheet.formulas;
   if (!formulas.length) {
     return { ok: false, error: 'No formulas to download for this sheet.' };
   }
 
+  const logoDataUrl = await loadPdfLogoDataUrl();
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -244,6 +246,8 @@ export function downloadFormulaSheetPdf(
 
     y += cardH + 4;
   });
+
+  applyPdfDocumentBranding(doc, logoDataUrl);
 
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {

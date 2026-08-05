@@ -9,6 +9,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { UserRole, UserProfile } from '../types';
+import { planDisplayName } from '../lib/planDisplay';
 import { BrandLogo } from './BrandLogo';
 import { AppIcon } from './ui';
 
@@ -50,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => handleNavClick('payment')}
               className="hidden sm:inline-block text-amber-300 font-bold underline hover:text-amber-200 transition-colors cursor-pointer"
             >
-              Get Premium (Rs.149)
+              Get Standard (Rs.149)
             </button>
           </div>
 
@@ -158,7 +159,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <span>Upgrade Plan</span>
             <span className="bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.2 rounded border border-amber-500/40 font-mono">
-              {userProfile.plan}
+              {planDisplayName(userProfile.plan)}
             </span>
           </button>
 
@@ -270,7 +271,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="inline-flex items-center gap-2">
                 <span>Upgrade Plan</span>
                 <span className="bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-mono">
-                  {userProfile.plan}
+                  {planDisplayName(userProfile.plan)}
                 </span>
               </div>
               <AppIcon icon={ChevronRight} size="btn" className="opacity-60" />

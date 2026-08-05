@@ -14,6 +14,7 @@ import {
   FREE_PLAN_MOCK_ACCESS_ERROR,
   isFreePlan,
 } from '../lib/mockAccess';
+import { planDisplayName } from '../lib/planDisplay';
 import {
   filterMocksByAttempt,
   givenMockIdSet,
@@ -136,7 +137,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           <div className="text-xs">
             <div className="text-slate-400 text-[10px]">Your plan</div>
             <div className="font-semibold text-white">
-              {userProfile.plan}
+              {planDisplayName(userProfile.plan)}
               {userProfile.mocksRemaining !== null
                 ? ` · ${userProfile.mocksRemaining} mocks left`
                 : ' · Unlimited'}

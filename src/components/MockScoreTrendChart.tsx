@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { AttemptReport } from '../types';
+import { computeRelativeScoreDomain } from '../lib/scoreChartDomain';
 
 interface MockScoreTrendChartProps {
   reports: AttemptReport[];
@@ -24,7 +25,8 @@ function truncate(label: string, max = 14): string {
 
 /**
  * Line chart of mock attempt scores over time (chronological).
- * Domain source: AttemptReport.overallScore / maxScore from past reports.
+ * Y-axis zooms to the user's score band (relative to their attempts)
+ * so progress reads clearly; point labels stay absolute marks / maxScore.
  */
 export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
   reports,
@@ -61,6 +63,14 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
     };
   }, [points]);
 
+  const domain = useMemo(() => {
+    const examMax = Math.max(200, ...points.map((p) => p.maxScore));
+    return computeRelativeScoreDomain(
+      points.map((p) => p.score),
+      { targetScore, examMax }
+    );
+  }, [points, targetScore]);
+
   if (points.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center space-y-2">
@@ -77,15 +87,15 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
   const pad = { top: 24, right: 20, bottom: 44, left: 40 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
-  const yMax = Math.max(200, ...points.map((p) => p.maxScore), targetScore || 0);
-  const yMin = 0;
+  const { yMin, yMax, ticks: yTicks, targetAboveBand } = domain;
+  const ySpan = Math.max(yMax - yMin, 1);
 
   const xAt = (i: number) =>
     points.length === 1
       ? pad.left + plotW / 2
       : pad.left + (i / (points.length - 1)) * plotW;
   const yAt = (score: number) =>
-    pad.top + plotH - ((score - yMin) / (yMax - yMin)) * plotH;
+    pad.top + plotH - ((score - yMin) / ySpan) * plotH;
 
   const linePath = points
     .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(1)} ${yAt(p.score).toFixed(1)}`)
@@ -96,11 +106,15 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
       ? `${linePath} L ${xAt(points.length - 1).toFixed(1)} ${(pad.top + plotH).toFixed(1)} L ${xAt(0).toFixed(1)} ${(pad.top + plotH).toFixed(1)} Z`
       : '';
 
-  const yTicks = [0, 50, 100, 150, 200].filter((t) => t <= yMax);
   const activeId = hoverId || selectedReportId;
   const activePoint = points.find((p) => p.report.id === activeId) || points[points.length - 1];
   const deltaLabel =
     stats.delta > 0 ? `+${stats.delta}` : stats.delta === 0 ? '0' : `${stats.delta}`;
+  const showTargetLine =
+    typeof targetScore === 'number' &&
+    targetScore > 0 &&
+    targetScore >= yMin &&
+    targetScore <= yMax;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
@@ -108,7 +122,8 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
         <div>
           <h3 className="font-bold text-slate-900 text-base">Mock Score Analytics</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Score trend across {points.length} completed mock{points.length === 1 ? '' : 's'}
+            Trend across {points.length} mock{points.length === 1 ? '' : 's'} · scale zoomed to your
+            scores ({yMin}–{yMax})
           </p>
         </div>
         <div className="flex flex-wrap gap-3 text-[11px] font-mono">
@@ -135,6 +150,13 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
               {deltaLabel}
             </span>
           </div>
+          {targetAboveBand && typeof targetScore === 'number' && (
+            <div className="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200">
+              <span className="text-amber-700 block text-[9px] uppercase tracking-wide font-sans font-semibold">Target</span>
+              <span className="font-bold text-amber-900">{targetScore}</span>
+              <span className="text-amber-600"> (above chart)</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -143,7 +165,7 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
           viewBox={`0 0 ${width} ${height}`}
           className="w-full min-w-[320px] h-auto"
           role="img"
-          aria-label="Line graph of mock test scores over time"
+          aria-label={`Line graph of mock test scores over time, relative scale from ${yMin} to ${yMax}`}
         >
           <defs>
             <linearGradient id="mockScoreFill" x1="0" y1="0" x2="0" y2="1">
@@ -163,29 +185,36 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
                   y2={y}
                   stroke="#e2e8f0"
                   strokeWidth="1"
-                  strokeDasharray={tick === 0 ? undefined : '3 4'}
+                  strokeDasharray={tick === yMin ? undefined : '3 4'}
                 />
-                <text x={pad.left - 8} y={y + 3} textAnchor="end" fontSize="9" fill="#94a3b8" fontFamily="ui-monospace, monospace">
+                <text
+                  x={pad.left - 8}
+                  y={y + 3}
+                  textAnchor="end"
+                  fontSize="9"
+                  fill="#94a3b8"
+                  fontFamily="ui-monospace, monospace"
+                >
                   {tick}
                 </text>
               </g>
             );
           })}
 
-          {typeof targetScore === 'number' && targetScore > 0 && targetScore <= yMax && (
+          {showTargetLine && (
             <g>
               <line
                 x1={pad.left}
-                y1={yAt(targetScore)}
+                y1={yAt(targetScore!)}
                 x2={width - pad.right}
-                y2={yAt(targetScore)}
+                y2={yAt(targetScore!)}
                 stroke="#d97706"
                 strokeWidth="1.5"
                 strokeDasharray="5 4"
               />
               <text
                 x={width - pad.right}
-                y={yAt(targetScore) - 4}
+                y={yAt(targetScore!) - 4}
                 textAnchor="end"
                 fontSize="8"
                 fill="#b45309"
@@ -200,7 +229,14 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
           {points.length > 1 && (
             <>
               <path d={areaPath} fill="url(#mockScoreFill)" />
-              <path d={linePath} fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+              <path
+                d={linePath}
+                fill="none"
+                stroke="#2563EB"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
             </>
           )}
 
@@ -261,7 +297,9 @@ export const MockScoreTrendChart: React.FC<MockScoreTrendChartProps> = ({
           <div className="text-slate-600">
             <span className="font-bold text-slate-900">{truncate(activePoint.title, 40)}</span>
             <span className="text-slate-400"> · </span>
-            <span className="font-mono">{activePoint.score}/{activePoint.maxScore}</span>
+            <span className="font-mono">
+              {activePoint.score}/{activePoint.maxScore}
+            </span>
             <span className="text-slate-400"> · </span>
             <span>{activePoint.report.accuracyPercentage}% accuracy</span>
           </div>

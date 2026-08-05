@@ -2939,7 +2939,7 @@ app.post('/api/support-issues', requireAuth, async (req, res) => {
 
     if (!isSupportIssueCategory(category)) {
       return res.status(400).json({
-        error: 'category must be technical, content, payment, or coins',
+        error: 'category must be technical, content, payment, coins, or feedback',
       });
     }
     if (body.length < 10) {

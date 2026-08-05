@@ -1,4 +1,9 @@
-export type SupportIssueCategory = 'technical' | 'content' | 'payment' | 'coins';
+export type SupportIssueCategory =
+  | 'technical'
+  | 'content'
+  | 'payment'
+  | 'coins'
+  | 'feedback';
 export type SupportIssueStatus = 'open' | 'resolved';
 
 export type SupportIssue = {

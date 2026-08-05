@@ -62,6 +62,7 @@ import {
   applyEntitlementsToPlans,
   type PlanEntitlements,
 } from './lib/planEntitlements';
+import { applyPlanDisplayNames } from './lib/planDisplay';
 import { fetchPlanEntitlements, putPlanEntitlements } from './lib/planEntitlementsApi';
 import { claimPlannerReward, redeemCatalogItem } from './lib/coinsApi';
 import {
@@ -214,7 +215,9 @@ export function App() {
       .then((entitlements) => {
         if (cancelled) return;
         setPlanEntitlements(entitlements);
-        setPricingPlans((prev) => applyEntitlementsToPlans(prev, entitlements));
+        setPricingPlans((prev) =>
+          applyPlanDisplayNames(applyEntitlementsToPlans(prev, entitlements))
+        );
       })
       .catch((err: any) => {
         console.warn('Failed to load plan entitlements:', err?.message || err);
@@ -623,7 +626,8 @@ export function App() {
     const saved = localStorage.getItem('prepx_pricing_plans');
     const parsed = saved ? (JSON.parse(saved) as PricingPlan[]) : INITIAL_PRICING_PLANS;
     // Migrate stale Free=3 (and feature copy) from older localStorage seeds.
-    return applyEntitlementsToPlans(parsed, PLAN_ENTITLEMENTS_SEED);
+    // Sync card titles to Free/Standard/Premium without changing tier codes.
+    return applyPlanDisplayNames(applyEntitlementsToPlans(parsed, PLAN_ENTITLEMENTS_SEED));
   });
   const [planEntitlements, setPlanEntitlements] =
     useState<PlanEntitlements>(PLAN_ENTITLEMENTS_SEED);
@@ -888,7 +892,9 @@ export function App() {
         void putPlanEntitlements(getToken, entitlements)
           .then((saved) => {
             setPlanEntitlements(saved);
-            setPricingPlans((plans) => applyEntitlementsToPlans(plans, saved));
+            setPricingPlans((plans) =>
+              applyPlanDisplayNames(applyEntitlementsToPlans(plans, saved))
+            );
           })
           .catch((err: any) => {
             console.warn('Failed to persist plan entitlements:', err?.message || err);

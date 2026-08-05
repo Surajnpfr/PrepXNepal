@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { AttemptReport } from '../types';
+import { applyPdfDocumentBranding, loadPdfLogoDataUrl } from './pdfPageBranding';
 import { resolvePaper } from './reportPaper';
 
 function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
@@ -10,9 +11,9 @@ function wrapText(doc: jsPDF, text: string, maxWidth: number): string[] {
  * Downloads a real PDF question paper (.pdf file).
  * Correct options are filled green; wrong student picks are filled light red.
  */
-export function downloadQuestionPaperPdf(
+export async function downloadQuestionPaperPdf(
   report: AttemptReport
-): { ok: true } | { ok: false; error: string } {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const paper = resolvePaper(report);
   if (!paper) {
     return {
@@ -22,6 +23,7 @@ export function downloadQuestionPaperPdf(
     };
   }
 
+  const logoDataUrl = await loadPdfLogoDataUrl();
   const { questions, answers } = paper;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
@@ -157,6 +159,20 @@ export function downloadQuestionPaperPdf(
 
     y += 4;
   });
+
+  applyPdfDocumentBranding(doc, logoDataUrl);
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text('PrepXNepal · Question Paper', margin, pageH - 8);
+    doc.text(`Page ${p} of ${totalPages}`, pageW - margin, pageH - 8, {
+      align: 'right',
+    });
+  }
 
   const safeName = report.mockTitle.replace(/[^\w\-]+/g, '_').slice(0, 60);
   doc.save(`${safeName || 'PrepX_Question_Paper'}_Answer_Key.pdf`);

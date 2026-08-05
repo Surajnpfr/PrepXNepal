@@ -1,24 +1,32 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { 
-  HelpCircle, 
-  ShieldCheck, 
-  Mail, 
-  FileText, 
-  Lock, 
-  Coins, 
-  RefreshCw, 
-  ChevronDown, 
+import {
+  HelpCircle,
+  ShieldCheck,
+  Mail,
+  FileText,
+  Lock,
+  Coins,
+  RefreshCw,
+  ChevronDown,
   ChevronUp,
   Bug,
   Send,
   Instagram,
+  MessageSquareHeart,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { PoliciesView } from './PoliciesView';
 import { WorkflowView } from './WorkflowView';
 import { useFeedback } from './FeedbackProvider';
 import { AppIcon } from './ui';
-import { submitSupportIssue, type SupportIssueCategory } from '../lib/supportIssuesApi';
+import {
+  fetchSupportIssues,
+  submitSupportIssue,
+  type SupportIssue,
+  type SupportIssueCategory,
+} from '../lib/supportIssuesApi';
 import { LandingSignInButton } from './ClerkAuthControls';
 import {
   SUPPORT_EMAIL,
@@ -28,22 +36,72 @@ import {
 } from '../lib/supportContacts';
 import type { HelpSubTab } from '../lib/appRoutes';
 
+/** Action tabs first: Contact → Issue → Feedback, then FAQ & policies. */
 const HELP_SECTIONS: { id: HelpSubTab; label: string }[] = [
   { id: 'contact', label: 'Contact' },
+  { id: 'issue', label: 'Report Issue' },
+  { id: 'feedback', label: 'Feedback' },
+  { id: 'faq', label: 'FAQs' },
   { id: 'info', label: 'CEE Rules' },
   { id: 'workflow', label: 'Student Journey' },
   { id: 'policies', label: 'Legal SLA' },
-  { id: 'faq', label: 'FAQs' },
   { id: 'terms', label: 'Terms' },
   { id: 'privacy', label: 'Privacy' },
   { id: 'coins-policy', label: 'Coins Rule' },
   { id: 'refund', label: 'Refunds' },
-  { id: 'issue', label: 'Report Issue' },
 ];
+
+const ISSUE_CATEGORIES: { value: SupportIssueCategory; label: string }[] = [
+  { value: 'technical', label: 'App bug / timer' },
+  { value: 'content', label: 'Question or explanation error' },
+  { value: 'payment', label: 'Payment verification delay' },
+  { value: 'coins', label: 'Study Coins wallet' },
+];
+
+const MIN_BODY = 10;
+const MAX_BODY = 4000;
+
+const CATEGORY_LABEL: Record<SupportIssueCategory, string> = {
+  technical: 'App / Timer',
+  content: 'Question Content',
+  payment: 'Payment Claim',
+  coins: 'Study Coins',
+  feedback: 'Feedback',
+};
+
+const fieldClass =
+  'w-full min-h-11 px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20';
+
+const labelClass = 'block text-xs font-bold text-slate-700';
 
 interface HelpSupportViewProps {
   activeSubTab: HelpSubTab;
   setActiveSubTab: (subTab: HelpSubTab) => void;
+}
+
+function headerCopy(sub: HelpSubTab): { title: string; subtitle: string } {
+  if (sub === 'contact') {
+    return {
+      title: 'Contact PrepX Nepal',
+      subtitle: 'Email or Instagram — the fastest ways to reach the PrepX team.',
+    };
+  }
+  if (sub === 'issue') {
+    return {
+      title: 'Report an issue',
+      subtitle: 'Bugs, wrong answers, payment delays, or wallet problems — we triage in FIFO order.',
+    };
+  }
+  if (sub === 'feedback') {
+    return {
+      title: 'Share feedback',
+      subtitle: 'Ideas and UX suggestions that help us improve PrepX Nepal for CEE aspirants.',
+    };
+  }
+  return {
+    title: 'Help & support',
+    subtitle: 'MEC CEE rules, FAQs, policies, and how to reach PrepX Nepal.',
+  };
 }
 
 export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
@@ -52,17 +110,47 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
 }) => {
   const feedback = useFeedback();
   const { isSignedIn, getToken } = useAuth();
-  // Collapsible FAQ state
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
-  // Issue Form State
   const [issueCategory, setIssueCategory] = useState<SupportIssueCategory>('technical');
   const [issueDetails, setIssueDetails] = useState('');
+  const [issueFieldError, setIssueFieldError] = useState<string | null>(null);
   const [issueSubmitted, setIssueSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingIssue, setSubmittingIssue] = useState(false);
+
+  const [feedbackDetails, setFeedbackDetails] = useState('');
+  const [feedbackFieldError, setFeedbackFieldError] = useState<string | null>(null);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+
+  const [myTickets, setMyTickets] = useState<SupportIssue[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+
+  const loadMyTickets = useCallback(async () => {
+    if (!isSignedIn) {
+      setMyTickets([]);
+      return;
+    }
+    setTicketsLoading(true);
+    try {
+      const data = await fetchSupportIssues(getToken);
+      setMyTickets(data.issues);
+    } catch {
+      /* non-blocking — form still works */
+    } finally {
+      setTicketsLoading(false);
+    }
+  }, [getToken, isSignedIn]);
+
+  useEffect(() => {
+    if (activeSubTab === 'issue' || activeSubTab === 'feedback') {
+      void loadMyTickets();
+    }
+  }, [activeSubTab, loadMyTickets]);
 
   const handleIssueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIssueFieldError(null);
     if (!isSignedIn) {
       await feedback.alert({
         variant: 'warning',
@@ -71,23 +159,22 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
       });
       return;
     }
-    if (!issueDetails.trim() || issueDetails.trim().length < 10) {
-      await feedback.alert({
-        variant: 'warning',
-        title: 'Details required',
-        message: 'Describe the issue in at least 10 characters so the support desk can investigate.',
-      });
+    const trimmed = issueDetails.trim();
+    if (trimmed.length < MIN_BODY) {
+      setIssueFieldError(`Describe the issue in at least ${MIN_BODY} characters.`);
       return;
     }
-    setSubmitting(true);
+    setSubmittingIssue(true);
     try {
       await submitSupportIssue(getToken, {
         category: issueCategory,
-        body: issueDetails,
+        body: trimmed.slice(0, MAX_BODY),
       });
       setIssueSubmitted(true);
       setIssueDetails('');
+      setIssueFieldError(null);
       feedback.toast({ message: 'Issue report saved. Staff will review it.', variant: 'success' });
+      void loadMyTickets();
       setTimeout(() => setIssueSubmitted(false), 5000);
     } catch (err: any) {
       await feedback.alert({
@@ -96,7 +183,46 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
         message: err?.message || 'Failed to save issue report',
       });
     } finally {
-      setSubmitting(false);
+      setSubmittingIssue(false);
+    }
+  };
+
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedbackFieldError(null);
+    if (!isSignedIn) {
+      await feedback.alert({
+        variant: 'warning',
+        title: 'Sign in required',
+        message: 'Sign in so we can attach feedback to your account.',
+      });
+      return;
+    }
+    const trimmed = feedbackDetails.trim();
+    if (trimmed.length < MIN_BODY) {
+      setFeedbackFieldError(`Share at least ${MIN_BODY} characters so we can act on it.`);
+      return;
+    }
+    setSubmittingFeedback(true);
+    try {
+      await submitSupportIssue(getToken, {
+        category: 'feedback',
+        body: trimmed.slice(0, MAX_BODY),
+      });
+      setFeedbackSubmitted(true);
+      setFeedbackDetails('');
+      setFeedbackFieldError(null);
+      feedback.toast({ message: 'Thanks — your feedback was saved.', variant: 'success' });
+      void loadMyTickets();
+      setTimeout(() => setFeedbackSubmitted(false), 5000);
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Could not submit',
+        message: err?.message || 'Failed to save feedback',
+      });
+    } finally {
+      setSubmittingFeedback(false);
     }
   };
 
@@ -106,8 +232,8 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
       a: 'Under Medical Education Commission (MEC) rules, each correct answer earns 1 mark and each wrong answer deducts 0.25 marks. Unanswered questions score 0. Skipping uncertain questions helps protect your total.',
     },
     {
-      q: 'Can I upgrade from Premium to Unlimited?',
-      a: 'Yes. Open Plans & payment, choose Unlimited, pay the difference via the merchant QR, and submit your transaction reference for verification.',
+      q: 'Can I upgrade from Standard to Premium?',
+      a: 'Yes. Open Plans & payment, choose Premium, pay the difference via the merchant QR, and submit your transaction reference for verification.',
     },
     {
       q: 'How long does payment verification take?',
@@ -119,32 +245,85 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
     },
     {
       q: 'How do I report a wrong answer or typo?',
-      a: 'Open Report a problem on this page, choose content or question error, include the mock title and question number, then submit. Our team will review it.',
+      a: 'Open Report Issue on this page, choose question or explanation error, include the mock title and question number, then submit. Our team will review it.',
     },
   ];
 
+  const { title, subtitle } = headerCopy(activeSubTab);
+  const headerIcon =
+    activeSubTab === 'contact'
+      ? Mail
+      : activeSubTab === 'issue'
+        ? Bug
+        : activeSubTab === 'feedback'
+          ? MessageSquareHeart
+          : HelpCircle;
+
+  const issueTickets = myTickets.filter((t) => t.category !== 'feedback');
+  const feedbackTickets = myTickets.filter((t) => t.category === 'feedback');
+
+  const renderTicketList = (items: SupportIssue[], emptyLabel: string) => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-bold text-slate-900">Your recent submissions</h3>
+        {ticketsLoading && (
+          <span className="text-[11px] text-slate-500 font-medium">Refreshing…</span>
+        )}
+      </div>
+      {items.length === 0 && !ticketsLoading ? (
+        <p className="text-xs text-slate-500 py-2">{emptyLabel}</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.slice(0, 8).map((ticket) => (
+            <li
+              key={ticket.id}
+              className="rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-3 space-y-1.5"
+            >
+              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="font-bold uppercase tracking-wide text-slate-500">
+                  {CATEGORY_LABEL[ticket.category]}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-full ${
+                    ticket.status === 'open'
+                      ? 'bg-amber-100 text-amber-900'
+                      : 'bg-emerald-100 text-emerald-800'
+                  }`}
+                >
+                  <AppIcon
+                    icon={ticket.status === 'open' ? Clock : CheckCircle2}
+                    size="btn"
+                  />
+                  {ticket.status}
+                </span>
+                <span className="font-mono text-slate-400 ml-auto">
+                  {new Date(ticket.createdAt).toLocaleString()}
+                </span>
+              </div>
+              <p className="text-xs text-slate-700 leading-relaxed line-clamp-3">{ticket.body}</p>
+              {ticket.staffNotes ? (
+                <p className="text-[11px] text-slate-500">
+                  Staff note: <span className="text-slate-700 font-medium">{ticket.staffNotes}</span>
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6 font-sans select-none">
-      
-      {/* Top Header Tab Switcher */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6 font-sans">
       <div className="border-b border-slate-200 pb-4 space-y-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <AppIcon
-              icon={activeSubTab === 'contact' ? Mail : HelpCircle}
-              size="lg"
-              className="text-[#2563EB]"
-            />
-            <span>{activeSubTab === 'contact' ? 'Contact PrepX Nepal' : 'Help & support'}</span>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <AppIcon icon={headerIcon} size="lg" className="text-[#2563EB]" />
+            <span>{title}</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            {activeSubTab === 'contact'
-              ? 'Email or Instagram — the fastest ways to reach the PrepX team.'
-              : 'MEC CEE rules, terms, privacy, Study Coins policy, and support tickets.'}
-          </p>
+          <p className="text-sm text-slate-600 mt-1.5 max-w-2xl">{subtitle}</p>
         </div>
 
-        {/* Mobile: full-width section picker (avoids cramped multi-row chips) */}
         <label className="block md:hidden space-y-1.5">
           <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
             Section
@@ -153,7 +332,7 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
             <select
               value={activeSubTab}
               onChange={(e) => setActiveSubTab(e.target.value as HelpSubTab)}
-              className="w-full appearance-none min-h-12 pl-4 pr-11 py-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2563EB]/25 focus:border-[#2563EB]"
+              className={`${fieldClass} appearance-none pr-11`}
               aria-label="Help section"
             >
               {HELP_SECTIONS.map((tab) => (
@@ -170,7 +349,6 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
           </div>
         </label>
 
-        {/* Desktop / tablet: single-row scrollable chips */}
         <div
           className="hidden md:block -mx-1 px-1"
           role="tablist"
@@ -197,9 +375,6 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
         </div>
       </div>
 
-      {/* RENDER DYNAMIC SUB-TABS */}
-
-      {/* Contact desk — primary actions first */}
       {activeSubTab === 'contact' && (
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-5">
@@ -236,8 +411,8 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
                 className="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer"
               >
                 FAQs
-              </button>{' '}
-              or{' '}
+              </button>
+              ,{' '}
               <button
                 type="button"
                 onClick={() => setActiveSubTab('issue')}
@@ -245,17 +420,230 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
               >
                 report an issue
               </button>
+              , or{' '}
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('feedback')}
+                className="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer"
+              >
+                share feedback
+              </button>
               .
             </p>
           </div>
         </div>
       )}
-      
-      {/* 1. CEE RULES */}
+
+      {activeSubTab === 'issue' && (
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+            <div className="space-y-1.5 pb-2 border-b border-slate-100">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <AppIcon icon={Bug} size="card" className="text-blue-600" />
+                <span>Technical or content issue</span>
+              </h2>
+              <p className="text-sm text-slate-600">
+                Include mock title, question number, or payment reference so staff can investigate quickly.
+              </p>
+            </div>
+
+            {issueSubmitted && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm rounded-xl flex items-start gap-2">
+                <AppIcon icon={ShieldCheck} size="card" className="text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">Issue submitted</span>
+                  <span className="text-xs">Our desk usually reviews within 24 hours.</span>
+                </div>
+              </div>
+            )}
+
+            {!isSignedIn ? (
+              <div className="space-y-3 text-sm text-slate-600">
+                <p className="font-medium">
+                  Sign in to submit a report — we attach it to your account for follow-up.
+                </p>
+                <LandingSignInButton className="w-full min-h-11 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl cursor-pointer" />
+              </div>
+            ) : (
+              <form onSubmit={handleIssueSubmit} className="space-y-4" noValidate>
+                <div className="space-y-1.5">
+                  <label htmlFor="issue-category" className={labelClass}>
+                    Category
+                  </label>
+                  <select
+                    id="issue-category"
+                    value={issueCategory}
+                    onChange={(e) => setIssueCategory(e.target.value as SupportIssueCategory)}
+                    className={fieldClass}
+                  >
+                    {ISSUE_CATEGORIES.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="issue-details" className={labelClass}>
+                    Description *
+                  </label>
+                  <textarea
+                    id="issue-details"
+                    required
+                    rows={5}
+                    maxLength={MAX_BODY}
+                    value={issueDetails}
+                    onChange={(e) => {
+                      setIssueDetails(e.target.value);
+                      if (issueFieldError) setIssueFieldError(null);
+                    }}
+                    placeholder="What went wrong? Add mock title, Q#, or payment reference ID…"
+                    className={`${fieldClass} min-h-[120px] resize-y ${
+                      issueFieldError ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20' : ''
+                    }`}
+                    aria-invalid={Boolean(issueFieldError)}
+                    aria-describedby={issueFieldError ? 'issue-details-error' : 'issue-details-hint'}
+                  />
+                  <div className="flex items-start justify-between gap-3 text-[11px]">
+                    {issueFieldError ? (
+                      <p id="issue-details-error" className="text-rose-600 font-semibold">
+                        {issueFieldError}
+                      </p>
+                    ) : (
+                      <p id="issue-details-hint" className="text-slate-500">
+                        Minimum {MIN_BODY} characters.
+                      </p>
+                    )}
+                    <span className="font-mono text-slate-400 shrink-0">
+                      {issueDetails.trim().length}/{MAX_BODY}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submittingIssue}
+                  className="w-full min-h-11 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-sm rounded-xl transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <AppIcon icon={Send} size="btn" />
+                  <span>{submittingIssue ? 'Submitting…' : 'Submit issue report'}</span>
+                </button>
+              </form>
+            )}
+          </div>
+
+          {isSignedIn && (
+            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
+              {renderTicketList(issueTickets, 'No issue reports yet.')}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeSubTab === 'feedback' && (
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+            <div className="space-y-1.5 pb-2 border-b border-slate-100">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <AppIcon icon={MessageSquareHeart} size="card" className="text-blue-600" />
+                <span>Product feedback</span>
+              </h2>
+              <p className="text-sm text-slate-600">
+                Tell us what would make mocks, reports, or study tools clearer. Bugs and payment problems belong in{' '}
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('issue')}
+                  className="text-blue-700 font-semibold underline underline-offset-2 cursor-pointer"
+                >
+                  Report Issue
+                </button>
+                .
+              </p>
+            </div>
+
+            {feedbackSubmitted && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm rounded-xl flex items-start gap-2">
+                <AppIcon icon={ShieldCheck} size="card" className="text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">Feedback received</span>
+                  <span className="text-xs">Thanks — we read every submission.</span>
+                </div>
+              </div>
+            )}
+
+            {!isSignedIn ? (
+              <div className="space-y-3 text-sm text-slate-600">
+                <p className="font-medium">Sign in to send feedback tied to your account.</p>
+                <LandingSignInButton className="w-full min-h-11 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl cursor-pointer" />
+              </div>
+            ) : (
+              <form onSubmit={handleFeedbackSubmit} className="space-y-4" noValidate>
+                <div className="space-y-1.5">
+                  <label htmlFor="feedback-details" className={labelClass}>
+                    Your idea or suggestion *
+                  </label>
+                  <textarea
+                    id="feedback-details"
+                    required
+                    rows={5}
+                    maxLength={MAX_BODY}
+                    value={feedbackDetails}
+                    onChange={(e) => {
+                      setFeedbackDetails(e.target.value);
+                      if (feedbackFieldError) setFeedbackFieldError(null);
+                    }}
+                    placeholder="What should we improve? Which screen or flow felt confusing?"
+                    className={`${fieldClass} min-h-[120px] resize-y ${
+                      feedbackFieldError
+                        ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20'
+                        : ''
+                    }`}
+                    aria-invalid={Boolean(feedbackFieldError)}
+                    aria-describedby={
+                      feedbackFieldError ? 'feedback-details-error' : 'feedback-details-hint'
+                    }
+                  />
+                  <div className="flex items-start justify-between gap-3 text-[11px]">
+                    {feedbackFieldError ? (
+                      <p id="feedback-details-error" className="text-rose-600 font-semibold">
+                        {feedbackFieldError}
+                      </p>
+                    ) : (
+                      <p id="feedback-details-hint" className="text-slate-500">
+                        Minimum {MIN_BODY} characters.
+                      </p>
+                    )}
+                    <span className="font-mono text-slate-400 shrink-0">
+                      {feedbackDetails.trim().length}/{MAX_BODY}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submittingFeedback}
+                  className="w-full min-h-11 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-sm rounded-xl transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <AppIcon icon={Send} size="btn" />
+                  <span>{submittingFeedback ? 'Submitting…' : 'Send feedback'}</span>
+                </button>
+              </form>
+            )}
+          </div>
+
+          {isSignedIn && (
+            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
+              {renderTicketList(feedbackTickets, 'No feedback submitted yet.')}
+            </div>
+          )}
+        </div>
+      )}
+
       {activeSubTab === 'info' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
                 <AppIcon icon={ShieldCheck} size="btn" className="text-emerald-600" />
                 <span>MEC CEE 2026 Exam Structure & Rules</span>
@@ -263,28 +651,38 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
               <ul className="space-y-2.5 text-xs text-slate-700 font-semibold list-none pl-0">
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5 shrink-0" />
-                  <span><strong>Total Questions:</strong> 200 Multiple Choice Questions (MCQs)</span>
+                  <span>
+                    <strong>Total Questions:</strong> 200 Multiple Choice Questions (MCQs)
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1.5 shrink-0" />
-                  <span><strong>Duration:</strong> 3 Hours (180 Minutes)</span>
+                  <span>
+                    <strong>Duration:</strong> 3 Hours (180 Minutes)
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0" />
-                  <span><strong>Correct Answer:</strong> +1.0 Mark</span>
+                  <span>
+                    <strong>Correct Answer:</strong> +1.0 Mark
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-600 mt-1.5 shrink-0" />
-                  <span><strong>Negative Marking:</strong> -0.25 Mark per wrong answer (25% penalty)</span>
+                  <span>
+                    <strong>Negative Marking:</strong> -0.25 Mark per wrong answer (25% penalty)
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mt-1.5 shrink-0" />
-                  <span><strong>Unanswered Question:</strong> 0 Marks (No penalty)</span>
+                  <span>
+                    <strong>Unanswered Question:</strong> 0 Marks (No penalty)
+                  </span>
                 </li>
               </ul>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
                 <AppIcon icon={FileText} size="btn" className="text-[#2563EB]" />
                 <span>CEE Subject / Unit Blueprint (200 Qs)</span>
@@ -307,7 +705,9 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
                   <span className="font-black text-slate-900 text-sm">40 Questions</span>
                 </div>
                 <div className="p-3 bg-blue-50 col-span-2 rounded-xl border border-blue-200">
-                  <span className="text-blue-600 text-[10px] uppercase block">MAT (Mental Ability Test)</span>
+                  <span className="text-blue-600 text-[10px] uppercase block">
+                    MAT (Mental Ability Test)
+                  </span>
                   <span className="font-black text-blue-900 text-sm">20 Questions</span>
                 </div>
               </div>
@@ -366,13 +766,10 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
         </>
       )}
 
-      {/* 2. STUDENT USER JOURNEY */}
       {activeSubTab === 'workflow' && <WorkflowView />}
 
-      {/* 3. LEGAL SLA */}
       {activeSubTab === 'policies' && <PoliciesView />}
 
-      {/* 4. FREQUENTLY ASKED QUESTIONS */}
       {activeSubTab === 'faq' && (
         <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto">
           <h2 className="text-lg font-bold text-slate-900 pb-2 border-b border-slate-100 flex items-center gap-2">
@@ -383,16 +780,19 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
             {faqs.map((faq, idx) => (
               <div key={idx} className="py-4 space-y-2">
                 <button
+                  type="button"
                   onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
-                  className="w-full flex items-center justify-between text-left text-xs font-bold text-slate-800 hover:text-blue-600 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between text-left text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors cursor-pointer gap-3"
                 >
                   <span>{faq.q}</span>
-                  {expandedFaq === idx ? <AppIcon icon={ChevronUp} size="btn" className="text-slate-400" /> : <AppIcon icon={ChevronDown} size="btn" className="text-slate-400" />}
+                  {expandedFaq === idx ? (
+                    <AppIcon icon={ChevronUp} size="btn" className="text-slate-400 shrink-0" />
+                  ) : (
+                    <AppIcon icon={ChevronDown} size="btn" className="text-slate-400 shrink-0" />
+                  )}
                 </button>
                 {expandedFaq === idx && (
-                  <p className="text-[11px] text-slate-500 font-semibold leading-relaxed pl-1">
-                    {faq.a}
-                  </p>
+                  <p className="text-sm text-slate-600 leading-relaxed pl-0.5">{faq.a}</p>
                 )}
               </div>
             ))}
@@ -400,60 +800,76 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
         </div>
       )}
 
-      {/* 5. TERMS OF SERVICE */}
       {activeSubTab === 'terms' && (
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto text-xs text-slate-700 leading-relaxed">
+        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto text-sm text-slate-700 leading-relaxed">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
             <AppIcon icon={FileText} size="btn" className="text-blue-600" />
             <span>Terms of Service Agreement</span>
           </h2>
           <p>
-            Welcome to PrepX Nepal. By signing in, starting mock tests, or purchasing a plan, you agree to these Terms of Service.
+            Welcome to PrepX Nepal. By signing in, starting mock tests, or purchasing a plan, you
+            agree to these Terms of Service.
           </p>
           <div className="space-y-3 pt-2 font-semibold">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-900 font-bold block mb-1">1. Non-Sharing of Credentials</span>
-              <span>Each subscription and mock allowance is tied to a single user profile. Sharing login details or bulk-exporting question text violates our fair-use terms.</span>
+              <span>
+                Each subscription and mock allowance is tied to a single user profile. Sharing login
+                details or bulk-exporting question text violates our fair-use terms.
+              </span>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-slate-900 font-bold block mb-1">2. Timer Integrity & Attempt Lockouts</span>
-              <span>All mock test attempts represent a synchronized mock exam window. Intentionally manipulating browser clocks or reloading pages repeatedly to extend duration constitutes test manipulation.</span>
+              <span className="text-slate-900 font-bold block mb-1">
+                2. Timer Integrity & Attempt Lockouts
+              </span>
+              <span>
+                All mock test attempts represent a synchronized mock exam window. Intentionally
+                manipulating browser clocks or reloading pages repeatedly to extend duration
+                constitutes test manipulation.
+              </span>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-900 font-bold block mb-1">3. Platform Services & Changes</span>
-              <span>PrepX Nepal reserves the right to modify pricing tiers, update question keys based on medical curriculum feedback, and adjust coin rewards algorithms dynamically.</span>
+              <span>
+                PrepX Nepal reserves the right to modify pricing tiers, update question keys based on
+                medical curriculum feedback, and adjust coin rewards algorithms dynamically.
+              </span>
             </div>
           </div>
         </div>
       )}
 
-      {/* 6. PRIVACY POLICY */}
       {activeSubTab === 'privacy' && (
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto text-xs text-slate-700 leading-relaxed">
+        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto text-sm text-slate-700 leading-relaxed">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
             <AppIcon icon={Lock} size="btn" className="text-blue-600" />
             <span>Privacy Policy & Data Security</span>
           </h2>
           <p>
-            PrepX Nepal operates in compliance with the Privacy Act, 2075 of Nepal. We are committed to data minimization and protecting student credentials.
+            PrepX Nepal operates in compliance with the Privacy Act, 2075 of Nepal. We are committed
+            to data minimization and protecting student credentials.
           </p>
           <div className="space-y-3 pt-2 font-semibold text-slate-600">
             <p>
-              <strong>Data Collection:</strong> We collect only your name, email, target score, and answers selection data required to build reports. We do not inspect other local files or tracking cookies.
+              <strong>Data Collection:</strong> We collect only your name, email, target score, and
+              answers selection data required to build reports. We do not inspect other local files or
+              tracking cookies.
             </p>
             <p>
-              <strong>Authentication security:</strong> Sign-in is handled by our secure authentication partner. We do not store your password.
+              <strong>Authentication security:</strong> Sign-in is handled by our secure
+              authentication partner. We do not store your password.
             </p>
             <p>
-              <strong>Transaction Safety:</strong> eSewa/Khalti verification records (Reference ID logs) are kept securely in our transaction claims table and audited purely to approve subscriptions.
+              <strong>Transaction Safety:</strong> eSewa/Khalti verification records (Reference ID
+              logs) are kept securely in our transaction claims table and audited purely to approve
+              subscriptions.
             </p>
           </div>
         </div>
       )}
 
-      {/* 7. STUDY COINS POLICY */}
       {activeSubTab === 'coins-policy' && (
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto text-xs text-slate-700 leading-relaxed">
+        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto text-sm text-slate-700 leading-relaxed">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
             <AppIcon icon={Coins} size="btn" className="text-amber-500" />
             <span>Study Coins policy</span>
@@ -464,108 +880,48 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
           <div className="space-y-3 pt-2 font-semibold">
             <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/60">
               <span className="text-amber-950 font-bold block mb-1">Earn Multipliers</span>
-              <span>Students receive +10 coins upon CEE mock completions and +15 coins upon completing weak chapter revision packs. Repeated retakes of the same mock test do not award additional coins.</span>
+              <span>
+                Students receive +10 coins upon CEE mock completions and +15 coins upon completing
+                weak chapter revision packs. Repeated retakes of the same mock test do not award
+                additional coins.
+              </span>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-slate-900 font-bold block mb-1">Redemptions</span>
-              <span>Coins can be redeemed for mock attempts or formula packs. They have no cash value and cannot be transferred, sold, or withdrawn as NPR.</span>
+              <span>
+                Coins can be redeemed for mock attempts or formula packs. They have no cash value and
+                cannot be transferred, sold, or withdrawn as NPR.
+              </span>
             </div>
           </div>
         </div>
       )}
 
-      {/* 8. REFUND POLICY */}
       {activeSubTab === 'refund' && (
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto text-xs text-slate-700 leading-relaxed">
+        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-4xl mx-auto text-sm text-slate-700 leading-relaxed">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
             <AppIcon icon={RefreshCw} size="btn" className="text-blue-600" />
             <span>Refund & Claims Policy</span>
           </h2>
-          <p>
-            Please read our payment claim policies before scanning eSewa or Khalti QR codes.
-          </p>
+          <p>Please read our payment claim policies before scanning eSewa or Khalti QR codes.</p>
           <div className="space-y-3 pt-2 font-semibold">
             <p>
-              <strong>Payment review:</strong> Claims are checked against your transaction reference. Once approved, your Premium or Unlimited plan benefits are activated.
+              <strong>Payment review:</strong> Claims are checked against your transaction reference.
+              Once approved, your Standard or Premium plan benefits are activated.
             </p>
             <p>
-              <strong>Refund Eligibility:</strong> Because mock credentials can be consumed immediately, plan purchases are generally non-refundable once approved and credits are credited.
+              <strong>Refund Eligibility:</strong> Because mock credentials can be consumed
+              immediately, plan purchases are generally non-refundable once approved and credits are
+              credited.
             </p>
             <p>
-              <strong>Duplicate Payments:</strong> If you submit a duplicate verification claim or make a double payment, our moderators will verify the duplicate Reference IDs and refund or adjust credits within 3 business days.
+              <strong>Duplicate Payments:</strong> If you submit a duplicate verification claim or
+              make a double payment, our moderators will verify the duplicate Reference IDs and refund
+              or adjust credits within 3 business days.
             </p>
           </div>
         </div>
       )}
-
-      {/* 9. REPORT AN ISSUE SUPPORT FORM */}
-      {activeSubTab === 'issue' && (
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4 max-w-md mx-auto">
-          <h2 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100 flex items-center gap-2">
-            <AppIcon icon={Bug} size="card" className="text-rose-600" />
-            <span>Report a Technical or Content Issue</span>
-          </h2>
-
-          {issueSubmitted && (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl flex items-start gap-2">
-              <AppIcon icon={ShieldCheck} size="card" className="text-emerald-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold block">Issue Submitted Successfully!</span>
-                <span>Our moderation desk will review the content or transaction within 24 hours.</span>
-              </div>
-            </div>
-          )}
-
-          {!isSignedIn ? (
-            <div className="space-y-3 text-xs text-slate-600">
-              <p className="font-medium">
-                Sign in to submit a report — we attach it to your account for follow-up.
-              </p>
-              <LandingSignInButton
-                className="w-full py-2.5 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl cursor-pointer"
-              />
-            </div>
-          ) : (
-          <form onSubmit={handleIssueSubmit} className="space-y-4 text-xs font-semibold text-slate-700">
-            <div className="space-y-1">
-              <label className="block text-slate-700">Issue Category:</label>
-              <select
-                value={issueCategory}
-                onChange={(e) => setIssueCategory(e.target.value as SupportIssueCategory)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-350 rounded-xl text-xs font-bold text-slate-800 focus:outline-none"
-              >
-                <option value="technical">App Bug / Timer Defect</option>
-                <option value="content">Question Content / Explanation Error</option>
-                <option value="payment">Payment Verification Claim Delay</option>
-                <option value="coins">Study Coins Wallet Glitch</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-slate-700">Description of Issue *:</label>
-              <textarea
-                required
-                rows={4}
-                value={issueDetails}
-                onChange={(e) => setIssueDetails(e.target.value)}
-                placeholder="Please describe what went wrong, including mock test title, question text, or payment reference ID..."
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-medium"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <AppIcon icon={Send} size="btn" />
-              <span>{submitting ? 'Submitting…' : 'Submit Issue Report'}</span>
-            </button>
-          </form>
-          )}
-        </div>
-      )}
-
     </div>
   );
 };

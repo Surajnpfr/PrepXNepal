@@ -61,7 +61,7 @@ export const ABOUT_US = {
     'Chapter-level progress reports and rank-style signals after each mock',
     'Study mode to review papers with answers',
     'Study Coins, study planner, and formula library for daily revision',
-    'Free, Premium, and Unlimited plans with Fonepay payment verification',
+    'Free, Standard, and Premium plans with Fonepay payment verification',
   ],
   differentiators: [
     'Built specifically for Nepal CEE conventions—not a generic global quiz app',
@@ -166,7 +166,7 @@ export const PAGE_SEO: Record<string, PageSeoConfig> = {
     path: '/payment',
     title: 'Plans & Payment | PrepX Nepal Subscription',
     description:
-      'Choose PrepX Nepal Free, Premium, or Unlimited plans for Nepal CEE mocks, then submit Fonepay payment for verification.',
+      'Choose PrepX Nepal Free, Standard, or Premium plans for Nepal CEE mocks, then submit Fonepay payment for verification.',
     h1: 'PrepX Nepal plans and secure payment',
   },
   policies: {

@@ -82,7 +82,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onNavigate }) =>
   };
 
   const handleDownloadPdf = async () => {
-    const result = downloadQuestionPaperPdf(report);
+    const result = await downloadQuestionPaperPdf(report);
     if (result.ok === false) {
       await feedback.alert({
         variant: 'error',

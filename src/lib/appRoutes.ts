@@ -23,16 +23,17 @@ export const APP_TABS = [
 export type AppTab = (typeof APP_TABS)[number];
 
 export const HELP_SUBTABS = [
-  'info',
   'contact',
-  'policies',
+  'issue',
+  'feedback',
+  'faq',
+  'info',
   'workflow',
+  'policies',
   'terms',
   'privacy',
   'coins-policy',
   'refund',
-  'faq',
-  'issue',
 ] as const;
 
 export type HelpSubTab = (typeof HELP_SUBTABS)[number];

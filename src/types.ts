@@ -5,7 +5,7 @@ export type PlanTier = 'Free' | 'Premium' | 'Unlimited';
 export interface PricingPlan {
   id: string;
   code: string; // 'Free' | 'Premium' | 'Unlimited' or custom
-  name: string; // e.g. 'Free Tier', 'Standard Premium', 'Unlimited Elite'
+  name: string; // display: Free | Standard | Premium (tier codes stay Free|Premium|Unlimited)
   tier: PlanTier;
   priceNpr: number;
   originalPriceNpr?: number;
