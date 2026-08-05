@@ -30,6 +30,7 @@ import type {
   AttemptReportsRepository,
   FormulasRepository,
   MocksRepository,
+  NoticesRepository,
   PaymentClaimsRepository,
   PromoCodesRepository,
   QuestionsRepository,
@@ -73,6 +74,13 @@ import {
   normalizePromoCode,
   validatePromoCodeCreateInput,
 } from './promoCodesDomain.ts';
+import {
+  canManageNotices,
+  pickActiveNotice,
+  validateNoticeCreateInput,
+  validateNoticeUpdateInput,
+  type NoticeRecord,
+} from './noticesDomain.ts';
 import {
   defaultMocksForPlan,
   parsePlanEntitlements,
@@ -135,6 +143,7 @@ let supportIssuesRepo: SupportIssuesRepository;
 let formulasRepo: FormulasRepository;
 let promoCodesRepo: PromoCodesRepository;
 let attemptReportsRepo: AttemptReportsRepository;
+let noticesRepo: NoticesRepository;
 
 type AppMeta = {
   plan?: string;
@@ -353,7 +362,7 @@ async function authorizeStartedMock(
 
 /**
  * Study mode: browse paper with keys. Does not consume quota or charge coins.
- * Free papers (coinPrice ≤ 0) still require Free→SetA gate for Free plan.
+ * Free papers (coinPrice ≤ 0) still require Free→SetA/B/C gate for Free plan.
  * Paid papers require Unlimited / remaining mock quota (without spend).
  */
 async function assertStudyAccess(
@@ -381,7 +390,7 @@ async function assertStudyAccess(
   if (plan === 'Unlimited' || mocksRemaining === null) return;
   if ((mocksRemaining ?? 0) > 0) return;
   const err: any = new Error(
-    'No mock access remaining. Upgrade your plan to study this paper, or use SetA on the Free plan.'
+    'No mock access remaining. Upgrade your plan to study this paper, or use SetA/B/C on the Free plan.'
   );
   err.status = 402;
   throw err;
@@ -2935,6 +2944,116 @@ app.delete('/api/promo-codes/:id', requireAuth, async (req, res) => {
   }
 });
 
+function toClientNotice(n: NoticeRecord) {
+  return {
+    id: n.id,
+    title: n.title,
+    body: n.body || undefined,
+    ctaLabel: n.ctaLabel || undefined,
+    ctaHrefTab: n.ctaHrefTab || undefined,
+    active: n.active,
+    priority: n.priority,
+    startsAt: n.startsAt || undefined,
+    expiresAt: n.expiresAt || undefined,
+    createdAt: n.createdAt,
+    updatedAt: n.updatedAt,
+    createdByName: n.createdByName || undefined,
+  };
+}
+
+/** Public: single highest-priority active notice for the announcement bar. */
+app.get('/api/notices/active', async (_req, res) => {
+  try {
+    const rows = await noticesRepo.listAll();
+    const picked = pickActiveNotice(rows);
+    res.json({ notice: picked ? toClientNotice(picked) : null });
+  } catch (err: any) {
+    console.error('GET /api/notices/active failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load notice') });
+  }
+});
+
+/** Admin only: list all notices. */
+app.get('/api/notices', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManageNotices(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const rows = await noticesRepo.listAll();
+    res.json({ notices: rows.map(toClientNotice) });
+  } catch (err: any) {
+    console.error('GET /api/notices failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load notices') });
+  }
+});
+
+/** Admin only: create notice. */
+app.post('/api/notices', requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = (req as any).auth;
+    if (!canManageNotices(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const parsed = validateNoticeCreateInput(req.body || {});
+    if (parsed.ok === false) return res.status(400).json({ error: parsed.reason });
+
+    const created = await noticesRepo.insert({
+      id: `notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ...parsed.value,
+      createdByClerkId: userId,
+      createdByName: profile.name || profile.email || 'Admin',
+    });
+    res.status(201).json({ notice: toClientNotice(created) });
+  } catch (err: any) {
+    console.error('POST /api/notices failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to create notice') });
+  }
+});
+
+/** Admin only: update notice. */
+app.patch('/api/notices/:id', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManageNotices(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing notice id' });
+
+    const existing = await noticesRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: 'Notice not found' });
+
+    const parsed = validateNoticeUpdateInput(req.body || {});
+    if (parsed.ok === false) return res.status(400).json({ error: parsed.reason });
+
+    const updated = await noticesRepo.update(id, parsed.value);
+    if (!updated) return res.status(404).json({ error: 'Notice not found' });
+    res.json({ notice: toClientNotice(updated) });
+  } catch (err: any) {
+    console.error('PATCH /api/notices/:id failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to update notice') });
+  }
+});
+
+/** Admin only: delete notice. */
+app.delete('/api/notices/:id', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManageNotices(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'Missing notice id' });
+    const ok = await noticesRepo.deleteById(id);
+    if (!ok) return res.status(404).json({ error: 'Notice not found' });
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error('DELETE /api/notices/:id failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to delete notice') });
+  }
+});
+
 function toClientSupportIssue(i: NonNullable<Awaited<ReturnType<SupportIssuesRepository['getById']>>>) {
   return {
     id: i.id,
@@ -3192,10 +3311,12 @@ async function boot() {
     formulasRepo = repos.formulas;
     promoCodesRepo = repos.promoCodes;
     attemptReportsRepo = repos.attemptReports;
+    noticesRepo = repos.notices;
     const total = await questionsRepo.countAll();
     const mockTotal = (await mocksRepo.list()).length;
     const formulaTotal = await formulasRepo.countAll();
     const promoTotal = (await promoCodesRepo.listAll()).length;
+    const noticeTotal = (await noticesRepo.listAll()).length;
 
     // Serve Vite production build from the same Node process (Hostinger-friendly).
     const distDir = path.join(root, 'dist');
@@ -3217,7 +3338,7 @@ async function boot() {
     app.listen(PORT, API_BIND_HOST, () => {
       console.log(`PrepX API listening on http://${API_BIND_HOST}:${PORT}`);
       console.log(
-        `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets, ${promoTotal} promo codes)`
+        `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets, ${promoTotal} promo codes, ${noticeTotal} notices)`
       );
       if (fs.existsSync(distDir)) {
         console.log(`Serving SPA from ${distDir}`);

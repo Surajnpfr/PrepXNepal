@@ -51,7 +51,7 @@ function defaultMocks(plan: PlanTier): number | null {
   // Seed only — server resolvePlanQuota + /api/plan-entitlements are authoritative at runtime.
   if (plan === 'Unlimited') return null;
   if (plan === 'Premium') return 10;
-  return 1;
+  return 3;
 }
 
 /** Map a Clerk user (client or Backend API shape) into app UserProfile. Clerk is source of truth. */

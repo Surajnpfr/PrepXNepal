@@ -14,7 +14,7 @@ export type PlanEntitlements = {
 };
 
 export const PLAN_ENTITLEMENTS_SEED: PlanEntitlements = {
-  freeMocks: 1,
+  freeMocks: 3,
   premiumMocks: 10,
 };
 

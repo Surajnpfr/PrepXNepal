@@ -422,7 +422,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-300"
                     >
                       <AppIcon icon={Lock} size="btn" className="text-amber-600" />
-                      <span>{freeAllowed ? 'View plans' : `Upgrade for non-${FREE_PLAN_ALLOWED_MOCK_LABEL}`}</span>
+                      <span>{freeAllowed ? 'View plans' : 'Upgrade for other mocks'}</span>
                     </button>
                   )}
 
@@ -434,7 +434,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                         <div>Study = browse with answers · no attempt used</div>
                         <div>
                           {isFreeDemo
-                            ? `Give Mock test = timed exam (${FREE_PLAN_ALLOWED_MOCK_LABEL} free quota)`
+                            ? 'Give Mock test = timed exam (Free SetA–C quota)'
                             : 'Give Mock test = timed exam · uses 1 plan attempt'}
                         </div>
                       </>

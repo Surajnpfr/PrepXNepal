@@ -379,3 +379,39 @@ export interface AttemptReportsRepository {
   close(): Promise<void>;
 }
 
+export type CreateNoticeRepoInput = {
+  id: string;
+  title: string;
+  body?: string | null;
+  ctaLabel?: string | null;
+  ctaHrefTab?: string | null;
+  active?: boolean;
+  priority?: number;
+  startsAt?: string | null;
+  expiresAt?: string | null;
+  createdByClerkId?: string | null;
+  createdByName?: string | null;
+};
+
+export type UpdateNoticeRepoInput = {
+  title?: string;
+  body?: string | null;
+  ctaLabel?: string | null;
+  ctaHrefTab?: string | null;
+  active?: boolean;
+  priority?: number;
+  startsAt?: string | null;
+  expiresAt?: string | null;
+};
+
+export interface NoticesRepository {
+  readonly driver: 'mysql' | 'sqlite';
+  ensureSchema(): Promise<void>;
+  listAll(): Promise<import('../noticesDomain.ts').NoticeRecord[]>;
+  getById(id: string): Promise<import('../noticesDomain.ts').NoticeRecord | null>;
+  insert(input: CreateNoticeRepoInput): Promise<import('../noticesDomain.ts').NoticeRecord>;
+  update(id: string, patch: UpdateNoticeRepoInput): Promise<import('../noticesDomain.ts').NoticeRecord | null>;
+  deleteById(id: string): Promise<boolean>;
+  close(): Promise<void>;
+}
+

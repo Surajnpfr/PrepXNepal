@@ -23,7 +23,7 @@ const legacy: PricingPlan[] = [
     name: 'Free Aspirant',
     tier: 'Free',
     priceNpr: 0,
-    mocksGranted: 1,
+    mocksGranted: 3,
     coinsGranted: 20,
     description: '',
     features: [],

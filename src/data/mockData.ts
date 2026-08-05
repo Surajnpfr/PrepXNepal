@@ -457,11 +457,11 @@ export const INITIAL_PRICING_PLANS: PricingPlan[] = [
     tier: 'Free',
     priceNpr: 0,
     originalPriceNpr: 0,
-    mocksGranted: 1,
+    mocksGranted: 3,
     coinsGranted: 20,
     description: 'Essential CEE preparation tools with free demo diagnostic mock tests.',
     features: [
-      '1 Free Mock Test Credit',
+      '3 Free Mock Test Credits',
       'Basic Performance Report & Score',
       'High-Yield Formula Sheet Access',
       'Bookmark & Save Questions',

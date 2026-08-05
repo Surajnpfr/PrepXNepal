@@ -83,6 +83,7 @@ import {
   type PaymentClaimEditInput,
 } from './lib/paymentClaimsApi';
 import { fetchAttemptReports } from './lib/reportsApi';
+import { fetchActiveNotice, type SiteNotice } from './lib/noticesApi';
 import {
   bootstrapFromActivity,
   createNotification,
@@ -643,6 +644,7 @@ export function App() {
   });
   const [activeReport, setActiveReport] = useState<AttemptReport | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>(() => loadNotifications());
+  const [siteNotice, setSiteNotice] = useState<SiteNotice | null>(null);
   const [studyPlanTasks, setStudyPlanTasks] = useState<StudyPlanTask[]>(() => loadStudyPlanTasks());
   const [studyPlanMeta, setStudyPlanMeta] = useState<StudyPlanMeta>(() => loadStudyPlanMeta());
   const [savedQuestions, setSavedQuestions] = useState<SavedQuestionItem[]>(() => loadSavedQuestions());
@@ -661,7 +663,7 @@ export function App() {
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>(() => {
     const saved = localStorage.getItem('prepx_pricing_plans');
     const parsed = saved ? (JSON.parse(saved) as PricingPlan[]) : INITIAL_PRICING_PLANS;
-    // Migrate stale Free=3 (and feature copy) from older localStorage seeds.
+    // Align Free/Premium mock counts + feature copy with current entitlements seed.
     // Sync card titles to Free/Standard/Premium without changing tier codes.
     return applyPlanDisplayNames(applyEntitlementsToPlans(parsed, PLAN_ENTITLEMENTS_SEED));
   });
@@ -694,6 +696,21 @@ export function App() {
   );
   const announcementNotification =
     currentUserNotifications.find((n) => !n.read) || null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const notice = await fetchActiveNotice();
+        if (!cancelled) setSiteNotice(notice);
+      } catch {
+        if (!cancelled) setSiteNotice(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('prepx_reports', JSON.stringify(pastReports));
@@ -1067,7 +1084,7 @@ export function App() {
     if (userProfile.plan === 'Free') {
       await feedback.alert({
         variant: 'warning',
-        title: 'Free plan: SetA only',
+        title: 'Free plan: SetA–C only',
         message: FREE_PLAN_MOCK_ACCESS_ERROR,
         confirmLabel: 'View plans',
       });
@@ -1816,22 +1833,30 @@ export function App() {
         {!isImmersivePaper && (
           <AnnouncementBar
             message={
-              announcementNotification
-                ? `${announcementNotification.title}${
-                    announcementNotification.desc ? ` — ${announcementNotification.desc}` : ''
-                  }`
-                : mockTests.length > 0
-                  ? `${mockTests.filter((m) => m.isPublished !== false).length} mock tests are ready in Mock Tests`
-                  : 'Sign in and open Mock Tests to start a timed CEE practice paper.'
+              siteNotice
+                ? `${siteNotice.title}${siteNotice.body ? ` — ${siteNotice.body}` : ''}`
+                : announcementNotification
+                  ? `${announcementNotification.title}${
+                      announcementNotification.desc ? ` — ${announcementNotification.desc}` : ''
+                    }`
+                  : mockTests.length > 0
+                    ? `${mockTests.filter((m) => m.isPublished !== false).length} mock tests are ready in Mock Tests`
+                    : 'Sign in and open Mock Tests to start a timed CEE practice paper.'
             }
             ctaLabel={
-              announcementNotification?.hrefTab === 'catalog'
-                ? 'View Mocks'
-                : announcementNotification
-                  ? 'Open'
-                  : 'View Mocks'
+              siteNotice
+                ? siteNotice.ctaLabel || 'Open'
+                : announcementNotification?.hrefTab === 'catalog'
+                  ? 'View Mocks'
+                  : announcementNotification
+                    ? 'Open'
+                    : 'View Mocks'
             }
             onCtaClick={() => {
+              if (siteNotice) {
+                if (siteNotice.ctaHrefTab) setActiveTab(siteNotice.ctaHrefTab);
+                return;
+              }
               if (announcementNotification) {
                 handleOpenNotification(announcementNotification);
                 handleMarkNotificationRead(announcementNotification.id);
@@ -1840,6 +1865,10 @@ export function App() {
               }
             }}
             onDismiss={() => {
+              if (siteNotice) {
+                setSiteNotice(null);
+                return;
+              }
               if (announcementNotification) {
                 handleMarkNotificationRead(announcementNotification.id);
               }

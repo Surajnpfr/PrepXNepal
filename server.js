@@ -4,12 +4,12 @@
 // server/index.ts
 import express from "express";
 import dotenv from "dotenv";
-import fs10 from "fs";
-import path11 from "path";
+import fs12 from "fs";
+import path13 from "path";
 import { createClerkClient, verifyToken } from "@clerk/backend";
 
 // server/db/index.ts
-import path9 from "path";
+import path11 from "path";
 
 // server/appRoot.ts
 import fs from "node:fs";
@@ -1937,11 +1937,266 @@ function createMysqlPromoCodesRepo(pool) {
   };
 }
 
+// server/db/mysqlAttemptReports.ts
+function asIso8(value) {
+  if (value == null) return (/* @__PURE__ */ new Date()).toISOString();
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}
+function mapRow6(row) {
+  let report = {
+    id: row.id,
+    userId: row.user_id,
+    attemptId: row.attempt_id,
+    mockId: row.mock_id,
+    mockTitle: row.mock_title,
+    examType: "Nepal CEE",
+    completedAt: asIso8(row.completed_at),
+    overallScore: Number(row.overall_score),
+    maxScore: Number(row.max_score),
+    accuracyPercentage: 0,
+    totalAttempted: 0,
+    correctCount: 0,
+    wrongCount: 0,
+    skippedCount: 0,
+    timeSpentSec: 0,
+    predictedRank: 0,
+    rankBand: [0, 0],
+    percentile: 0,
+    subjectScores: [],
+    chapterScores: [],
+    mistakeAnalysis: {
+      wrongVsSkippedRatio: "0:0",
+      slowCorrectCount: 0,
+      speedSecPerQuestion: 0
+    },
+    targetScore: 0,
+    targetGap: 0,
+    recommendations: [],
+    shareToken: ""
+  };
+  try {
+    report = JSON.parse(row.report_json);
+  } catch {
+  }
+  return {
+    id: row.id,
+    clerkUserId: row.clerk_user_id,
+    userId: row.user_id,
+    attemptId: row.attempt_id,
+    mockId: row.mock_id,
+    mockTitle: row.mock_title,
+    completedAt: asIso8(row.completed_at),
+    overallScore: Number(row.overall_score),
+    maxScore: Number(row.max_score),
+    report,
+    createdAt: asIso8(row.created_at)
+  };
+}
+function createMysqlAttemptReportsRepo(pool) {
+  return {
+    driver: "mysql",
+    async ensureSchema() {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS attempt_reports (
+          id VARCHAR(64) PRIMARY KEY,
+          clerk_user_id VARCHAR(64) NOT NULL,
+          user_id VARCHAR(128) NOT NULL,
+          attempt_id VARCHAR(64) NOT NULL,
+          mock_id VARCHAR(128) NOT NULL,
+          mock_title VARCHAR(512) NOT NULL,
+          completed_at DATETIME(3) NOT NULL,
+          overall_score DOUBLE NOT NULL,
+          max_score DOUBLE NOT NULL,
+          report_json LONGTEXT NOT NULL,
+          created_at DATETIME(3) NOT NULL,
+          INDEX idx_attempt_reports_clerk_completed (clerk_user_id, completed_at),
+          INDEX idx_attempt_reports_mock (mock_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    },
+    async insert(input) {
+      const now = /* @__PURE__ */ new Date();
+      const completedAt = input.completedAt ? new Date(input.completedAt) : now;
+      await pool.query(
+        `INSERT INTO attempt_reports
+          (id, clerk_user_id, user_id, attempt_id, mock_id, mock_title,
+           completed_at, overall_score, max_score, report_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          input.id,
+          input.clerkUserId,
+          input.userId,
+          input.attemptId,
+          input.mockId,
+          input.mockTitle,
+          completedAt,
+          input.overallScore,
+          input.maxScore,
+          JSON.stringify(input.report),
+          now
+        ]
+      );
+      return await this.getById(input.id);
+    },
+    async listByClerkUserId(clerkUserId) {
+      const [rows] = await pool.query(
+        `SELECT * FROM attempt_reports
+         WHERE clerk_user_id = ?
+         ORDER BY completed_at DESC`,
+        [clerkUserId]
+      );
+      return rows.map(mapRow6);
+    },
+    async listAll() {
+      const [rows] = await pool.query(
+        `SELECT * FROM attempt_reports ORDER BY completed_at DESC`
+      );
+      return rows.map(mapRow6);
+    },
+    async getById(id) {
+      const [rows] = await pool.query(
+        "SELECT * FROM attempt_reports WHERE id = ? LIMIT 1",
+        [id]
+      );
+      return rows[0] ? mapRow6(rows[0]) : null;
+    },
+    async close() {
+      await pool.end();
+    }
+  };
+}
+
+// server/db/mysqlNotices.ts
+function asIso9(value) {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}
+function mapRow7(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    ctaLabel: row.cta_label,
+    ctaHrefTab: row.cta_href_tab,
+    active: Boolean(row.active),
+    priority: Number(row.priority || 0),
+    startsAt: asIso9(row.starts_at),
+    expiresAt: asIso9(row.expires_at),
+    createdAt: asIso9(row.created_at),
+    updatedAt: asIso9(row.updated_at),
+    createdByClerkId: row.created_by_clerk_id,
+    createdByName: row.created_by_name
+  };
+}
+function createMysqlNoticesRepo(pool) {
+  return {
+    driver: "mysql",
+    async ensureSchema() {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS notices (
+          id VARCHAR(64) PRIMARY KEY,
+          title VARCHAR(200) NOT NULL,
+          body VARCHAR(1000) NULL,
+          cta_label VARCHAR(64) NULL,
+          cta_href_tab VARCHAR(64) NULL,
+          active TINYINT(1) NOT NULL DEFAULT 1,
+          priority INT NOT NULL DEFAULT 0,
+          starts_at DATETIME(3) NULL,
+          expires_at DATETIME(3) NULL,
+          created_at DATETIME(3) NOT NULL,
+          updated_at DATETIME(3) NOT NULL,
+          created_by_clerk_id VARCHAR(64) NULL,
+          created_by_name VARCHAR(255) NULL,
+          INDEX idx_notices_active (active),
+          INDEX idx_notices_priority (priority)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    },
+    async listAll() {
+      const [rows] = await pool.query(
+        "SELECT * FROM notices ORDER BY priority DESC, updated_at DESC"
+      );
+      return rows.map(mapRow7);
+    },
+    async getById(id) {
+      const [rows] = await pool.query("SELECT * FROM notices WHERE id = ?", [id]);
+      return rows[0] ? mapRow7(rows[0]) : null;
+    },
+    async insert(input) {
+      const now = /* @__PURE__ */ new Date();
+      await pool.query(
+        `INSERT INTO notices
+          (id, title, body, cta_label, cta_href_tab, active, priority,
+           starts_at, expires_at, created_at, updated_at, created_by_clerk_id, created_by_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          input.id,
+          input.title,
+          input.body ?? null,
+          input.ctaLabel ?? null,
+          input.ctaHrefTab ?? null,
+          input.active === false ? 0 : 1,
+          input.priority ?? 0,
+          input.startsAt ? new Date(input.startsAt) : null,
+          input.expiresAt ? new Date(input.expiresAt) : null,
+          now,
+          now,
+          input.createdByClerkId ?? null,
+          input.createdByName ?? null
+        ]
+      );
+      return await this.getById(input.id);
+    },
+    async update(id, patch) {
+      const existing = await this.getById(id);
+      if (!existing) return null;
+      const next = {
+        title: patch.title !== void 0 ? patch.title : existing.title,
+        body: patch.body !== void 0 ? patch.body : existing.body,
+        ctaLabel: patch.ctaLabel !== void 0 ? patch.ctaLabel : existing.ctaLabel,
+        ctaHrefTab: patch.ctaHrefTab !== void 0 ? patch.ctaHrefTab : existing.ctaHrefTab,
+        active: patch.active !== void 0 ? patch.active : existing.active,
+        priority: patch.priority !== void 0 ? patch.priority : existing.priority,
+        startsAt: patch.startsAt !== void 0 ? patch.startsAt : existing.startsAt,
+        expiresAt: patch.expiresAt !== void 0 ? patch.expiresAt : existing.expiresAt
+      };
+      await pool.query(
+        `UPDATE notices
+         SET title = ?, body = ?, cta_label = ?, cta_href_tab = ?, active = ?, priority = ?,
+             starts_at = ?, expires_at = ?, updated_at = ?
+         WHERE id = ?`,
+        [
+          next.title,
+          next.body,
+          next.ctaLabel,
+          next.ctaHrefTab,
+          next.active ? 1 : 0,
+          next.priority,
+          next.startsAt ? new Date(next.startsAt) : null,
+          next.expiresAt ? new Date(next.expiresAt) : null,
+          /* @__PURE__ */ new Date(),
+          id
+        ]
+      );
+      return this.getById(id);
+    },
+    async deleteById(id) {
+      const [result] = await pool.query("DELETE FROM notices WHERE id = ?", [id]);
+      return result.affectedRows > 0;
+    },
+    async close() {
+      await pool.end();
+    }
+  };
+}
+
 // server/db/sqliteQuestions.ts
 import fs2 from "fs";
 import path2 from "path";
 import { DatabaseSync } from "node:sqlite";
-function mapRow6(row) {
+function mapRow8(row) {
   let optionImages;
   if (row.option_images_json) {
     try {
@@ -2042,25 +2297,25 @@ function createSqliteQuestionsRepo(dbFilePath) {
         const rows2 = db.prepare(
           "SELECT * FROM questions WHERE batch_id = ? AND status = ? ORDER BY created_at DESC"
         ).all(opts.batchId, opts.status);
-        return rows2.map(mapRow6);
+        return rows2.map(mapRow8);
       }
       if (opts?.batchId) {
         const rows2 = db.prepare("SELECT * FROM questions WHERE batch_id = ? ORDER BY created_at DESC").all(opts.batchId);
-        return rows2.map(mapRow6);
+        return rows2.map(mapRow8);
       }
       if (opts?.status) {
         const rows2 = db.prepare("SELECT * FROM questions WHERE status = ? ORDER BY created_at DESC").all(opts.status);
-        return rows2.map(mapRow6);
+        return rows2.map(mapRow8);
       }
       const rows = db.prepare("SELECT * FROM questions ORDER BY created_at DESC").all();
-      return rows.map(mapRow6);
+      return rows.map(mapRow8);
     },
     async getByIds(ids) {
       if (ids.length === 0) return [];
       const byId = /* @__PURE__ */ new Map();
       for (const id of ids) {
         const row = db.prepare("SELECT * FROM questions WHERE id = ?").get(id);
-        if (row) byId.set(id, mapRow6(row));
+        if (row) byId.set(id, mapRow8(row));
       }
       return ids.map((id) => byId.get(id)).filter((q) => Boolean(q));
     },
@@ -2075,7 +2330,7 @@ function createSqliteQuestionsRepo(dbFilePath) {
         rows = db.prepare("SELECT * FROM questions WHERE status = ? AND subject = ?").all(status, opts.subject);
       }
       const exclude = new Set(opts.excludeIds || []);
-      return rows.map(mapRow6).filter((q) => !exclude.has(q.id));
+      return rows.map(mapRow8).filter((q) => !exclude.has(q.id));
     },
     async insertOne(question) {
       const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -2307,7 +2562,7 @@ function mapSubject2(value) {
   if (isSubject(value)) return value;
   return void 0;
 }
-function mapRow7(row, questionIds) {
+function mapRow9(row, questionIds) {
   let allocation;
   if (row.allocation_json) {
     try {
@@ -2362,7 +2617,7 @@ function createSqliteMocksRepo(dbFilePath) {
   }
   function hydrate(row) {
     const questionIds = row.mode === "fixed" ? loadQuestionIds(row.id) : void 0;
-    return mapRow7(row, questionIds);
+    return mapRow9(row, questionIds);
   }
   return {
     driver: "sqlite",
@@ -2868,7 +3123,7 @@ function createSqliteReferralsRepo(dbFilePath) {
 import fs5 from "fs";
 import path5 from "path";
 import { DatabaseSync as DatabaseSync4 } from "node:sqlite";
-function mapRow8(row) {
+function mapRow10(row) {
   const amountNpr = Number(row.amount_npr);
   const listAmountNpr = row.list_amount_npr == null ? amountNpr : Number(row.list_amount_npr);
   return {
@@ -2974,7 +3229,7 @@ function createSqlitePaymentClaimsRepo(dbFilePath) {
     },
     async listAll() {
       const rows = db.prepare("SELECT * FROM payment_claims ORDER BY submitted_at ASC").all();
-      return rows.map(mapRow8);
+      return rows.map(mapRow10);
     },
     async listByClerkUserId(clerkUserId) {
       const rows = db.prepare(
@@ -2982,11 +3237,11 @@ function createSqlitePaymentClaimsRepo(dbFilePath) {
            WHERE clerk_user_id = ?
            ORDER BY submitted_at DESC`
       ).all(clerkUserId);
-      return rows.map(mapRow8);
+      return rows.map(mapRow10);
     },
     async getById(id) {
       const row = db.prepare("SELECT * FROM payment_claims WHERE id = ?").get(id);
-      return row ? mapRow8(row) : null;
+      return row ? mapRow10(row) : null;
     },
     async updatePending(id, patch) {
       const existing = await this.getById(id);
@@ -3061,7 +3316,7 @@ function createSqlitePaymentClaimsRepo(dbFilePath) {
 import fs6 from "fs";
 import path6 from "path";
 import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
-function mapRow9(row) {
+function mapRow11(row) {
   return {
     id: row.id,
     clerkUserId: row.clerk_user_id,
@@ -3125,7 +3380,7 @@ function createSqliteSupportIssuesRepo(dbFilePath) {
     },
     async listAll() {
       const rows = db.prepare("SELECT * FROM support_issues ORDER BY created_at ASC").all();
-      return rows.map(mapRow9);
+      return rows.map(mapRow11);
     },
     async listByClerkUserId(clerkUserId) {
       const rows = db.prepare(
@@ -3133,11 +3388,11 @@ function createSqliteSupportIssuesRepo(dbFilePath) {
            WHERE clerk_user_id = ?
            ORDER BY created_at DESC`
       ).all(clerkUserId);
-      return rows.map(mapRow9);
+      return rows.map(mapRow11);
     },
     async getById(id) {
       const row = db.prepare("SELECT * FROM support_issues WHERE id = ?").get(id);
-      return row ? mapRow9(row) : null;
+      return row ? mapRow11(row) : null;
     },
     async resolve(id, input) {
       const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -3333,7 +3588,7 @@ function parsePlans2(raw) {
     return [];
   }
 }
-function mapRow10(row) {
+function mapRow12(row) {
   return {
     id: row.id,
     code: row.code,
@@ -3382,15 +3637,15 @@ function createSqlitePromoCodesRepo(dbFilePath) {
     },
     async listAll() {
       const rows = db.prepare("SELECT * FROM promo_codes ORDER BY created_at DESC").all();
-      return rows.map(mapRow10);
+      return rows.map(mapRow12);
     },
     async getById(id) {
       const row = db.prepare("SELECT * FROM promo_codes WHERE id = ?").get(id);
-      return row ? mapRow10(row) : null;
+      return row ? mapRow12(row) : null;
     },
     async getByCode(code) {
       const row = db.prepare("SELECT * FROM promo_codes WHERE code = ?").get(code);
-      return row ? mapRow10(row) : null;
+      return row ? mapRow12(row) : null;
     },
     async insert(input) {
       const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -3473,6 +3728,255 @@ function createSqlitePromoCodesRepo(dbFilePath) {
   };
 }
 
+// server/db/sqliteAttemptReports.ts
+import fs9 from "fs";
+import path9 from "path";
+import { DatabaseSync as DatabaseSync8 } from "node:sqlite";
+function mapRow13(row) {
+  let report = {
+    id: row.id,
+    userId: row.user_id,
+    attemptId: row.attempt_id,
+    mockId: row.mock_id,
+    mockTitle: row.mock_title,
+    examType: "Nepal CEE",
+    completedAt: row.completed_at,
+    overallScore: Number(row.overall_score),
+    maxScore: Number(row.max_score),
+    accuracyPercentage: 0,
+    totalAttempted: 0,
+    correctCount: 0,
+    wrongCount: 0,
+    skippedCount: 0,
+    timeSpentSec: 0,
+    predictedRank: 0,
+    rankBand: [0, 0],
+    percentile: 0,
+    subjectScores: [],
+    chapterScores: [],
+    mistakeAnalysis: {
+      wrongVsSkippedRatio: "0:0",
+      slowCorrectCount: 0,
+      speedSecPerQuestion: 0
+    },
+    targetScore: 0,
+    targetGap: 0,
+    recommendations: [],
+    shareToken: ""
+  };
+  try {
+    report = JSON.parse(row.report_json);
+  } catch {
+  }
+  return {
+    id: row.id,
+    clerkUserId: row.clerk_user_id,
+    userId: row.user_id,
+    attemptId: row.attempt_id,
+    mockId: row.mock_id,
+    mockTitle: row.mock_title,
+    completedAt: row.completed_at,
+    overallScore: Number(row.overall_score),
+    maxScore: Number(row.max_score),
+    report,
+    createdAt: row.created_at
+  };
+}
+function createSqliteAttemptReportsRepo(dbFilePath) {
+  const dir = path9.dirname(dbFilePath);
+  if (!fs9.existsSync(dir)) fs9.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync8(dbFilePath);
+  return {
+    driver: "sqlite",
+    async ensureSchema() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS attempt_reports (
+          id TEXT PRIMARY KEY,
+          clerk_user_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          attempt_id TEXT NOT NULL,
+          mock_id TEXT NOT NULL,
+          mock_title TEXT NOT NULL,
+          completed_at TEXT NOT NULL,
+          overall_score REAL NOT NULL,
+          max_score REAL NOT NULL,
+          report_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_attempt_reports_clerk_completed
+          ON attempt_reports (clerk_user_id, completed_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_attempt_reports_mock
+          ON attempt_reports (mock_id);
+      `);
+    },
+    async insert(input) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const completedAt = input.completedAt || now;
+      db.prepare(
+        `INSERT INTO attempt_reports
+          (id, clerk_user_id, user_id, attempt_id, mock_id, mock_title,
+           completed_at, overall_score, max_score, report_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        input.id,
+        input.clerkUserId,
+        input.userId,
+        input.attemptId,
+        input.mockId,
+        input.mockTitle,
+        completedAt,
+        input.overallScore,
+        input.maxScore,
+        JSON.stringify(input.report),
+        now
+      );
+      return await this.getById(input.id);
+    },
+    async listByClerkUserId(clerkUserId) {
+      const rows = db.prepare(
+        `SELECT * FROM attempt_reports
+           WHERE clerk_user_id = ?
+           ORDER BY completed_at DESC`
+      ).all(clerkUserId);
+      return rows.map(mapRow13);
+    },
+    async listAll() {
+      const rows = db.prepare(`SELECT * FROM attempt_reports ORDER BY completed_at DESC`).all();
+      return rows.map(mapRow13);
+    },
+    async getById(id) {
+      const row = db.prepare("SELECT * FROM attempt_reports WHERE id = ?").get(id);
+      return row ? mapRow13(row) : null;
+    },
+    async close() {
+      db.close();
+    }
+  };
+}
+
+// server/db/sqliteNotices.ts
+import fs10 from "fs";
+import path10 from "path";
+import { DatabaseSync as DatabaseSync9 } from "node:sqlite";
+function mapRow14(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    ctaLabel: row.cta_label,
+    ctaHrefTab: row.cta_href_tab,
+    active: Boolean(row.active),
+    priority: Number(row.priority || 0),
+    startsAt: row.starts_at,
+    expiresAt: row.expires_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdByClerkId: row.created_by_clerk_id,
+    createdByName: row.created_by_name
+  };
+}
+function createSqliteNoticesRepo(dbFilePath) {
+  const dir = path10.dirname(dbFilePath);
+  if (!fs10.existsSync(dir)) fs10.mkdirSync(dir, { recursive: true });
+  const db = new DatabaseSync9(dbFilePath);
+  return {
+    driver: "sqlite",
+    async ensureSchema() {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS notices (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          body TEXT,
+          cta_label TEXT,
+          cta_href_tab TEXT,
+          active INTEGER NOT NULL DEFAULT 1,
+          priority INTEGER NOT NULL DEFAULT 0,
+          starts_at TEXT,
+          expires_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          created_by_clerk_id TEXT,
+          created_by_name TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_notices_active ON notices (active);
+        CREATE INDEX IF NOT EXISTS idx_notices_priority ON notices (priority);
+      `);
+    },
+    async listAll() {
+      const rows = db.prepare("SELECT * FROM notices ORDER BY priority DESC, updated_at DESC").all();
+      return rows.map(mapRow14);
+    },
+    async getById(id) {
+      const row = db.prepare("SELECT * FROM notices WHERE id = ?").get(id);
+      return row ? mapRow14(row) : null;
+    },
+    async insert(input) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db.prepare(
+        `INSERT INTO notices
+          (id, title, body, cta_label, cta_href_tab, active, priority,
+           starts_at, expires_at, created_at, updated_at, created_by_clerk_id, created_by_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        input.id,
+        input.title,
+        input.body ?? null,
+        input.ctaLabel ?? null,
+        input.ctaHrefTab ?? null,
+        input.active === false ? 0 : 1,
+        input.priority ?? 0,
+        input.startsAt ?? null,
+        input.expiresAt ?? null,
+        now,
+        now,
+        input.createdByClerkId ?? null,
+        input.createdByName ?? null
+      );
+      return await this.getById(input.id);
+    },
+    async update(id, patch) {
+      const existing = await this.getById(id);
+      if (!existing) return null;
+      const next = {
+        title: patch.title !== void 0 ? patch.title : existing.title,
+        body: patch.body !== void 0 ? patch.body : existing.body,
+        ctaLabel: patch.ctaLabel !== void 0 ? patch.ctaLabel : existing.ctaLabel,
+        ctaHrefTab: patch.ctaHrefTab !== void 0 ? patch.ctaHrefTab : existing.ctaHrefTab,
+        active: patch.active !== void 0 ? patch.active : existing.active,
+        priority: patch.priority !== void 0 ? patch.priority : existing.priority,
+        startsAt: patch.startsAt !== void 0 ? patch.startsAt : existing.startsAt,
+        expiresAt: patch.expiresAt !== void 0 ? patch.expiresAt : existing.expiresAt
+      };
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      db.prepare(
+        `UPDATE notices
+         SET title = ?, body = ?, cta_label = ?, cta_href_tab = ?, active = ?, priority = ?,
+             starts_at = ?, expires_at = ?, updated_at = ?
+         WHERE id = ?`
+      ).run(
+        next.title,
+        next.body,
+        next.ctaLabel,
+        next.ctaHrefTab,
+        next.active ? 1 : 0,
+        next.priority,
+        next.startsAt,
+        next.expiresAt,
+        now,
+        id
+      );
+      return this.getById(id);
+    },
+    async deleteById(id) {
+      const result = db.prepare("DELETE FROM notices WHERE id = ?").run(id);
+      return Number(result.changes || 0) > 0;
+    },
+    async close() {
+      db.close();
+    }
+  };
+}
+
 // server/db/index.ts
 var root = resolveAppRoot(import.meta.url);
 function resolveDbMode() {
@@ -3483,7 +3987,7 @@ function resolveDbMode() {
   return host ? "mysql" : "sqlite";
 }
 function resolveSqlitePath() {
-  return process.env.SQLITE_PATH || path9.join(root, "data", "prepx-questions.sqlite");
+  return process.env.SQLITE_PATH || path11.join(root, "data", "prepx-questions.sqlite");
 }
 function sqlitePath() {
   return resolveSqlitePath();
@@ -3499,6 +4003,8 @@ async function createAppRepositories() {
     const supportIssues2 = createMysqlSupportIssuesRepo(pool);
     const formulas2 = createMysqlFormulasRepo(pool);
     const promoCodes2 = createMysqlPromoCodesRepo(pool);
+    const attemptReports2 = createMysqlAttemptReportsRepo(pool);
+    const notices2 = createMysqlNoticesRepo(pool);
     await questions2.ensureSchema();
     await mocks2.ensureSchema();
     await referrals2.ensureSchema();
@@ -3506,6 +4012,8 @@ async function createAppRepositories() {
     await supportIssues2.ensureSchema();
     await formulas2.ensureSchema();
     await promoCodes2.ensureSchema();
+    await attemptReports2.ensureSchema();
+    await notices2.ensureSchema();
     return {
       questions: questions2,
       mocks: mocks2,
@@ -3513,7 +4021,9 @@ async function createAppRepositories() {
       paymentClaims: paymentClaims2,
       supportIssues: supportIssues2,
       formulas: formulas2,
-      promoCodes: promoCodes2
+      promoCodes: promoCodes2,
+      attemptReports: attemptReports2,
+      notices: notices2
     };
   }
   const file = sqlitePath();
@@ -3524,6 +4034,8 @@ async function createAppRepositories() {
   const supportIssues = createSqliteSupportIssuesRepo(file);
   const formulas = createSqliteFormulasRepo(file);
   const promoCodes = createSqlitePromoCodesRepo(file);
+  const attemptReports = createSqliteAttemptReportsRepo(file);
+  const notices = createSqliteNoticesRepo(file);
   await questions.ensureSchema();
   await mocks.ensureSchema();
   await referrals.ensureSchema();
@@ -3531,6 +4043,8 @@ async function createAppRepositories() {
   await supportIssues.ensureSchema();
   await formulas.ensureSchema();
   await promoCodes.ensureSchema();
+  await attemptReports.ensureSchema();
+  await notices.ensureSchema();
   return {
     questions,
     mocks,
@@ -3538,7 +4052,9 @@ async function createAppRepositories() {
     paymentClaims,
     supportIssues,
     formulas,
-    promoCodes
+    promoCodes,
+    attemptReports,
+    notices
   };
 }
 
@@ -4501,7 +5017,7 @@ function normalizeReferralCode(raw) {
 var MOCKS_QUOTA_MIN = 0;
 var MOCKS_QUOTA_MAX = 1e4;
 var PLAN_ENTITLEMENTS_SEED = {
-  freeMocks: 1,
+  freeMocks: 3,
   premiumMocks: 10
 };
 function isQuotaInt(n) {
@@ -4575,7 +5091,8 @@ var SUPPORT_ISSUE_CATEGORIES = /* @__PURE__ */ new Set([
   "technical",
   "content",
   "payment",
-  "coins"
+  "coins",
+  "feedback"
 ]);
 function isSupportIssueCategory(value) {
   return typeof value === "string" && SUPPORT_ISSUE_CATEGORIES.has(value);
@@ -4854,14 +5371,138 @@ function validatePromoCodeCreateInput(raw) {
   };
 }
 
+// server/noticesDomain.ts
+function canManageNotices(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  return role === "Admin";
+}
+function isNoticeActive(notice, now = /* @__PURE__ */ new Date()) {
+  if (!notice.active) return false;
+  if (notice.startsAt) {
+    const start = new Date(notice.startsAt);
+    if (!Number.isNaN(start.getTime()) && now < start) return false;
+  }
+  if (notice.expiresAt) {
+    const end = new Date(notice.expiresAt);
+    if (!Number.isNaN(end.getTime()) && now > end) return false;
+  }
+  return true;
+}
+function pickActiveNotice(notices, now = /* @__PURE__ */ new Date()) {
+  const active = notices.filter((n) => isNoticeActive(n, now));
+  if (!active.length) return null;
+  active.sort((a, b) => {
+    if (b.priority !== a.priority) return b.priority - a.priority;
+    return String(b.updatedAt).localeCompare(String(a.updatedAt));
+  });
+  return active[0];
+}
+function parseOptionalDate(raw, field) {
+  if (raw == null || raw === "") return { ok: true, value: null };
+  if (typeof raw !== "string") return { ok: false, reason: `${field} must be a date string` };
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: true, value: null };
+  if (Number.isNaN(new Date(trimmed).getTime())) {
+    return { ok: false, reason: `${field} must be a valid date` };
+  }
+  return { ok: true, value: trimmed };
+}
+function validateNoticeCreateInput(raw) {
+  const title = typeof raw.title === "string" ? raw.title.trim().slice(0, 200) : "";
+  if (!title) return { ok: false, reason: "Title is required" };
+  const body = typeof raw.body === "string" && raw.body.trim() ? raw.body.trim().slice(0, 1e3) : null;
+  const ctaLabel = typeof raw.ctaLabel === "string" && raw.ctaLabel.trim() ? raw.ctaLabel.trim().slice(0, 64) : null;
+  const ctaHrefTab = typeof raw.ctaHrefTab === "string" && raw.ctaHrefTab.trim() ? raw.ctaHrefTab.trim().slice(0, 64) : null;
+  let priority = 0;
+  if (raw.priority != null && raw.priority !== "") {
+    const n = typeof raw.priority === "number" ? raw.priority : Number(raw.priority);
+    if (!Number.isFinite(n) || !Number.isInteger(n)) {
+      return { ok: false, reason: "priority must be an integer" };
+    }
+    priority = n;
+  }
+  const starts = parseOptionalDate(raw.startsAt, "startsAt");
+  if (starts.ok === false) return starts;
+  const expires = parseOptionalDate(raw.expiresAt, "expiresAt");
+  if (expires.ok === false) return expires;
+  if (starts.value && expires.value && new Date(starts.value) > new Date(expires.value)) {
+    return { ok: false, reason: "startsAt must be before expiresAt" };
+  }
+  return {
+    ok: true,
+    value: {
+      title,
+      body,
+      ctaLabel,
+      ctaHrefTab,
+      active: raw.active === false ? false : true,
+      priority,
+      startsAt: starts.value,
+      expiresAt: expires.value
+    }
+  };
+}
+function validateNoticeUpdateInput(raw) {
+  const patch = {};
+  if (raw.title !== void 0) {
+    const title = typeof raw.title === "string" ? raw.title.trim().slice(0, 200) : "";
+    if (!title) return { ok: false, reason: "Title cannot be empty" };
+    patch.title = title;
+  }
+  if (raw.body !== void 0) {
+    patch.body = typeof raw.body === "string" && raw.body.trim() ? raw.body.trim().slice(0, 1e3) : null;
+  }
+  if (raw.ctaLabel !== void 0) {
+    patch.ctaLabel = typeof raw.ctaLabel === "string" && raw.ctaLabel.trim() ? raw.ctaLabel.trim().slice(0, 64) : null;
+  }
+  if (raw.ctaHrefTab !== void 0) {
+    patch.ctaHrefTab = typeof raw.ctaHrefTab === "string" && raw.ctaHrefTab.trim() ? raw.ctaHrefTab.trim().slice(0, 64) : null;
+  }
+  if (raw.active !== void 0) {
+    patch.active = Boolean(raw.active);
+  }
+  if (raw.priority !== void 0) {
+    const n = typeof raw.priority === "number" ? raw.priority : Number(raw.priority);
+    if (!Number.isFinite(n) || !Number.isInteger(n)) {
+      return { ok: false, reason: "priority must be an integer" };
+    }
+    patch.priority = n;
+  }
+  if (raw.startsAt !== void 0) {
+    const starts = parseOptionalDate(raw.startsAt, "startsAt");
+    if (starts.ok === false) return starts;
+    patch.startsAt = starts.value;
+  }
+  if (raw.expiresAt !== void 0) {
+    const expires = parseOptionalDate(raw.expiresAt, "expiresAt");
+    if (expires.ok === false) return expires;
+    patch.expiresAt = expires.value;
+  }
+  const start = patch.startsAt;
+  const end = patch.expiresAt;
+  if (start && end && new Date(start) > new Date(end)) {
+    return { ok: false, reason: "startsAt must be before expiresAt" };
+  }
+  if (Object.keys(patch).length === 0) {
+    return { ok: false, reason: "No fields to update" };
+  }
+  return { ok: true, value: patch };
+}
+
 // server/mockAccessDomain.ts
-var FREE_PLAN_ALLOWED_MOCK_ID = "mock-set-seta";
-var FREE_PLAN_MOCK_ACCESS_ERROR = "Free plan includes SetA only. Upgrade to Premium or Unlimited for other mocks and practice tests.";
+var FREE_PLAN_ALLOWED_MOCK_IDS = [
+  "mock-set-seta",
+  "mock-set-setb",
+  "mock-set-setc"
+];
+var FREE_PLAN_ALLOWED_MOCK_ID = FREE_PLAN_ALLOWED_MOCK_IDS[0];
+var FREE_PLAN_MOCK_ACCESS_ERROR = "Free plan includes SetA, SetB, and SetC only. Upgrade to Premium or Unlimited for other mocks and practice tests.";
 function isFreePlan(plan) {
   return (plan || "Free") === "Free";
 }
 function isFreePlanAllowedMock(mockId) {
-  return (mockId || "").trim() === FREE_PLAN_ALLOWED_MOCK_ID;
+  const id = (mockId || "").trim();
+  return FREE_PLAN_ALLOWED_MOCK_IDS.includes(id);
 }
 function assertFreePlanMockAccess(plan, mockId, opts) {
   if (opts?.staffBypass) return { ok: true };
@@ -4876,33 +5517,33 @@ function assertFreePlanPracticeAccess(plan, opts) {
 }
 
 // server/planEntitlementsStore.ts
-import fs9 from "node:fs";
-import path10 from "node:path";
+import fs11 from "node:fs";
+import path12 from "node:path";
 var root2 = resolveAppRoot(import.meta.url);
 function entitlementsPath() {
-  const dataDir = path10.dirname(
-    process.env.SQLITE_PATH || path10.join(root2, "data", "prepx-questions.sqlite")
+  const dataDir = path12.dirname(
+    process.env.SQLITE_PATH || path12.join(root2, "data", "prepx-questions.sqlite")
   );
-  return path10.join(dataDir, "plan-entitlements.json");
+  return path12.join(dataDir, "plan-entitlements.json");
 }
 var cache = null;
 function ensureDir(filePath) {
-  fs9.mkdirSync(path10.dirname(filePath), { recursive: true });
+  fs11.mkdirSync(path12.dirname(filePath), { recursive: true });
 }
 function writeSeed(filePath) {
   ensureDir(filePath);
-  fs9.writeFileSync(filePath, JSON.stringify(PLAN_ENTITLEMENTS_SEED, null, 2), "utf8");
+  fs11.writeFileSync(filePath, JSON.stringify(PLAN_ENTITLEMENTS_SEED, null, 2), "utf8");
   return { ...PLAN_ENTITLEMENTS_SEED };
 }
 function getPlanEntitlements() {
   if (cache) return cache;
   const filePath = entitlementsPath();
   try {
-    if (!fs9.existsSync(filePath)) {
+    if (!fs11.existsSync(filePath)) {
       cache = writeSeed(filePath);
       return cache;
     }
-    const raw = JSON.parse(fs9.readFileSync(filePath, "utf8"));
+    const raw = JSON.parse(fs11.readFileSync(filePath, "utf8"));
     const parsed = parsePlanEntitlements(raw);
     if (parsed.ok === false) {
       console.warn("[plan-entitlements] invalid file, reseeding:", parsed.error);
@@ -4924,7 +5565,7 @@ function setPlanEntitlements(next) {
   }
   const filePath = entitlementsPath();
   ensureDir(filePath);
-  fs9.writeFileSync(filePath, JSON.stringify(parsed.value, null, 2), "utf8");
+  fs11.writeFileSync(filePath, JSON.stringify(parsed.value, null, 2), "utf8");
   cache = parsed.value;
   return cache;
 }
@@ -5043,8 +5684,8 @@ function emailDomainBlockedMessage(decision) {
 
 // server/index.ts
 var root3 = resolveAppRoot(import.meta.url);
-dotenv.config({ path: path11.join(root3, ".env.local") });
-dotenv.config({ path: path11.join(root3, ".env") });
+dotenv.config({ path: path13.join(root3, ".env.local") });
+dotenv.config({ path: path13.join(root3, ".env") });
 var PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
 var SECRET_KEY = process.env.CLERK_SECRET_KEY;
 var BOOTSTRAP_ADMIN_EMAIL = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase() || "surajnepal2058@gmail.com";
@@ -5074,6 +5715,8 @@ var paymentClaimsRepo;
 var supportIssuesRepo;
 var formulasRepo;
 var promoCodesRepo;
+var attemptReportsRepo;
+var noticesRepo;
 function mapUser(user) {
   const email = user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId)?.emailAddress || user.emailAddresses[0]?.emailAddress || "";
   const meta = user.publicMetadata || {};
@@ -5233,7 +5876,7 @@ async function assertStudyAccess(clerkUserId, coinPrice, opts) {
   if (plan === "Unlimited" || mocksRemaining === null) return;
   if ((mocksRemaining ?? 0) > 0) return;
   const err = new Error(
-    "No mock access remaining. Upgrade your plan to study this paper, or use SetA on the Free plan."
+    "No mock access remaining. Upgrade your plan to study this paper, or use SetA/B/C on the Free plan."
   );
   err.status = 402;
   throw err;
@@ -5399,7 +6042,7 @@ app.get("/api/health", async (_req, res) => {
     mockCount,
     questionCount,
     // Basename only — confirms which file is open without leaking full host paths.
-    sqliteFile: mode === "sqlite" ? path11.basename(resolveSqlitePath()) : null
+    sqliteFile: mode === "sqlite" ? path13.basename(resolveSqlitePath()) : null
   });
 });
 app.get("/api/questions", requireAuth, async (req, res) => {
@@ -6417,12 +7060,29 @@ app.post("/api/mocks/score", requireAuth, async (req, res) => {
       draft.lastPercentile = percentile;
       return { ok: true, next: draft };
     });
+    const fullReport = {
+      ...report,
+      paperQuestions: ordered.map((q) => toClientQuestion(q, true)),
+      paperAnswers: answers
+    };
+    try {
+      await attemptReportsRepo.insert({
+        id: report.id,
+        clerkUserId: userId,
+        userId: profile.id,
+        attemptId: report.attemptId,
+        mockId: report.mockId,
+        mockTitle: report.mockTitle,
+        completedAt: report.completedAt,
+        overallScore: report.overallScore,
+        maxScore: report.maxScore,
+        report: fullReport
+      });
+    } catch (persistErr) {
+      console.error("Failed to persist attempt report:", persistErr?.message || persistErr);
+    }
     res.json({
-      report: {
-        ...report,
-        paperQuestions: ordered.map((q) => toClientQuestion(q, true)),
-        paperAnswers: answers
-      },
+      report: fullReport,
       coinReward: MOCK_COMPLETE_COINS,
       user: updatedUser,
       syncedAt: (/* @__PURE__ */ new Date()).toISOString()
@@ -7362,6 +8022,101 @@ app.delete("/api/promo-codes/:id", requireAuth, async (req, res) => {
     res.status(500).json({ error: publicErrorMessage(err, "Failed to delete promo code") });
   }
 });
+function toClientNotice(n) {
+  return {
+    id: n.id,
+    title: n.title,
+    body: n.body || void 0,
+    ctaLabel: n.ctaLabel || void 0,
+    ctaHrefTab: n.ctaHrefTab || void 0,
+    active: n.active,
+    priority: n.priority,
+    startsAt: n.startsAt || void 0,
+    expiresAt: n.expiresAt || void 0,
+    createdAt: n.createdAt,
+    updatedAt: n.updatedAt,
+    createdByName: n.createdByName || void 0
+  };
+}
+app.get("/api/notices/active", async (_req, res) => {
+  try {
+    const rows = await noticesRepo.listAll();
+    const picked = pickActiveNotice(rows);
+    res.json({ notice: picked ? toClientNotice(picked) : null });
+  } catch (err) {
+    console.error("GET /api/notices/active failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load notice") });
+  }
+});
+app.get("/api/notices", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManageNotices(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const rows = await noticesRepo.listAll();
+    res.json({ notices: rows.map(toClientNotice) });
+  } catch (err) {
+    console.error("GET /api/notices failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load notices") });
+  }
+});
+app.post("/api/notices", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    if (!canManageNotices(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const parsed = validateNoticeCreateInput(req.body || {});
+    if (parsed.ok === false) return res.status(400).json({ error: parsed.reason });
+    const created = await noticesRepo.insert({
+      id: `notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ...parsed.value,
+      createdByClerkId: userId,
+      createdByName: profile.name || profile.email || "Admin"
+    });
+    res.status(201).json({ notice: toClientNotice(created) });
+  } catch (err) {
+    console.error("POST /api/notices failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to create notice") });
+  }
+});
+app.patch("/api/notices/:id", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManageNotices(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing notice id" });
+    const existing = await noticesRepo.getById(id);
+    if (!existing) return res.status(404).json({ error: "Notice not found" });
+    const parsed = validateNoticeUpdateInput(req.body || {});
+    if (parsed.ok === false) return res.status(400).json({ error: parsed.reason });
+    const updated = await noticesRepo.update(id, parsed.value);
+    if (!updated) return res.status(404).json({ error: "Notice not found" });
+    res.json({ notice: toClientNotice(updated) });
+  } catch (err) {
+    console.error("PATCH /api/notices/:id failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to update notice") });
+  }
+});
+app.delete("/api/notices/:id", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManageNotices(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin only" });
+    }
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing notice id" });
+    const ok = await noticesRepo.deleteById(id);
+    if (!ok) return res.status(404).json({ error: "Notice not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /api/notices/:id failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to delete notice") });
+  }
+});
 function toClientSupportIssue(i) {
   return {
     id: i.id,
@@ -7384,7 +8139,7 @@ app.post("/api/support-issues", requireAuth, async (req, res) => {
     const body = normalizeIssueBody(typeof req.body?.body === "string" ? req.body.body : "");
     if (!isSupportIssueCategory(category)) {
       return res.status(400).json({
-        error: "category must be technical, content, payment, or coins"
+        error: "category must be technical, content, payment, coins, or feedback"
       });
     }
     if (body.length < 10) {
@@ -7416,6 +8171,20 @@ app.get("/api/support-issues", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("GET /api/support-issues failed:", err);
     res.status(500).json({ error: publicErrorMessage(err, "Failed to load issues") });
+  }
+});
+app.get("/api/reports", requireAuth, async (req, res) => {
+  try {
+    const { userId, profile } = req.auth;
+    const staff = isStaff(profile.role, profile.email);
+    const rows = staff ? await attemptReportsRepo.listAll() : await attemptReportsRepo.listByClerkUserId(userId);
+    res.json({
+      reports: rows.map((r) => r.report),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("GET /api/reports failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load reports") });
   }
 });
 app.post("/api/support-issues/:id/resolve", requireAuth, async (req, res) => {
@@ -7561,18 +8330,21 @@ async function boot() {
     supportIssuesRepo = repos.supportIssues;
     formulasRepo = repos.formulas;
     promoCodesRepo = repos.promoCodes;
+    attemptReportsRepo = repos.attemptReports;
+    noticesRepo = repos.notices;
     const total = await questionsRepo.countAll();
     const mockTotal = (await mocksRepo.list()).length;
     const formulaTotal = await formulasRepo.countAll();
     const promoTotal = (await promoCodesRepo.listAll()).length;
-    const distDir = path11.join(root3, "dist");
-    if (fs10.existsSync(distDir)) {
+    const noticeTotal = (await noticesRepo.listAll()).length;
+    const distDir = path13.join(root3, "dist");
+    if (fs12.existsSync(distDir)) {
       registerSeoStaticRoutes(app, distDir);
       app.use(express.static(distDir, { index: false, maxAge: "1h" }));
       app.get("*", (req, res, next) => {
         if (req.path.startsWith("/api")) return next();
         if (req.method !== "GET" && req.method !== "HEAD") return next();
-        res.sendFile(path11.join(distDir, "index.html"), (err) => {
+        res.sendFile(path13.join(distDir, "index.html"), (err) => {
           if (err) next(err);
         });
       });
@@ -7580,9 +8352,9 @@ async function boot() {
     app.listen(PORT, API_BIND_HOST, () => {
       console.log(`PrepX API listening on http://${API_BIND_HOST}:${PORT}`);
       console.log(
-        `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets, ${promoTotal} promo codes)`
+        `Questions DB: ${questionsRepo.driver} (${total} questions, ${mockTotal} mocks, ${formulaTotal} formula sheets, ${promoTotal} promo codes, ${noticeTotal} notices)`
       );
-      if (fs10.existsSync(distDir)) {
+      if (fs12.existsSync(distDir)) {
         console.log(`Serving SPA from ${distDir}`);
       } else {
         console.warn(

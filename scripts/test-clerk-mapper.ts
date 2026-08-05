@@ -23,7 +23,7 @@ function testMapStudentDefaults() {
   assert.equal(profile.email, 'student@example.com');
   assert.equal(profile.role, 'Student');
   assert.equal(profile.plan, 'Free');
-  assert.equal(profile.mocksRemaining, 1);
+  assert.equal(profile.mocksRemaining, 3);
   assert.equal(profile.examDate, '');
   assert.equal(profile.isClerkLive, true);
   assert.equal(profile.id, 'usr-clerk-user_abc');

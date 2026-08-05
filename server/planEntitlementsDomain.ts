@@ -11,9 +11,9 @@ export type PlanEntitlements = {
   premiumMocks: number;
 };
 
-/** Seed defaults — Free gets 1 mock; Premium gets 10. */
+/** Seed defaults — Free gets 3 mocks; Premium gets 10. */
 export const PLAN_ENTITLEMENTS_SEED: PlanEntitlements = {
-  freeMocks: 1,
+  freeMocks: 3,
   premiumMocks: 10,
 };
 

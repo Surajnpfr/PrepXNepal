@@ -26,7 +26,7 @@ assert(defaultEntitlementsForPlan('Unlimited').mocksGranted === null, 'unlimited
 assert(defaultEntitlementsForPlan('Unlimited').coinsGranted === 500, 'unlimited coins');
 assert(defaultEntitlementsForPlan('Premium').coinsGranted === 100, 'premium coins');
 assert(defaultEntitlementsForPlan('Premium').mocksGranted === 10, 'premium mocks seed');
-assert(defaultEntitlementsForPlan('Free').mocksGranted === 1, 'free mocks seed');
+assert(defaultEntitlementsForPlan('Free').mocksGranted === 3, 'free mocks seed');
 assert(defaultEntitlementsForPlan('Free', { freeMocks: 4, premiumMocks: 12 }).mocksGranted === 4, 'free override');
 assert(
   defaultEntitlementsForPlan('Premium', { freeMocks: 1, premiumMocks: 25 }).mocksGranted === 25,

@@ -21,6 +21,7 @@ import {
   Link2,
   X,
   Bug,
+  Megaphone,
 } from 'lucide-react';
 import { PaymentClaim, Question, UserProfile, UserRole, PlanTier, PricingPlan, MockTest, MockScope, FormulaSheet } from '../types';
 import { BOOTSTRAP_ADMIN_EMAIL, ROLE_CONFIRM_PHRASE } from '../lib/clerkUserMapper';
@@ -37,6 +38,7 @@ import { AppIcon } from './ui';
 import { ReferralPanel } from './ReferralPanel';
 import { AdminSupportIssuesPanel } from './AdminSupportIssuesPanel';
 import { AdminPromoCodesPanel } from './AdminPromoCodesPanel';
+import { AdminNoticesPanel } from './AdminNoticesPanel';
 
 const PAYMENT_METHODS: PaymentClaim['paymentMethod'][] = [
   'Fonepay',
@@ -215,6 +217,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'users'
     | 'pricing'
     | 'promos'
+    | 'notices'
     | 'referrals'
     | 'issues'
   >(() => {
@@ -1035,6 +1038,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           >
             <AppIcon icon={Tag} size="btn" />
             <span>Promo Codes</span>
+          </button>
+        )}
+
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('notices')}
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              activeTab === 'notices' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <AppIcon icon={Megaphone} size="btn" />
+            <span>Notices</span>
           </button>
         )}
 
@@ -2890,6 +2906,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {activeTab === 'promos' && isAdmin && <AdminPromoCodesPanel />}
+
+      {activeTab === 'notices' && isAdmin && <AdminNoticesPanel />}
 
       {activeTab === 'referrals' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
