@@ -15,7 +15,7 @@ export type PlanEntitlements = {
 
 export const PLAN_ENTITLEMENTS_SEED: PlanEntitlements = {
   freeMocks: 3,
-  premiumMocks: 10,
+  premiumMocks: 15,
 };
 
 export function defaultMocksForPlan(

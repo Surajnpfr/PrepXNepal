@@ -56,7 +56,7 @@ function testPublicOverridesUnsafe() {
   assert.equal(profile.role, 'Admin');
   assert.equal(profile.studyCoinBalance, 50);
   assert.equal(profile.lastMockScore, 170);
-  assert.equal(profile.mocksRemaining, 10);
+  assert.equal(profile.mocksRemaining, 15);
 }
 
 function testPatchBuilder() {

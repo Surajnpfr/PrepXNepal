@@ -5018,7 +5018,7 @@ var MOCKS_QUOTA_MIN = 0;
 var MOCKS_QUOTA_MAX = 1e4;
 var PLAN_ENTITLEMENTS_SEED = {
   freeMocks: 3,
-  premiumMocks: 10
+  premiumMocks: 15
 };
 function isQuotaInt(n) {
   return typeof n === "number" && Number.isFinite(n) && Number.isInteger(n);

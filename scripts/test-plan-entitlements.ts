@@ -10,9 +10,9 @@ import {
 } from '../server/planEntitlementsDomain.ts';
 
 assert.equal(PLAN_ENTITLEMENTS_SEED.freeMocks, 3);
-assert.equal(PLAN_ENTITLEMENTS_SEED.premiumMocks, 10);
+assert.equal(PLAN_ENTITLEMENTS_SEED.premiumMocks, 15);
 assert.equal(defaultMocksForPlan('Free'), 3);
-assert.equal(defaultMocksForPlan('Premium'), 10);
+assert.equal(defaultMocksForPlan('Premium'), 15);
 assert.equal(defaultMocksForPlan('Unlimited'), null);
 
 const ok = parsePlanEntitlements({ freeMocks: 5, premiumMocks: 20 });

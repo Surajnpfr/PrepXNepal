@@ -50,7 +50,7 @@ function displayName(user: ClerkMetaSource, email: string): string {
 function defaultMocks(plan: PlanTier): number | null {
   // Seed only — server resolvePlanQuota + /api/plan-entitlements are authoritative at runtime.
   if (plan === 'Unlimited') return null;
-  if (plan === 'Premium') return 10;
+  if (plan === 'Premium') return 15;
   return 3;
 }
 

@@ -35,7 +35,7 @@ const legacy: PricingPlan[] = [
     name: 'Standard Premium',
     tier: 'Premium',
     priceNpr: 149,
-    mocksGranted: 10,
+    mocksGranted: 15,
     coinsGranted: 100,
     description: '',
     features: [],
