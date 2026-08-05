@@ -3,6 +3,7 @@ import {
   mapClerkUserToProfile,
   buildPublicMetadataPatch,
   isStaffRole,
+  canModeratePaymentClaims,
   isPrivilegedRole,
   requiresRoleChangeConfirmation,
   ROLE_CONFIRM_PHRASE,
@@ -78,7 +79,25 @@ function testPatchBuilder() {
 
 function testGuestNotStaff() {
   assert.equal(isStaffRole(GUEST_PROFILE), false);
+  assert.equal(canModeratePaymentClaims(GUEST_PROFILE), false);
   assert.equal(GUEST_PROFILE.isClerkLive, false);
+}
+
+function testBillingModerationRoles() {
+  assert.equal(canModeratePaymentClaims({ email: 'a@b.com', role: 'Admin' }), true);
+  assert.equal(
+    canModeratePaymentClaims({ email: 'a@b.com', role: 'Moderator (Billing)' }),
+    true
+  );
+  assert.equal(
+    canModeratePaymentClaims({ email: 'a@b.com', role: 'Moderator (Questions)' }),
+    false
+  );
+  assert.equal(canModeratePaymentClaims({ email: 'a@b.com', role: 'Student' }), false);
+  assert.equal(
+    canModeratePaymentClaims({ email: BOOTSTRAP_ADMIN_EMAIL, role: 'Student' }),
+    true
+  );
 }
 
 function testRoleConfirmationPolicy() {
@@ -101,5 +120,6 @@ testMapBootstrapAdmin();
 testPublicOverridesUnsafe();
 testPatchBuilder();
 testGuestNotStaff();
+testBillingModerationRoles();
 testRoleConfirmationPolicy();
 console.log('clerkUserMapper tests passed');

@@ -55,7 +55,7 @@ import {
   StudyPlanTask,
   FormulaSheet,
 } from './types';
-import { GUEST_PROFILE, isStaffRole, mapClerkUserToProfile, buildPublicMetadataPatch, buildStudentSelfPatch } from './lib/clerkUserMapper';
+import { GUEST_PROFILE, isStaffRole, canModeratePaymentClaims, mapClerkUserToProfile, buildPublicMetadataPatch, buildStudentSelfPatch } from './lib/clerkUserMapper';
 import { fetchClerkUsers, patchClerkUser } from './lib/clerkApi';
 import {
   PLAN_ENTITLEMENTS_SEED,
@@ -1652,6 +1652,8 @@ export function App() {
   };
 
   const pendingClaimsCount = paymentClaims.filter(c => c.status === 'pending').length;
+  const showBillingPendingAlert =
+    canModeratePaymentClaims(userProfile) && pendingClaimsCount > 0;
 
   return (
     <div className="min-h-screen bg-[var(--px-bg)] text-[var(--px-body)] flex flex-col font-sans antialiased relative overflow-x-hidden">
@@ -1832,27 +1834,42 @@ export function App() {
       <>
         {!isImmersivePaper && (
           <AnnouncementBar
+            variant={
+              showBillingPendingAlert ? 'billing' : siteNotice ? 'notice' : 'default'
+            }
             message={
-              siteNotice
-                ? `${siteNotice.title}${siteNotice.body ? ` — ${siteNotice.body}` : ''}`
-                : announcementNotification
-                  ? `${announcementNotification.title}${
-                      announcementNotification.desc ? ` — ${announcementNotification.desc}` : ''
-                    }`
-                  : mockTests.length > 0
-                    ? `${mockTests.filter((m) => m.isPublished !== false).length} mock tests are ready in Mock Tests`
-                    : 'Sign in and open Mock Tests to start a timed CEE practice paper.'
+              showBillingPendingAlert
+                ? pendingClaimsCount === 1
+                  ? '1 payment claim is waiting for review'
+                  : `${pendingClaimsCount} payment claims are waiting for review`
+                : siteNotice
+                  ? `${siteNotice.title}${siteNotice.body ? ` — ${siteNotice.body}` : ''}`
+                  : announcementNotification
+                    ? `${announcementNotification.title}${
+                        announcementNotification.desc
+                          ? ` — ${announcementNotification.desc}`
+                          : ''
+                      }`
+                    : mockTests.length > 0
+                      ? `${mockTests.filter((m) => m.isPublished !== false).length} mock tests are ready in Mock Tests`
+                      : 'Sign in and open Mock Tests to start a timed CEE practice paper.'
             }
             ctaLabel={
-              siteNotice
-                ? siteNotice.ctaLabel || 'Open'
-                : announcementNotification?.hrefTab === 'catalog'
-                  ? 'View Mocks'
-                  : announcementNotification
-                    ? 'Open'
-                    : 'View Mocks'
+              showBillingPendingAlert
+                ? 'Review payments'
+                : siteNotice
+                  ? siteNotice.ctaLabel || 'Open'
+                  : announcementNotification?.hrefTab === 'catalog'
+                    ? 'View Mocks'
+                    : announcementNotification
+                      ? 'Open'
+                      : 'View Mocks'
             }
             onCtaClick={() => {
+              if (showBillingPendingAlert) {
+                setActiveTab('admin');
+                return;
+              }
               if (siteNotice) {
                 if (siteNotice.ctaHrefTab) setActiveTab(siteNotice.ctaHrefTab);
                 return;
@@ -1865,6 +1882,10 @@ export function App() {
               }
             }}
             onDismiss={() => {
+              if (showBillingPendingAlert) {
+                // Session-only hide; bar returns if pending count changes after refresh/poll.
+                return;
+              }
               if (siteNotice) {
                 setSiteNotice(null);
                 return;

@@ -127,6 +127,17 @@ export function isStaffRole(profile: Pick<UserProfile, 'email' | 'role'>): boole
   );
 }
 
+/** Admin + Billing mods (and bootstrap) — payment claim moderation. */
+export function canModeratePaymentClaims(
+  profile: Pick<UserProfile, 'email' | 'role'>
+): boolean {
+  return (
+    profile.email === BOOTSTRAP_ADMIN_EMAIL ||
+    profile.role === 'Admin' ||
+    profile.role === 'Moderator (Billing)'
+  );
+}
+
 /** Elevated roles that grant Admin Desk / privileged APIs. */
 export function isPrivilegedRole(role: UserRole): boolean {
   return (

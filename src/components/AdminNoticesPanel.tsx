@@ -39,6 +39,15 @@ function toDatetimeLocal(iso: string | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** datetime-local is wall-clock local time — persist as ISO so 10 PM means 10 PM for the admin. */
+function fromDatetimeLocal(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const d = new Date(trimmed);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 function noticeToForm(notice: SiteNotice) {
   return {
     title: notice.title,
@@ -99,8 +108,8 @@ export const AdminNoticesPanel: React.FC = () => {
         ctaLabel: form.ctaLabel.trim() || null,
         ctaHrefTab: form.ctaHrefTab.trim() || null,
         priority: Number(form.priority) || 0,
-        startsAt: form.startsAt.trim() || null,
-        expiresAt: form.expiresAt.trim() || null,
+        startsAt: fromDatetimeLocal(form.startsAt),
+        expiresAt: fromDatetimeLocal(form.expiresAt),
         active: form.active,
       };
       if (editingId) {
@@ -273,6 +282,7 @@ export const AdminNoticesPanel: React.FC = () => {
             onChange={(e) => setForm((f) => ({ ...f, startsAt: e.target.value }))}
             className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
           />
+          <span className="font-normal text-slate-400">Your local time (e.g. 10:00 PM NPT)</span>
         </label>
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Expires at
@@ -282,6 +292,7 @@ export const AdminNoticesPanel: React.FC = () => {
             onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
             className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
           />
+          <span className="font-normal text-slate-400">Your local time</span>
         </label>
         <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-2">
           {editingId ? (
