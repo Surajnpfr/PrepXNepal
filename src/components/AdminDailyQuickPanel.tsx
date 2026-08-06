@@ -23,7 +23,7 @@ import { canApproveDailyQuickRole } from '../lib/userRoles';
 import { BOOTSTRAP_ADMIN_EMAIL } from '../lib/clerkUserMapper';
 import { useFeedback } from './FeedbackProvider';
 import { AppIcon } from './ui';
-
+import { MathText } from './MathText';
 const SUBJECTS: DailyQuickSubject[] = ['Physics', 'Chemistry', 'Botany', 'Zoology'];
 const OPTION_KEYS = ['A', 'B', 'C', 'D'] as const;
 
@@ -381,7 +381,9 @@ export const AdminDailyQuickPanel: React.FC<Props> = ({ userProfile }) => {
                         {q.status === 'published' ? 'Live' : 'Pending'}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-slate-900 line-clamp-3">{q.stem}</p>
+                    <p className="text-sm font-medium text-slate-900 line-clamp-3">
+                      <MathText text={q.stem} />
+                    </p>
                     <p className="text-xs text-slate-500">
                       Correct: {q.correctOptionKey} · {q.options[q.correctOptionKey || 'A']}
                     </p>

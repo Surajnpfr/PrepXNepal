@@ -34,6 +34,7 @@
     "test:promos": "tsx scripts/test-promo-codes.ts",
     "test:notices": "tsx scripts/test-notices-domain.ts",
     "test:daily-quick": "tsx scripts/test-daily-quick-domain.ts",
+    "test:math-text": "tsx scripts/test-math-text.ts",
     "db:seed": "tsx scripts/seed-questions.ts"
   },
   "main": "server.js",
@@ -47,6 +48,7 @@
     "esbuild": "^0.28.1",
     "express": "^4.21.2",
     "jspdf": "^4.2.1",
+    "katex": "^0.18.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "mysql2": "^3.23.2",

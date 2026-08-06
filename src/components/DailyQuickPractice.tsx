@@ -3,6 +3,7 @@ import { CheckCircle2, CircleHelp, Loader2, XCircle } from 'lucide-react';
 import type { Question } from '../types';
 import { fetchActiveDailyQuick } from '../lib/dailyQuickApi';
 import { AppIcon } from './ui';
+import { MathText } from './MathText';
 
 const SUBJECT_ORDER = ['Physics', 'Chemistry', 'Botany', 'Zoology'] as const;
 type OptionKey = 'A' | 'B' | 'C' | 'D';
@@ -138,7 +139,7 @@ export const DailyQuickPractice: React.FC<Props> = ({
       {current ? (
         <div className="space-y-3">
           <p className="text-sm sm:text-base font-medium text-slate-900 leading-relaxed">
-            {current.stem}
+            <MathText text={current.stem} />
           </p>
           <div className="grid grid-cols-1 gap-2">
             {(['A', 'B', 'C', 'D'] as OptionKey[]).map((key) => {
@@ -165,7 +166,7 @@ export const DailyQuickPractice: React.FC<Props> = ({
                   className={`w-full min-h-12 text-left px-3.5 py-3 rounded-xl border text-sm font-medium flex gap-3 items-start transition-colors ${tone} disabled:cursor-default`}
                 >
                   <span className="font-black shrink-0 w-5">{key}.</span>
-                  <span className="flex-1 leading-snug">{text}</span>
+                  <span className="flex-1 leading-snug"><MathText text={text} /></span>
                   {revealed && isCorrect ? (
                     <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0" />
                   ) : null}
@@ -183,7 +184,9 @@ export const DailyQuickPractice: React.FC<Props> = ({
                 <AppIcon icon={CircleHelp} size="btn" />
                 {chosen === current.correctOptionKey ? 'Correct' : 'Explanation'}
               </p>
-              <p className="text-sm text-slate-700 leading-relaxed">{current.explanation}</p>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                <MathText text={current.explanation} />
+              </p>
             </div>
           ) : null}
         </div>

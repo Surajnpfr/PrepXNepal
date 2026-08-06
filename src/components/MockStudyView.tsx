@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowLeft, BookOpen, CheckCircle2, Search } from 'lucide-react';
 import type { MockTest, Question, SubjectName } from '../types';
 import { AppIcon } from './ui';
-
+import { MathText } from './MathText';
 const SUBJECTS: Array<'All' | SubjectName> = [
   'All',
   'Physics',
@@ -73,7 +73,9 @@ export const MockStudyView: React.FC<MockStudyViewProps> = ({
           ) : null}
         </div>
 
-        <p className="text-sm font-bold text-slate-900 leading-relaxed">{q.stem}</p>
+        <p className="text-sm font-bold text-slate-900 leading-relaxed">
+          <MathText text={q.stem} />
+        </p>
 
         {q.imageUrl ? (
           <img
@@ -107,7 +109,7 @@ export const MockStudyView: React.FC<MockStudyViewProps> = ({
                     {key}
                   </span>
                   <span className="space-y-1.5">
-                    <span className="block">{value}</span>
+                    <span className="block"><MathText text={value} /></span>
                     {optionImage ? (
                       <img
                         src={optionImage}
@@ -139,7 +141,7 @@ export const MockStudyView: React.FC<MockStudyViewProps> = ({
             </button>
             {expandedSolutions[q.id] ? (
               <p className="mt-2 text-xs text-slate-600 leading-relaxed bg-slate-50 border border-slate-100 rounded-xl p-3">
-                {q.explanation}
+                <MathText text={q.explanation} />
               </p>
             ) : null}
           </div>

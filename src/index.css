@@ -508,6 +508,21 @@
   .formula-math .formula-sym {
     white-space: nowrap;
   }
+
+  /* KaTeX inside question stems / options */
+  .math-text .katex {
+    font-size: 1.05em;
+  }
+
+  .math-text .katex-display {
+    margin: 0.4em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .math-text__inline .katex {
+    white-space: nowrap;
+  }
 }
 
 @layer utilities {

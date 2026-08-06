@@ -3,6 +3,7 @@ import { Bookmark, Search, CheckCircle2, Trash2 } from 'lucide-react';
 import type { SavedQuestionItem } from '../lib/savedQuestions';
 import { formatRelativeTime } from '../lib/notifications';
 import { AppIcon } from './ui';
+import { MathText } from './MathText';
 
 interface SavedQuestionsViewProps {
   items: SavedQuestionItem[];
@@ -119,7 +120,9 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
                 </div>
               </div>
 
-              <p className="text-sm font-bold text-slate-900 leading-relaxed">{item.stem}</p>
+              <p className="text-sm font-bold text-slate-900 leading-relaxed">
+                <MathText text={item.stem} />
+              </p>
 
               {item.imageUrl && (
                 <img
@@ -153,7 +156,7 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
                           {key}
                         </span>
                         <span className="space-y-1.5">
-                          <span className="block">{value}</span>
+                          <span className="block"><MathText text={value} /></span>
                           {optionImage && (
                             <img
                               src={optionImage}
@@ -183,7 +186,7 @@ export const SavedQuestionsView: React.FC<SavedQuestionsViewProps> = ({
                   </button>
                   {expandedSolutions[item.id] && (
                     <p className="mt-2 text-xs text-slate-600 leading-relaxed bg-slate-50 border border-slate-100 rounded-xl p-3">
-                      {item.explanation}
+                      <MathText text={item.explanation} />
                     </p>
                   )}
                 </div>

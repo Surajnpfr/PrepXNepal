@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { MockTest, Question, AttemptState } from '../types';
 import { AppIcon } from './ui';
-interface MockEngineViewProps {
+import { MathText } from './MathText';interface MockEngineViewProps {
   mockTest: MockTest;
   onSubmitAttempt: (attempt: AttemptState) => void | Promise<void>;
   onExit: () => void;
@@ -523,7 +523,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
 
                   {/* Stem / Question Statement */}
                   <div className={`font-semibold text-slate-900 leading-relaxed pt-1 ${fontSize === 'large' ? 'text-base sm:text-lg' : 'text-sm sm:text-base'}`}>
-                    {q.stem}
+                    <MathText text={q.stem} />
                   </div>
 
                   {q.imageUrl && (
@@ -558,7 +558,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
                             {key}
                           </span>
                           <span className="text-xs sm:text-sm pt-0.5 leading-snug flex-1 space-y-2">
-                            <span className="block">{q.options[key]}</span>
+                            <span className="block"><MathText text={q.options[key]} /></span>
                             {optionImage && (
                               <img
                                 src={optionImage}

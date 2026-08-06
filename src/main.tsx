@@ -6,6 +6,7 @@ import App from './App.tsx';
 import { FeedbackProvider } from './components/FeedbackProvider';
 import { CLERK_SOFT_REDIRECT, clerkAppearance } from './lib/clerkUi';
 import './index.css';
+import 'katex/dist/katex.min.css';
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
