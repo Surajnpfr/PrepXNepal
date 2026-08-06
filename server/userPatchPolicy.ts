@@ -28,21 +28,17 @@ export type PatchActor = {
   isBootstrap: boolean;
 };
 
+import {
+  canManageBillingRole,
+  isStaffRoleName,
+} from './userRoles.ts';
+
 export function canManageBilling(actor: PatchActor): boolean {
-  return (
-    actor.isBootstrap ||
-    actor.role === 'Admin' ||
-    actor.role === 'Moderator (Billing)'
-  );
+  return canManageBillingRole(actor.role, actor.isBootstrap);
 }
 
 export function isStaffActor(actor: PatchActor): boolean {
-  return (
-    actor.isBootstrap ||
-    actor.role === 'Admin' ||
-    actor.role === 'Moderator (Questions)' ||
-    actor.role === 'Moderator (Billing)'
-  );
+  return isStaffRoleName(actor.role, actor.isBootstrap);
 }
 
 /**

@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { 
   Search, 
   Bell, 
-  Menu, 
+  Menu,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
 import { Show } from './Show';
@@ -17,6 +18,9 @@ interface TopbarProps {
   setActiveTab: (tab: string) => void;
   userProfile: UserProfile;
   setMobileOpen: (open: boolean) => void;
+  /** Desktop: reopen sidebar when it is fully hidden. */
+  isSidebarCollapsed?: boolean;
+  setIsSidebarCollapsed?: (collapsed: boolean) => void;
   clerkSyncAt?: string | null;
   clerkSyncError?: string | null;
   notifications: AppNotification[];
@@ -30,6 +34,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   setActiveTab,
   userProfile,
   setMobileOpen,
+  isSidebarCollapsed = false,
+  setIsSidebarCollapsed,
   clerkSyncAt,
   clerkSyncError,
   notifications,
@@ -93,6 +99,18 @@ export const Topbar: React.FC<TopbarProps> = ({
           >
             <AppIcon icon={Menu} size="nav" />
           </button>
+
+          {isSidebarCollapsed && setIsSidebarCollapsed ? (
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed(false)}
+              className="hidden md:inline-flex touch-target items-center justify-center p-2 text-[var(--px-body)] hover:text-[var(--px-heading)] bg-[var(--px-surface-muted)] hover:bg-[var(--px-border)]/40 border border-[var(--px-border)] rounded-[12px] transition-colors duration-200 cursor-pointer shrink-0"
+              aria-label="Show sidebar"
+              title="Show sidebar"
+            >
+              <AppIcon icon={PanelLeftOpen} size="nav" />
+            </button>
+          ) : null}
 
           <div className="min-w-0">
             <p className="font-display text-sm sm:text-lg font-bold text-[var(--px-heading)] tracking-tight leading-tight truncate">
@@ -165,7 +183,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                     <div className="py-6 px-2 text-center space-y-1">
                       <p className="text-xs font-semibold text-[var(--px-heading)]">You're all caught up</p>
                       <p className="text-[11px] text-[var(--px-muted)] leading-snug">
-                        Mock scores, coin rewards, payments, and new catalog mocks will appear here.
+                        Mock scores, payments, and new catalog mocks will appear here.
                       </p>
                     </div>
                   ) : (

@@ -23,10 +23,15 @@ import {
   type CatalogSortMode,
 } from '../lib/catalogMocks';
 import {
+  formatWindowLabel,
+  resolveWeeklyMockFromList,
+  weeklyWindowStatus,
+} from '../lib/weeklyMock';
+import {
   UserPracticeGenerator,
   type PracticeGeneratePayload,
 } from './UserPracticeGenerator';
-import { AppIcon } from './ui';
+import { AppIcon, Select } from './ui';
 interface CatalogViewProps {
   mockTests: MockTest[];
   userProfile: UserProfile;
@@ -114,8 +119,65 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const generatorScope: MockScope =
     selectedTab === 'Subject' ? 'subject' : selectedTab === 'Chapter' ? 'chapter' : 'full';
 
+  const weeklyMock = resolveWeeklyMockFromList(mockTests);
+  const weeklyStatus = weeklyMock
+    ? weeklyWindowStatus(weeklyMock.opensAt, weeklyMock.closesAt)
+    : 'unscheduled';
+  const weeklyAttempted = weeklyMock
+    ? pastReports.some((r) => r.mockId === weeklyMock.id)
+    : false;
+  const weeklyScore = weeklyMock
+    ? pastReports.find((r) => r.mockId === weeklyMock.id)?.overallScore
+    : undefined;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8 font-sans">
+      {weeklyMock && !showGenerator ? (
+        <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1 min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">
+              This week’s open mock · {weeklyStatus}
+            </p>
+            <h2 className="font-bold text-slate-900 text-base truncate">{weeklyMock.title}</h2>
+            <p className="text-xs text-slate-600">{formatWindowLabel(weeklyMock.opensAt, weeklyMock.closesAt)}</p>
+            <p className="text-[11px] text-slate-500 font-semibold">
+              One timed attempt only · auto-submits when time ends · ranks on Leaderboard
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 shrink-0 w-full sm:w-auto">
+            {weeklyAttempted ? (
+              <>
+                <div className="text-sm font-bold text-slate-800 text-center sm:text-right">
+                  Your score: {weeklyScore ?? '—'} pts
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('leaderboard')}
+                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  View weekly leaderboard
+                </button>
+              </>
+            ) : weeklyStatus === 'open' ? (
+              <button
+                type="button"
+                onClick={() => onStartMock(weeklyMock)}
+                className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Start weekly mock
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onNavigate('leaderboard')}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl cursor-pointer"
+              >
+                {weeklyStatus === 'upcoming' ? 'See leaderboard (opens soon)' : 'View results'}
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -204,28 +266,26 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:w-auto sm:flex-1 sm:max-w-xl">
                 <label className="block space-y-1.5 min-w-0">
                   <span className="text-xs font-medium text-slate-500">Attempt status</span>
-                  <select
+                  <Select
                     value={attemptFilter}
                     onChange={(e) => setAttemptFilter(e.target.value as CatalogAttemptFilter)}
-                    className="w-full min-h-11 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
                     aria-label="Filter by given or not given"
                   >
                     <option value="all">All sets</option>
                     <option value="given">Given (attempted)</option>
                     <option value="not_given">Not given</option>
-                  </select>
+                  </Select>
                 </label>
                 <label className="block space-y-1.5 min-w-0">
                   <span className="text-xs font-medium text-slate-500">Sort by</span>
-                  <select
+                  <Select
                     value={sortMode}
                     onChange={(e) => setSortMode(e.target.value as CatalogSortMode)}
-                    className="w-full min-h-11 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
                     aria-label="Sort mock sets"
                   >
                     <option value="serial">Serially (A–Z)</option>
                     <option value="new">New (newest first)</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
               <div className="relative w-full sm:max-w-xs sm:ml-auto">
@@ -304,13 +364,19 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       {!showGenerator && filteredMocks.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMocks.map((mock) => {
-            const freeAllowed = canFreePlanAccessMock(userProfile.plan, mock.id);
+            const weeklyOpenNow =
+              Boolean(mock.isWeeklyOpen) &&
+              weeklyWindowStatus(mock.opensAt, mock.closesAt) === 'open';
+            const freeAllowed = canFreePlanAccessMock(userProfile.plan, mock.id, {
+              weeklyOpenBypass: weeklyOpenNow || Boolean(mock.isWeeklyOpen),
+            });
             const isFreeDemo =
               freeAllowed && (mock.id.includes('demo') || mock.coinPrice === 0);
-            const isEntitled = freeAllowed && (isEntitledBase || isFreeDemo);
+            const isEntitled = freeAllowed && (isEntitledBase || isFreeDemo || weeklyOpenNow || Boolean(mock.isWeeklyOpen));
             const mockReports = pastReports.filter((r) => r.mockId === mock.id);
             const attemptCount = mockReports.length;
             const isCompleted = attemptCount > 0;
+            const isWeekly = Boolean(mock.isWeeklyOpen);
             const scope = resolveScope(mock);
 
             const scopeLabel =
@@ -323,7 +389,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             return (
               <div
                 key={mock.id}
-                className="bg-white rounded-2xl border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all p-6 flex flex-col justify-between space-y-5"
+                className={`bg-white rounded-2xl border hover:shadow-lg transition-all p-6 flex flex-col justify-between space-y-5 ${
+                  isWeekly ? 'border-amber-300 hover:border-amber-400' : 'border-slate-200 hover:border-blue-300'
+                }`}
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -334,6 +402,11 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                       <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider font-mono bg-slate-100 text-slate-700 border border-slate-200">
                         Fixed
                       </span>
+                      {isWeekly ? (
+                        <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider font-mono bg-amber-100 text-amber-800 border border-amber-200">
+                          Weekly
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="flex items-center gap-1.5 text-[10px] font-bold">
@@ -396,24 +469,47 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 space-y-2">
-                  {isEntitled ? (
+                  {isWeekly && isCompleted ? (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('leaderboard')}
+                      className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <AppIcon icon={Zap} size="btn" />
+                      <span>View weekly leaderboard ({mockReports[0]?.overallScore ?? '—'} pts)</span>
+                    </button>
+                  ) : isEntitled ? (
                     <>
-                      <button
-                        type="button"
-                        onClick={() => onStudyMock(mock)}
-                        className="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <AppIcon icon={BookOpen} size="btn" />
-                        <span>Study</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onStartMock(mock)}
-                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <AppIcon icon={Zap} size="btn" />
-                        <span>Give Mock test</span>
-                      </button>
+                      {!isWeekly ? (
+                        <button
+                          type="button"
+                          onClick={() => onStudyMock(mock)}
+                          className="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <AppIcon icon={BookOpen} size="btn" />
+                          <span>Study</span>
+                        </button>
+                      ) : null}
+                      {isWeekly && weeklyWindowStatus(mock.opensAt, mock.closesAt) !== 'open' ? (
+                        <button
+                          type="button"
+                          onClick={() => onNavigate('leaderboard')}
+                          className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                        >
+                          {weeklyWindowStatus(mock.opensAt, mock.closesAt) === 'upcoming'
+                            ? 'Opens soon — see leaderboard'
+                            : 'Window closed — see results'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onStartMock(mock)}
+                          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <AppIcon icon={Zap} size="btn" />
+                          <span>{isWeekly ? 'Start weekly mock (1 attempt)' : 'Give Mock test'}</span>
+                        </button>
+                      )}
                     </>
                   ) : (
                     <button
@@ -427,7 +523,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   )}
 
                   <div className="text-center text-[10px] text-slate-400 space-y-0.5">
-                    {!freeAllowed ? (
+                    {isWeekly ? (
+                      <div>Weekly challenge: one timed attempt · ranks on Leaderboard</div>
+                    ) : !freeAllowed ? (
                       <div>{FREE_PLAN_MOCK_ACCESS_ERROR}</div>
                     ) : (
                       <>

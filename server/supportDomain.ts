@@ -32,14 +32,11 @@ export function isSupportIssueCategory(value: unknown): value is SupportIssueCat
   return typeof value === 'string' && SUPPORT_ISSUE_CATEGORIES.has(value as SupportIssueCategory);
 }
 
+import { isStaffRoleName } from './userRoles.ts';
+
 /** Any staff role (or bootstrap admin) may triage support issues. */
 export function canTriageSupportIssues(role: string | undefined, isBootstrap = false): boolean {
-  if (isBootstrap) return true;
-  return (
-    role === 'Admin' ||
-    role === 'Moderator (Questions)' ||
-    role === 'Moderator (Billing)'
-  );
+  return isStaffRoleName(role, isBootstrap);
 }
 
 export function normalizeIssueBody(raw: string): string {

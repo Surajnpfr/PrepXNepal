@@ -25,6 +25,7 @@ assert.equal(assertFreePlanMockAccess('Free', 'mock-set-sett').ok, false);
 assert.equal(assertFreePlanMockAccess('Premium', 'mock-set-sett').ok, true);
 assert.equal(assertFreePlanMockAccess('Unlimited', 'mock-set-sets').ok, true);
 assert.equal(assertFreePlanMockAccess('Free', 'mock-set-sett', { staffBypass: true }).ok, true);
+assert.equal(assertFreePlanMockAccess('Free', 'mock-set-sett', { weeklyOpenBypass: true }).ok, true);
 
 assert.equal(assertFreePlanPracticeAccess('Free').ok, false);
 assert.equal(assertFreePlanPracticeAccess('Premium').ok, true);

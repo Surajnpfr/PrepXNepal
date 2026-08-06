@@ -18,8 +18,10 @@ function assert(cond: unknown, msg: string) {
 }
 
 assert(canModeratePaymentClaims('Admin'), 'admin can moderate');
-assert(canModeratePaymentClaims('Moderator (Billing)'), 'billing can moderate');
-assert(!canModeratePaymentClaims('Moderator (Questions)'), 'q mod cannot');
+assert(canModeratePaymentClaims('Billing'), 'billing can moderate');
+assert(canModeratePaymentClaims('Moderator (Billing)'), 'legacy billing aliases');
+assert(!canModeratePaymentClaims('Content Manager'), 'content manager cannot');
+assert(!canModeratePaymentClaims('Moderator (Questions)'), 'legacy content manager cannot');
 assert(!canModeratePaymentClaims('Student'), 'student cannot');
 
 assert(defaultEntitlementsForPlan('Unlimited').mocksGranted === null, 'unlimited mocks');

@@ -24,7 +24,7 @@ const link = await repo.ensureLink({
   code: 'pxmoda1',
   ownerEmail: 'moda@example.com',
   ownerName: 'Mod A',
-  ownerRole: 'Moderator (Billing)',
+  ownerRole: 'Billing',
 });
 assert(link.code === 'pxmoda1', 'link code');
 

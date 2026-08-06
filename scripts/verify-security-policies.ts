@@ -37,13 +37,13 @@ const student = {
   isBootstrap: false,
 };
 const qMod = {
-  role: 'Moderator (Questions)',
+  role: 'Content Manager',
   email: 'q@example.com',
   userId: 'user_q',
   isBootstrap: false,
 };
 const billing = {
-  role: 'Moderator (Billing)',
+  role: 'Billing',
   email: 'b@example.com',
   userId: 'user_b',
   isBootstrap: false,

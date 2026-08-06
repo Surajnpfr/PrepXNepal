@@ -106,9 +106,14 @@ export interface MocksRepository {
         | 'coinPrice'
         | 'allocation'
         | 'totalQuestions'
+        | 'opensAt'
+        | 'closesAt'
+        | 'isWeeklyOpen'
       >
     >
   ): Promise<MockRecord | null>;
+  /** Clear is_weekly_open on every mock except keepId (when provided). */
+  clearWeeklyOpenFlags(keepId?: string | null): Promise<void>;
   deleteOne(id: string): Promise<{ deleted: boolean; questionIds: string[] }>;
   createImportBatch(input: CreateMockBatchInput): Promise<MockImportBatchRecord>;
   listImportBatches(): Promise<MockImportBatchRecord[]>;
@@ -374,6 +379,8 @@ export interface AttemptReportsRepository {
   ensureSchema(): Promise<void>;
   insert(input: CreateAttemptReportInput): Promise<AttemptReportRecord>;
   listByClerkUserId(clerkUserId: string): Promise<AttemptReportRecord[]>;
+  listByMockId(mockId: string): Promise<AttemptReportRecord[]>;
+  existsByClerkUserIdAndMockId(clerkUserId: string, mockId: string): Promise<boolean>;
   listAll(): Promise<AttemptReportRecord[]>;
   getById(id: string): Promise<AttemptReportRecord | null>;
   close(): Promise<void>;

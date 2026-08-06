@@ -18,8 +18,9 @@ function assert(cond: unknown, msg: string) {
 }
 
 assert(canTriageSupportIssues('Admin'), 'admin');
-assert(canTriageSupportIssues('Moderator (Questions)'), 'q mod');
-assert(canTriageSupportIssues('Moderator (Billing)'), 'billing');
+assert(canTriageSupportIssues('Content Manager'), 'content manager');
+assert(canTriageSupportIssues('Billing'), 'billing');
+assert(canTriageSupportIssues('QAD'), 'qad');
 assert(!canTriageSupportIssues('Student'), 'student cannot');
 assert(normalizeIssueBody('  hello   world  ') === 'hello world', 'normalize spaces');
 assert(normalizeIssueBody('This is a long enough issue description').includes('long enough'), 'normalize keep');

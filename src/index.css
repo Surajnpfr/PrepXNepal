@@ -329,6 +329,42 @@
     box-shadow: 0 0 0 3px var(--px-primary-light);
   }
 
+  /* Native <select> — matches inputs; chevron supplied by Select component */
+  .px-select {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.5rem 2.75rem 0.5rem 0.875rem;
+    border-radius: var(--px-radius-btn);
+    border: 1px solid var(--px-border);
+    background: var(--px-surface);
+    color: var(--px-heading);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    transition:
+      border-color var(--px-duration) var(--px-ease),
+      box-shadow var(--px-duration) var(--px-ease);
+  }
+
+  .px-select:hover {
+    border-color: var(--px-border-strong);
+  }
+
+  .px-select:focus {
+    outline: none;
+    border-color: var(--px-primary);
+    box-shadow: 0 0 0 3px var(--px-primary-light);
+  }
+
+  .px-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   /* ── Chips / badges ── */
   .px-chip {
     display: inline-flex;

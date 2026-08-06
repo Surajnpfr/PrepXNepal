@@ -10,9 +10,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { StudyPlanTask, UserProfile } from '../types';
-import { DAILY_REWARD_COINS, daysUntilExam } from '../lib/studyPlanner';
+import { daysUntilExam } from '../lib/studyPlanner';
 import { TENTATIVE_EXAM_LABEL, isExamDateSet } from '../lib/examSchedule';
-import { AppIcon } from './ui';
+import { AppIcon, Select } from './ui';
 const SUBJECTS = ['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT', 'CEE'] as const;
 
 interface StudyPlannerViewProps {
@@ -77,7 +77,7 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
             {examDateSet && examDays > 0
               ? ` · ${examDays} days to exam`
               : ` · ${TENTATIVE_EXAM_LABEL}`}
-            . Finish all tasks for +{DAILY_REWARD_COINS} coins.
+            . Finish all tasks to stay on track.
           </p>
           <div className="flex flex-wrap gap-2 pt-1 text-xs">
             <span className="inline-flex items-center gap-1 font-medium px-2 py-1 rounded-md bg-slate-800 border border-slate-700">
@@ -88,11 +88,9 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
               <AppIcon icon={Target} size="btn" className="text-emerald-400" />
               {totalMins} min planned
             </span>
-            {rewardClaimedToday && (
-              <span className="font-medium px-2 py-1 rounded-md bg-emerald-900/40 text-emerald-300 border border-emerald-800">
-                +{DAILY_REWARD_COINS} coins claimed
-              </span>
-            )}
+            <span className="font-medium px-2 py-1 rounded-md bg-amber-900/30 text-amber-200 border border-amber-800/60">
+              Study Coins · coming soon
+            </span>
           </div>
         </div>
 
@@ -120,7 +118,7 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
               {completedCount} of {tasks.length} Completed
             </div>
             <div className="text-[11px] text-slate-300 font-mono">
-              {rewardClaimedToday ? 'Reward unlocked' : `+${DAILY_REWARD_COINS} coins when done`}
+              {rewardClaimedToday ? 'Daily plan complete' : 'Finish all tasks for today'}
             </div>
           </div>
         </div>
@@ -146,17 +144,18 @@ export const StudyPlannerView: React.FC<StudyPlannerViewProps> = ({
         onSubmit={handleAddTask}
         className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
       >
-        <select
+        <Select
           value={newTaskSubject}
           onChange={(e) => setNewTaskSubject(e.target.value)}
-          className="w-full sm:w-auto min-h-11 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none"
+          className="w-full sm:w-40"
+          aria-label="Subject for new study target"
         >
           {SUBJECTS.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
-        </select>
+        </Select>
 
         <input
           type="text"

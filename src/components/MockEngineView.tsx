@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Clock, 
   ChevronLeft, 
@@ -30,6 +30,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
   // Page & Question state
   const questionsPerPage = mockTest.questionsPerPage || 20;
   const totalPages = Math.ceil(mockTest.questions.length / questionsPerPage);
+  const submitOnceRef = useRef(false);
 
   const [hasConfirmedInstructions, setHasConfirmedInstructions] = useState<boolean>(() => {
     return !!localStorage.getItem(`prepx_attempt_${mockTest.id}`);
@@ -180,6 +181,8 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
   };
 
   const handleFinalSubmit = () => {
+    if (submitOnceRef.current) return;
+    submitOnceRef.current = true;
     localStorage.removeItem(`prepx_attempt_${mockTest.id}`);
     const finalAttempt: AttemptState = {
       ...attempt,
@@ -243,7 +246,7 @@ export const MockEngineView: React.FC<MockEngineViewProps> = ({
               </div>
               <div className="flex items-start gap-2.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB] mt-1.5 shrink-0" />
-                <span><strong>No Retrospective Changes:</strong> You are allowed exactly one response per question. Once you complete the test, answers are submitted for evaluation immediately.</span>
+                <span><strong>No Retrospective Changes:</strong> You get one response path per question. Once you submit (or time expires), answers are scored immediately. Weekly open mocks allow exactly one attempt.</span>
               </div>
               <div className="flex items-start gap-2.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB] mt-1.5 shrink-0" />

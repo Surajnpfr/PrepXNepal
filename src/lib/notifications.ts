@@ -11,8 +11,21 @@ const STORAGE_KEY = 'prepx_notifications';
 const SEEN_MOCKS_KEY = 'prepx_seen_mock_ids';
 const MAX_NOTIFICATIONS = 50;
 
+/** Study Coins wallet is Coming soon — do not surface coin inbox items. */
+export const COINS_NOTIFICATIONS_ENABLED = false;
+
 function seenMocksKeyFor(userId: string): string {
   return `${SEEN_MOCKS_KEY}:${userId}`;
+}
+
+export function isCoinsNotification(n: Pick<AppNotification, 'kind' | 'hrefTab'>): boolean {
+  return n.kind === 'coins' || n.hrefTab === 'coins';
+}
+
+/** Drop Study Coins notifications while the wallet is paused. */
+export function withoutPausedCoinsNotifications(list: AppNotification[]): AppNotification[] {
+  if (COINS_NOTIFICATIONS_ENABLED) return list;
+  return list.filter((n) => !isCoinsNotification(n));
 }
 
 export function loadNotifications(): AppNotification[] {
@@ -20,14 +33,17 @@ export function loadNotifications(): AppNotification[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as AppNotification[];
-    return Array.isArray(parsed) ? parsed : [];
+    return withoutPausedCoinsNotifications(Array.isArray(parsed) ? parsed : []);
   } catch {
     return [];
   }
 }
 
 export function saveNotifications(list: AppNotification[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, MAX_NOTIFICATIONS)));
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(withoutPausedCoinsNotifications(list).slice(0, MAX_NOTIFICATIONS))
+  );
 }
 
 export function createNotification(input: {
@@ -53,18 +69,21 @@ export function createNotification(input: {
   };
 }
 
-/** Prepends a notification; dedupes by kind+refId when refId is set. */
+/** Prepends a notification; dedupes by kind+refId when refId is set. Skips paused coin kinds. */
 export function prependNotification(
   list: AppNotification[],
   next: AppNotification
 ): AppNotification[] {
+  if (!COINS_NOTIFICATIONS_ENABLED && isCoinsNotification(next)) {
+    return withoutPausedCoinsNotifications(list);
+  }
   if (next.refId) {
     const exists = list.some(
       (n) => n.userId === next.userId && n.kind === next.kind && n.refId === next.refId
     );
-    if (exists) return list;
+    if (exists) return withoutPausedCoinsNotifications(list);
   }
-  return [next, ...list].slice(0, MAX_NOTIFICATIONS);
+  return withoutPausedCoinsNotifications([next, ...list].slice(0, MAX_NOTIFICATIONS));
 }
 
 export function formatRelativeTime(isoOrLocale: string, now = Date.now()): string {
@@ -82,8 +101,9 @@ export function formatRelativeTime(isoOrLocale: string, now = Date.now()): strin
 }
 
 /**
- * When the inbox is empty, seed from recent local activity so Progress/Coins/Payments
+ * When the inbox is empty, seed from recent local activity so Progress/Payments
  * already completed still show as real notifications (not hardcoded demos).
+ * Coin transactions are skipped while Study Coins is Coming soon.
  */
 export function bootstrapFromActivity(input: {
   userId: string;
@@ -108,21 +128,23 @@ export function bootstrapFromActivity(input: {
     );
   });
 
-  input.transactions.slice(0, 5).forEach((t) => {
-    const gained = t.delta > 0;
-    out.push(
-      createNotification({
-        userId: input.userId,
-        kind: 'coins',
-        title: gained ? `+${t.delta} Study Coins` : `${t.delta} Study Coins`,
-        desc: t.reason,
-        hrefTab: 'coins',
-        refId: t.id,
-        createdAt: toIsoGuess(t.createdAt),
-        read: true,
-      })
-    );
-  });
+  if (COINS_NOTIFICATIONS_ENABLED) {
+    input.transactions.slice(0, 5).forEach((t) => {
+      const gained = t.delta > 0;
+      out.push(
+        createNotification({
+          userId: input.userId,
+          kind: 'coins',
+          title: gained ? `+${t.delta} Study Coins` : `${t.delta} Study Coins`,
+          desc: t.reason,
+          hrefTab: 'coins',
+          refId: t.id,
+          createdAt: toIsoGuess(t.createdAt),
+          read: true,
+        })
+      );
+    });
+  }
 
   input.claims.slice(0, 3).forEach((c) => {
     const statusRef =
@@ -153,9 +175,11 @@ export function bootstrapFromActivity(input: {
     );
   });
 
-  return out
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, MAX_NOTIFICATIONS);
+  return withoutPausedCoinsNotifications(
+    out
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .slice(0, MAX_NOTIFICATIONS)
+  );
 }
 
 function toIsoGuess(value: string): string {

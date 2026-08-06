@@ -6,6 +6,7 @@ import {
   PLAN_ENTITLEMENTS_SEED,
   type PlanEntitlements,
 } from './planEntitlementsDomain.ts';
+import { canManageBillingRole } from './userRoles.ts';
 
 export type PaymentClaimStatus = 'pending' | 'approved' | 'rejected';
 export type PaymentMethod = 'Fonepay' | 'eSewa' | 'Khalti' | 'Bank Transfer';
@@ -50,8 +51,7 @@ export function canModeratePaymentClaims(
   role: string | undefined,
   isBootstrap = false
 ): boolean {
-  if (isBootstrap) return true;
-  return role === 'Admin' || role === 'Moderator (Billing)';
+  return canManageBillingRole(role, isBootstrap);
 }
 
 /** Pending first (oldest first = FIFO), then others newest-first. */

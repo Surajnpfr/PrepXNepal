@@ -3,7 +3,6 @@ import {
   Check,
   ArrowRight,
   BookOpen,
-  Coins,
   Menu,
   X,
   FileCheck,
@@ -23,6 +22,7 @@ import {
   useLandingAuthModals,
 } from './ClerkAuthControls';
 import { captureReferralCodeFromLocation } from '../lib/referralCapture';
+import { DailyQuickPractice } from './DailyQuickPractice';
 
 interface BrainLandingProps {
   /** @deprecated Guest dashboard entry is disabled; CTAs open Sign Up. */
@@ -243,6 +243,10 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
         </p>
       </div>
 
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 pb-10">
+        <DailyQuickPractice variant="landing" />
+      </div>
+
       {/* Prep modes */}
       <section id="split-brain-section" className="py-14 lg:py-16 bg-white border-y border-slate-200">
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
@@ -311,7 +315,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
                     'Formula and fact library',
                     'Weak-chapter recommendations',
                     'Daily study targets and checklist',
-                    'Study Coins for consistent practice',
+                    'Study Coins rewards (coming soon)',
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-2">
                       <AppIcon icon={Check} size="btn" className="text-blue-600 shrink-0 mt-0.5" />
@@ -425,46 +429,20 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
         </div>
       </section>
 
-      {/* Study coins */}
+      {/* Study coins — Coming soon */}
       <section id="coins-section" className="py-14 lg:py-16 bg-slate-100">
-        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-          <div className="text-center max-w-2xl mx-auto space-y-2">
-            <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Study Coins</p>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-              Earn coins for consistent study
-            </h2>
-            <p className="text-slate-600 leading-relaxed">
-              Complete mocks, keep study streaks, and finish daily targets to earn coins for revision packs and practice resources.
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl mx-auto text-center space-y-4 bg-white border border-slate-200 rounded-2xl p-8 sm:p-10">
+            <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+              Coming soon
             </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              {
-                coins: '+20',
-                title: 'Finish a 200-question mock',
-                body: 'Complete any timed full-length or chapter mock to earn coins.',
-              },
-              {
-                coins: '+15',
-                title: 'Maintain a 5-day study streak',
-                body: 'Log in daily and complete at least one revision set.',
-              },
-              {
-                coins: '+10',
-                title: 'Complete daily target plan',
-                body: 'Check off all subject targets on your daily planner.',
-              },
-            ].map((item) => (
-              <div key={item.title} className="bg-white p-6 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-center gap-1.5 text-base font-semibold text-slate-900">
-                  <AppIcon icon={Coins} size="btn" className="text-amber-600" />
-                  {item.coins} coins
-                </div>
-                <h3 className="font-semibold text-sm text-slate-900">{item.title}</h3>
-                <p className="text-xs text-slate-600">{item.body}</p>
-              </div>
-            ))}
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+              Study Coins rewards
+            </h2>
+            <p className="text-slate-600 leading-relaxed text-sm sm:text-base">
+              Earn-and-redeem Study Coins for practice packs and extra mocks are launching soon.
+              We&apos;re finishing the rewards redesign before opening the wallet.
+            </p>
           </div>
         </div>
       </section>

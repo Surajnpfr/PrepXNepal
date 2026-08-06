@@ -209,6 +209,11 @@ export interface MockRecord {
   year?: string;
   allocation?: MockAllocation;
   importBatchId?: string;
+  /** Weekly open mock window (ISO). Null when not scheduled. */
+  opensAt?: string | null;
+  closesAt?: string | null;
+  /** When true, this paper is the weekly challenge slot (at most one should be active). */
+  isWeeklyOpen?: boolean;
   questionIds?: string[];
   createdAt: string;
   updatedAt: string;

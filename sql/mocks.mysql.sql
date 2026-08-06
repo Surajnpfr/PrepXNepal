@@ -30,11 +30,15 @@ CREATE TABLE IF NOT EXISTS mock_tests (
   year VARCHAR(32) NULL,
   allocation_json JSON NULL,
   import_batch_id VARCHAR(64) NULL,
+  opens_at DATETIME(3) NULL,
+  closes_at DATETIME(3) NULL,
+  is_weekly_open TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME(3) NOT NULL,
   updated_at DATETIME(3) NOT NULL,
   INDEX idx_mocks_published (is_published),
   INDEX idx_mocks_mode_scope (mode, scope),
-  INDEX idx_mocks_batch (import_batch_id)
+  INDEX idx_mocks_batch (import_batch_id),
+  INDEX idx_mocks_weekly (is_weekly_open)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS mock_questions (

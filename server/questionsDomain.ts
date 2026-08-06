@@ -104,7 +104,7 @@ function nonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function normalizeOptions(raw: unknown): QuestionOptions | null {
+export function normalizeOptions(raw: unknown): QuestionOptions | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   if (!nonEmptyString(o.A) || !nonEmptyString(o.B) || !nonEmptyString(o.C) || !nonEmptyString(o.D)) {

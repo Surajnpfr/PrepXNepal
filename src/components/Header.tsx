@@ -9,6 +9,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { UserRole, UserProfile } from '../types';
+import { isStaffRole } from '../lib/clerkUserMapper';
 import { planDisplayName } from '../lib/planDisplay';
 import { BrandLogo } from './BrandLogo';
 import { AppIcon } from './ui';
@@ -67,12 +68,12 @@ export const Header: React.FC<HeaderProps> = ({
               Student
             </button>
             <button
-              onClick={() => setUserRole('Moderator')}
+              onClick={() => setUserRole('Content Manager')}
               className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
-                userProfile.role === 'Moderator' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'
+                userProfile.role === 'Content Manager' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
-              Moderator
+              Content Manager
             </button>
             <button
               onClick={() => setUserRole('Admin')}
@@ -163,7 +164,7 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {(userProfile.role === 'Admin' || userProfile.role === 'Moderator') && (
+          {(userProfile.role === 'Admin' || isStaffRole(userProfile)) && (
             <button
               onClick={() => handleNavClick('admin')}
               className={`transition-all py-1 cursor-pointer inline-flex items-center gap-1.5 border-b-2 ${
@@ -187,11 +188,10 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => handleNavClick('coins')}
             className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer transition-all shadow-xs"
-            title="Study Coins Wallet"
+            title="Study Coins — Coming soon"
           >
             <AppIcon icon={Coins} size="btn" className="text-amber-400" />
-            <span className="font-mono text-xs sm:text-sm">{userProfile.studyCoinBalance}</span>
-            <span className="text-[10px] text-amber-400/80 font-normal hidden sm:inline">Coins</span>
+            <span className="text-[10px] sm:text-xs font-bold tracking-wide">Soon</span>
           </button>
 
           {/* Quick Mock Trigger */}
@@ -284,15 +284,15 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <div className="inline-flex items-center gap-2">
-                <span>Study Coins Wallet</span>
-                <span className="bg-amber-400 text-slate-950 font-bold font-mono text-[10px] px-2 py-0.5 rounded-full">
-                  {userProfile.studyCoinBalance}
+                <span>Study Coins</span>
+                <span className="bg-amber-400 text-slate-950 font-bold text-[10px] px-2 py-0.5 rounded-full">
+                  Soon
                 </span>
               </div>
               <AppIcon icon={ChevronRight} size="btn" className="opacity-60" />
             </button>
 
-            {(userProfile.role === 'Admin' || userProfile.role === 'Moderator') && (
+            {(userProfile.role === 'Admin' || isStaffRole(userProfile)) && (
               <button
                 onClick={() => handleNavClick('admin')}
                 className={`p-2.5 rounded-xl text-left inline-flex items-center justify-between ${
@@ -326,12 +326,12 @@ export const Header: React.FC<HeaderProps> = ({
                 Student
               </button>
               <button
-                onClick={() => setUserRole('Moderator')}
+                onClick={() => setUserRole('Content Manager')}
                 className={`px-2.5 py-1 rounded text-xs cursor-pointer ${
-                  userProfile.role === 'Moderator' ? 'bg-amber-600 text-white font-bold' : 'bg-slate-800 text-slate-400'
+                  userProfile.role === 'Content Manager' ? 'bg-amber-600 text-white font-bold' : 'bg-slate-800 text-slate-400'
                 }`}
               >
-                Moderator
+                Content Manager
               </button>
               <button
                 onClick={() => setUserRole('Admin')}

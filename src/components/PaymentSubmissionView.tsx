@@ -19,8 +19,9 @@ import { useAuth } from '@clerk/clerk-react';
 import { PaymentClaim, UserProfile, PricingPlan } from '../types';
 import { validatePromoCode, type PromoValidation } from '../lib/promoCodesApi';
 import { planDisplayName } from '../lib/planDisplay';
+import { SUBSCRIPTION_VALIDITY_SHORT } from '../lib/examSchedule';
 import { useFeedback } from './FeedbackProvider';
-import { AppIcon } from './ui';
+import { AppIcon, Select } from './ui';
 import { LandingSignInButton, LandingSignUpButton } from './ClerkAuthControls';
 
 const PAYMENT_QR_SRC = '/payment-qr.svg';
@@ -245,11 +246,15 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     },
     {
       q: "Can I retake a completed mock test?",
-      a: "Yes. You can retake any unlocked mock to practise and track improvement. Only your first attempt awards Study Coins."
+      a: "Yes. You can retake any unlocked mock to practise and track improvement."
     },
     {
       q: "Do purchased mock attempts expire?",
-      a: "No. Standard plan mock attempts stay available until you use them. Premium plan access lasts for your full preparation term."
+      a: "Standard and Premium plan access is valid until CEE 2026 finishes (through Kartik 2026). Unused Standard mock credits stay available within that season window. Free demo access does not expire."
+    },
+    {
+      q: "How long is my subscription valid?",
+      a: "Paid plans (Standard and Premium) are valid for the CEE 2026 preparation season — until CEE 2026 finishes (through Kartik 2026). After that window, paid entitlements end unless you purchase a new season plan."
     },
     {
       q: "What happens if my payment claim is rejected?",
@@ -257,7 +262,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     },
     {
       q: "How are Study Coins earned and spent?",
-      a: "You earn coins by completing mock tests, achieving personal best scores, and resolving weekly challenges. You can redeem coins in the Wallet page to unlock extra mock test sets or high-yield chapter packs."
+      a: "Study Coins rewards and redemptions are coming soon. The wallet will open after we finish redesigning earn and redeem rules."
     }
   ];
 
@@ -420,7 +425,11 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                     </span>
                   ) : null}
                   <span className="text-xs text-slate-400 font-sans ml-1">
-                    {isFree ? '/ forever' : plan.mocksGranted === null ? '/ full term' : `/ ${plan.mocksGranted} mock attempts`}
+                    {isFree
+                      ? '/ forever'
+                      : plan.mocksGranted === null
+                        ? `/ ${SUBSCRIPTION_VALIDITY_SHORT}`
+                        : `/ ${plan.mocksGranted} mocks · ${SUBSCRIPTION_VALIDITY_SHORT}`}
                   </span>
                 </div>
 
@@ -592,10 +601,10 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
               <AppIcon icon={CreditCard} size="card" className="text-blue-600" />
-              <span>Study Coins Habit Loop</span>
+              <span>Study Coins · Coming soon</span>
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-medium">
-              Earn coins with every mock attempt and redeem them for formula packages or targeted study packs.
+              Earn-and-redeem Study Coins for practice packs are launching soon after a rewards redesign.
             </p>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
@@ -687,15 +696,17 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Payment Gateway Used:</label>
-                <select
+                <label htmlFor="payment-gateway" className="block text-xs font-bold text-slate-700">
+                  Payment gateway
+                </label>
+                <Select
+                  id="payment-gateway"
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
                 >
                   <option value="Fonepay">Fonepay (Merchant QR)</option>
                   <option value="Bank Transfer">Direct Bank Transfer</option>
-                </select>
+                </Select>
               </div>
 
               <div className="space-y-2">

@@ -1,4 +1,4 @@
-export type UserRole = 'Student' | 'Moderator (Questions)' | 'Moderator (Billing)' | 'Admin';
+export type UserRole = 'Student' | 'Content Manager' | 'Billing' | 'QAD' | 'Admin';
 export type ExamType = 'Nepal CEE';
 export type PlanTier = 'Free' | 'Premium' | 'Unlimited';
 
@@ -106,6 +106,11 @@ export interface MockTest {
   year?: string;
   allocation?: MockAllocation;
   importBatchId?: string;
+  /** Weekly open mock window (ISO). */
+  opensAt?: string | null;
+  closesAt?: string | null;
+  /** This paper is the weekly open challenge (one timed attempt). */
+  isWeeklyOpen?: boolean;
   /** ISO timestamp from server — used for catalog "New" sort. */
   createdAt?: string;
   questions: Question[];

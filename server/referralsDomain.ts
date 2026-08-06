@@ -46,23 +46,17 @@ export type ReferralTotals = {
   conversionCount: number;
 };
 
-const STAFF_ROLES = new Set([
-  'Admin',
-  'Moderator (Questions)',
-  'Moderator (Billing)',
-]);
+import { canManageBillingRole, isStaffRoleName } from './userRoles.ts';
 
 export function isReferralStaffRole(role: string | undefined, isBootstrap = false): boolean {
-  if (isBootstrap) return true;
-  return Boolean(role && STAFF_ROLES.has(role));
+  return isStaffRoleName(role, isBootstrap);
 }
 
 export function canRecordReferralCommission(
   role: string | undefined,
   isBootstrap = false
 ): boolean {
-  if (isBootstrap) return true;
-  return role === 'Admin' || role === 'Moderator (Billing)';
+  return canManageBillingRole(role, isBootstrap);
 }
 
 export function canSettleReferralCommission(

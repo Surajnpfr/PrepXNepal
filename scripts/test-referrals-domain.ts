@@ -33,18 +33,21 @@ assert(normalizeReferralCode('ab') === null, 'too short rejected');
 assert(normalizeReferralCode('bad code!') === null, 'invalid chars rejected');
 
 assert(isReferralStaffRole('Admin'), 'admin is staff');
-assert(isReferralStaffRole('Moderator (Questions)'), 'q mod is staff');
-assert(isReferralStaffRole('Moderator (Billing)'), 'billing mod is staff');
+assert(isReferralStaffRole('Content Manager'), 'content manager is staff');
+assert(isReferralStaffRole('Billing'), 'billing is staff');
+assert(isReferralStaffRole('QAD'), 'qad is staff');
+assert(isReferralStaffRole('Moderator (Questions)'), 'legacy questions mod aliases');
 assert(!isReferralStaffRole('Student'), 'student not staff');
 assert(isReferralStaffRole('Student', true), 'bootstrap elevates');
 
 assert(canRecordReferralCommission('Admin'), 'admin can record');
-assert(canRecordReferralCommission('Moderator (Billing)'), 'billing can record');
-assert(!canRecordReferralCommission('Moderator (Questions)'), 'q mod cannot record');
+assert(canRecordReferralCommission('Billing'), 'billing can record');
+assert(canRecordReferralCommission('Moderator (Billing)'), 'legacy billing aliases');
+assert(!canRecordReferralCommission('Content Manager'), 'content manager cannot record');
 assert(!canRecordReferralCommission('Student'), 'student cannot record');
 
 assert(canSettleReferralCommission('Admin'), 'admin can settle');
-assert(!canSettleReferralCommission('Moderator (Billing)'), 'billing cannot settle');
+assert(!canSettleReferralCommission('Billing'), 'billing cannot settle');
 assert(canSettleReferralCommission('Student', true), 'bootstrap can settle');
 
 const totals = sumCommissionTotals([

@@ -25,6 +25,13 @@ import {
 } from 'lucide-react';
 import { PaymentClaim, Question, UserProfile, UserRole, PlanTier, PricingPlan, MockTest, MockScope, FormulaSheet } from '../types';
 import { BOOTSTRAP_ADMIN_EMAIL, ROLE_CONFIRM_PHRASE } from '../lib/clerkUserMapper';
+import {
+  canManageBillingRole,
+  canManageDailyQuickRole,
+  canManageQuestionsRole,
+  isContentManagerRole,
+  isQadRole,
+} from '../lib/userRoles';
 import { MOCKS_QUOTA_MAX, MOCKS_QUOTA_MIN } from '../lib/planEntitlements';
 import type { PaymentClaimEditInput } from '../lib/paymentClaimsApi';
 import type { MockImportBatch } from '../lib/mocksApi';
@@ -33,8 +40,9 @@ import type { FormulaImportBatch } from '../lib/formulasApi';
 import { useFeedback } from './FeedbackProvider';
 import { AdminMocksPanel } from './AdminMocksPanel';
 import { AdminFormulasPanel } from './AdminFormulasPanel';
+import { AdminDailyQuickPanel } from './AdminDailyQuickPanel';
 import { SubjectQuestionsPieChart } from './SubjectQuestionsPieChart';
-import { AppIcon } from './ui';
+import { AppIcon, Select } from './ui';
 import { ReferralPanel } from './ReferralPanel';
 import { AdminSupportIssuesPanel } from './AdminSupportIssuesPanel';
 import { AdminPromoCodesPanel } from './AdminPromoCodesPanel';
@@ -197,14 +205,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onRefreshClerkUsers,
 }) => {
   const feedback = useFeedback();
-  const isQuestionsMod = userProfile.role === 'Moderator (Questions)';
-  const isBillingMod = userProfile.role === 'Moderator (Billing)';
+  const isContentManager = isContentManagerRole(userProfile.role);
+  const isQad = isQadRole(userProfile.role);
   const isAdmin =
     userProfile.role === 'Admin' || userProfile.email === BOOTSTRAP_ADMIN_EMAIL;
-  const canEditQuestions =
-    userProfile.role === 'Admin' ||
-    userProfile.role === 'Moderator (Questions)' ||
-    isAdmin;
+  const canEditQuestions = canManageQuestionsRole(
+    userProfile.role,
+    userProfile.email === BOOTSTRAP_ADMIN_EMAIL
+  );
+  const canEditDailyQuick = canManageDailyQuickRole(
+    userProfile.role,
+    userProfile.email === BOOTSTRAP_ADMIN_EMAIL
+  );
+  const canEditBilling = canManageBillingRole(
+    userProfile.role,
+    userProfile.email === BOOTSTRAP_ADMIN_EMAIL
+  );
   /** Import file / batch / Set removal — Admin only (enforced on API too). */
   const canDeleteImportFiles = isAdmin;
 
@@ -214,6 +230,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'import'
     | 'mocks'
     | 'formulas'
+    | 'daily-quick'
     | 'users'
     | 'pricing'
     | 'promos'
@@ -221,7 +238,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'referrals'
     | 'issues'
   >(() => {
-    if (isQuestionsMod) return 'questions';
+    if (isContentManager) return 'questions';
+    if (isQad) return 'daily-quick';
     return 'payments';
   });
   const [inspectingClaim, setInspectingClaim] = useState<PaymentClaim | null>(null);
@@ -923,7 +941,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-rose-100 text-rose-800 text-xs font-bold rounded-full mb-2">
             <AppIcon icon={Sliders} size="btn" className="text-rose-600 shrink-0" />
-            <span className="truncate">Moderator & Admin Operations Control</span>
+            <span className="truncate">Staff &amp; Admin Operations Control</span>
           </div>
           <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">
             PrepX Nepal Admin Panel
@@ -938,7 +956,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* Tabs */}
       <div className="scroll-x-safe flex items-center gap-2 border-b border-slate-200 pb-3 font-bold text-xs -mx-1 px-1">
-        {!isQuestionsMod && (
+        {canEditBilling && (
           <button
             type="button"
             onClick={() => setActiveTab('payments')}
@@ -955,7 +973,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
         )}
 
-        {!isBillingMod && (
+        {canEditQuestions && (
           <button
             type="button"
             onClick={() => setActiveTab('questions')}
@@ -967,7 +985,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
         )}
 
-        {!isBillingMod && (
+        {canEditQuestions && (
           <button
             type="button"
             onClick={() => setActiveTab('import')}
@@ -979,7 +997,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
         )}
 
-        {!isBillingMod && (
+        {canEditQuestions && (
           <button
             type="button"
             onClick={() => setActiveTab('mocks')}
@@ -991,7 +1009,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
         )}
 
-        {!isBillingMod && onImportFormulaSheets && onDeleteFormulaBatch && (
+        {canEditQuestions && onImportFormulaSheets && onDeleteFormulaBatch && (
           <button
             type="button"
             onClick={() => setActiveTab('formulas')}
@@ -1003,7 +1021,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
         )}
 
-        {!isQuestionsMod && (
+        {canEditDailyQuick && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('daily-quick')}
+            className={`px-4 py-2.5 min-h-11 rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'daily-quick' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Daily Quick
+          </button>
+        )}
+
+        {canEditBilling && (
           <button
             type="button"
             onClick={() => setActiveTab('users')}
@@ -1015,7 +1045,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </button>
         )}
 
-        {!isQuestionsMod && (
+        {canEditBilling && (
           <button
             type="button"
             onClick={() => setActiveTab('pricing')}
@@ -1078,7 +1108,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       </div>
 
       {/* TAB 1: Payment Moderation Queue (server-backed, dynamic) */}
-      {activeTab === 'payments' && !isQuestionsMod && (
+      {activeTab === 'payments' && canEditBilling && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
           <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <span className="flex items-center gap-2">
@@ -1223,7 +1253,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {/* TAB 2: Question Management */}
-      {activeTab === 'questions' && !isBillingMod && (
+      {activeTab === 'questions' && canEditQuestions && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
           <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100">
             Questions by import batch
@@ -1407,7 +1437,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {/* TAB 3: Bulk JSON Import */}
-      {activeTab === 'import' && !isBillingMod && (
+      {activeTab === 'import' && canEditQuestions && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
           <h3 className="font-bold text-slate-900 text-base pb-2 border-b border-slate-100">
             Bulk JSON Question Import
@@ -1587,7 +1617,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {activeTab === 'mocks' && !isBillingMod && onImportFixedMocks && onCreateDynamicMock && onUpdateMock && onDeleteMock && onDeleteMockBatch && (
+      {activeTab === 'mocks' && canEditQuestions && onImportFixedMocks && onCreateDynamicMock && onUpdateMock && onDeleteMock && onDeleteMockBatch && (
         <AdminMocksPanel
           mockTests={mockTests}
           mockBatches={mockBatches}
@@ -1608,7 +1638,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {activeTab === 'formulas' &&
-        !isBillingMod &&
+        canEditQuestions &&
         onImportFormulaSheets &&
         onDeleteFormulaBatch && (
           <AdminFormulasPanel
@@ -1621,6 +1651,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             onDeleteBatch={onDeleteFormulaBatch}
           />
         )}
+
+      {activeTab === 'daily-quick' && canEditDailyQuick && (
+        <AdminDailyQuickPanel userProfile={userProfile} />
+      )}
 
       {/* Edit question modal */}
       {editingQuestion && (
@@ -1646,19 +1680,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <label className="space-y-1">
                 <span className="font-bold text-slate-700">Subject</span>
-                <select
+                <Select
                   value={editingQuestion.subject}
                   onChange={(e) =>
                     setEditingQuestion({ ...editingQuestion, subject: e.target.value as Question['subject'] })
                   }
-                  className="w-full p-2 border border-slate-300 rounded-lg"
                 >
                   {['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT', 'Mixed'].map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="space-y-1">
                 <span className="font-bold text-slate-700">Chapter</span>
@@ -1731,7 +1764,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               ))}
               <label className="space-y-1">
                 <span className="font-bold text-slate-700">Correct</span>
-                <select
+                <Select
                   value={editingQuestion.correctOptionKey}
                   onChange={(e) =>
                     setEditingQuestion({
@@ -1739,18 +1772,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       correctOptionKey: e.target.value as Question['correctOptionKey'],
                     })
                   }
-                  className="w-full p-2 border border-slate-300 rounded-lg"
                 >
                   {(['A', 'B', 'C', 'D'] as const).map((k) => (
                     <option key={k} value={k}>
                       {k}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="space-y-1">
                 <span className="font-bold text-slate-700">Status</span>
-                <select
+                <Select
                   value={editingQuestion.status}
                   onChange={(e) =>
                     setEditingQuestion({
@@ -1758,12 +1790,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       status: e.target.value as Question['status'],
                     })
                   }
-                  className="w-full p-2 border border-slate-300 rounded-lg"
                 >
                   <option value="published">published</option>
                   <option value="pending_review">pending_review</option>
                   <option value="flagged">flagged</option>
-                </select>
+                </Select>
               </label>
               <label className="space-y-1 sm:col-span-2">
                 <span className="font-bold text-slate-700">Explanation</span>
@@ -1898,16 +1929,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 {inspectingClaim.status === 'pending' ? (
                 <div className="space-y-2 pt-2 border-t border-slate-200">
                   <label className="block font-bold text-slate-800">In Case of Rejection, Select Reason:</label>
-                  <select
+                  <Select
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
-                    className="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg text-xs"
                   >
                     <option value="Reference ID mismatch">Reference ID mismatch</option>
                     <option value="Screenshot unreadable">Screenshot unreadable</option>
                     <option value="Incorrect amount">Incorrect amount</option>
                     <option value="Custom Note">Custom Note</option>
-                  </select>
+                  </Select>
 
                   {rejectReason === 'Custom Note' && (
                     <input
@@ -2072,7 +2102,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </label>
               <label className="space-y-1">
                 <span className="font-bold text-slate-700">Payment method</span>
-                <select
+                <Select
                   value={editClaimForm.paymentMethod}
                   onChange={(e) =>
                     setEditClaimForm((f) => ({
@@ -2080,14 +2110,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       paymentMethod: e.target.value as PaymentClaim['paymentMethod'],
                     }))
                   }
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
                 >
                   {PAYMENT_METHODS.map((m) => (
                     <option key={m} value={m}>
                       {m}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="space-y-1 sm:col-span-2">
                 <span className="font-bold text-slate-700">Transaction ref</span>
@@ -2439,7 +2468,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* Role change confirmation for Admin / Moderators */}
+      {/* Role change confirmation for privileged staff */}
       {pendingRoleChange && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 border border-slate-200 shadow-2xl space-y-5">
@@ -2481,7 +2510,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="flex items-start gap-2 text-rose-900 font-semibold text-[11px] leading-relaxed">
                 <AppIcon icon={ShieldCheck} size="btn" className="text-rose-600 shrink-0 mt-0.5" />
                 <span>
-                  Admin/Moderator privileges change Clerk access. Type the user&apos;s name and the confirmation phrase to proceed.
+                  Admin/staff privileges change Clerk access. Type the user&apos;s name and the confirmation phrase to proceed.
                 </span>
               </div>
 
@@ -2559,7 +2588,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {/* TAB 4: Users & Wallets Management */}
-      {activeTab === 'users' && !isQuestionsMod && (
+      {activeTab === 'users' && canEditBilling && (
         <div className="space-y-6 font-sans">
           {coinUpdateSuccessMsg && (
             <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center gap-2 shadow-xs animate-in fade-in">
@@ -2677,30 +2706,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         {user.email === BOOTSTRAP_ADMIN_EMAIL ? (
                           <span className="text-[10px] text-slate-400 font-semibold">Permanent Admin</span>
                         ) : (
-                          <select
+                          <Select
                             value={user.role}
                             disabled={userProfile.email !== BOOTSTRAP_ADMIN_EMAIL}
                             onChange={(e) => requestRoleChange(user, e.target.value as UserRole)}
-                            className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <option value="Student">Student</option>
+                            <option value="Content Manager">Content Manager</option>
+                            <option value="Billing">Billing</option>
+                            <option value="QAD">QAD</option>
                             <option value="Admin">Admin</option>
-                            <option value="Moderator (Questions)">Moderator (Questions)</option>
-                            <option value="Moderator (Billing)">Moderator (Billing)</option>
-                          </select>
+                          </Select>
                         )}
                       </td>
 
                       <td className="p-3">
-                        <select
+                        <Select
                           value={user.plan}
                           onChange={(e) => onUpdateUserPlan(user.id, e.target.value as PlanTier)}
-                          className="bg-white border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-blue-700 focus:outline-none focus:border-blue-500"
                         >
                           <option value="Free">Free</option>
                           <option value="Premium">Standard</option>
                           <option value="Unlimited">Premium</option>
-                        </select>
+                        </Select>
                       </td>
 
                       <td className="p-3 font-mono font-bold">
@@ -2745,7 +2773,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {/* TAB 5: Dynamic Pricing & Plans Manager */}
-      {activeTab === 'pricing' && !isQuestionsMod && (
+      {activeTab === 'pricing' && canEditBilling && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
@@ -2962,6 +2990,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 description: 'Custom subscription plan.',
                 features: [
                   mocksGranted === null ? 'Unlimited mocks' : `${mocksGranted} mocks granted`,
+                  '1 Weekly Mock test',
+                  ...(code.toLowerCase().includes('unlimited')
+                    ? ['Dynamic Mock tests']
+                    : []),
                   'Full diagnostic score breakdown',
                   'Formula library and saved questions',
                 ],

@@ -93,6 +93,7 @@ import {
   saveNotifications,
   saveSeenMockIds,
   syncPaymentClaimNotifications,
+  withoutPausedCoinsNotifications,
 } from './lib/notifications';
 import {
   applyCompletionReward,
@@ -685,7 +686,9 @@ export function App() {
   const currentUserReports = pastReports.filter((r) => r.userId === userProfile.id);
   const currentUserTransactions = coinTransactions.filter((t) => t.userId === userProfile.id);
   const currentUserClaims = paymentClaims.filter((c) => c.userId === userProfile.id);
-  const currentUserNotifications = notifications.filter((n) => n.userId === userProfile.id);
+  const currentUserNotifications = withoutPausedCoinsNotifications(
+    notifications.filter((n) => n.userId === userProfile.id)
+  );
   const currentUserPlanTasks = studyPlanTasks.filter(
     (t) => t.userId === userProfile.id && t.dateKey === plannerDateKey
   );
@@ -719,6 +722,11 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('prepx_transactions', JSON.stringify(coinTransactions));
   }, [coinTransactions]);
+
+  useEffect(() => {
+    // Purge any persisted Study Coins inbox items while the wallet is Coming soon.
+    setNotifications((prev) => withoutPausedCoinsNotifications(prev));
+  }, []);
 
   useEffect(() => {
     saveNotifications(notifications);
@@ -844,7 +852,7 @@ export function App() {
             pushNotification({
               userId: userProfile.id,
               kind: 'planner',
-              title: `Daily plan complete · +${rewarded.coinReward} coins`,
+              title: 'Daily plan complete',
               desc: `Streak: ${meta.streakByUser[userProfile.id] || 1} day(s). Keep revising weak chapters.`,
               hrefTab: 'planner',
               refId: `planner-reward-${plannerDateKey}`,
@@ -1226,17 +1234,9 @@ export function App() {
         userId: userProfile.id,
         kind: 'mock_complete',
         title: `Scored ${newReport.overallScore}/${newReport.maxScore} on ${mock.title}`,
-        desc: `Accuracy ${newReport.accuracyPercentage}% · +${scored.coinReward} coins`,
+        desc: `Accuracy ${newReport.accuracyPercentage}%`,
         hrefTab: 'reports',
         refId: newReport.id,
-      });
-      pushNotification({
-        userId: userProfile.id,
-        kind: 'coins',
-        title: `+${scored.coinReward} Study Coins earned`,
-        desc: `Reward for completing ${mock.title}`,
-        hrefTab: 'coins',
-        refId: `ctx-attempt-${attempt.id}`,
       });
 
       setActiveMock(null);
@@ -1280,14 +1280,7 @@ export function App() {
         },
         ...prev,
       ]);
-      pushNotification({
-        userId: userProfile.id,
-        kind: 'coins',
-        title: `Redeemed ${result.coinCost} coins`,
-        desc: result.redeemed,
-        hrefTab: 'coins',
-        refId: `redeem-${itemId}-${Date.now()}`,
-      });
+      // Study Coins Coming soon — no coin inbox notifications.
       if (user?.id) await user.reload();
       feedback.toast({
         variant: 'success',
@@ -1449,14 +1442,7 @@ export function App() {
       ...cTx,
     ]);
 
-    pushNotification({
-      userId,
-      kind: 'coins',
-      title: delta >= 0 ? `+${delta} coins credited` : `${delta} coins adjusted`,
-      desc: `Admin set your balance to ${newAmount}`,
-      hrefTab: 'coins',
-      refId: `adm-coins-${userId}-${newAmount}`,
-    });
+    // Study Coins Coming soon — no coin inbox notifications for admin balance edits.
 
     if (target.clerkId) {
       void persistProfileToClerk(target.clerkId, { studyCoinBalance: newAmount });
@@ -1919,6 +1905,8 @@ export function App() {
                   setActiveTab={setActiveTab}
                   userProfile={userProfile}
                   setMobileOpen={setMobileSidebarOpen}
+                  isSidebarCollapsed={isSidebarCollapsed}
+                  setIsSidebarCollapsed={setIsSidebarCollapsed}
                   clerkSyncAt={lastUsersSyncAt}
                   clerkSyncError={usersSyncError}
                   notifications={currentUserNotifications}
@@ -2066,8 +2054,7 @@ export function App() {
                 {activeTab === 'leaderboard' && (
                   <LeaderboardView
                     userProfile={userProfile}
-                    pastReports={currentUserReports}
-                    usersList={usersList}
+                    getToken={getToken}
                   />
                 )}
 

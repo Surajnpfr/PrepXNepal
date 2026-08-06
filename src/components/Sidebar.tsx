@@ -1,19 +1,19 @@
 import React, { useEffect } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { 
-  LayoutDashboard, 
-  FileCheck, 
-  BarChart3, 
-  BookOpen, 
-  Bookmark, 
-  CalendarCheck, 
-  Trophy, 
-  Sliders, 
+import {
+  LayoutDashboard,
+  FileCheck,
+  BarChart3,
+  BookOpen,
+  Bookmark,
+  CalendarCheck,
+  Trophy,
+  Sliders,
   HelpCircle,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Zap,
-  X
+  X,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { isStaffRole } from '../lib/clerkUserMapper';
@@ -25,6 +25,7 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   userProfile: UserProfile;
+  /** Desktop: fully hidden for full-width dashboard. */
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
   mobileOpen: boolean;
@@ -51,7 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingPaymentCount = 0,
   savedQuestionsCount = 0,
 }) => {
-  const showLabels = !isCollapsed || mobileOpen;
+  const showLabels = true;
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -111,7 +112,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             key={item.id}
             type="button"
             onClick={() => handleNav(item.id)}
-            title={!showLabels ? item.label : undefined}
             data-active={isActive}
             aria-current={isActive ? 'page' : undefined}
             className="px-nav-item"
@@ -123,10 +123,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 isActive ? 'text-[var(--px-primary)]' : 'text-[var(--px-muted)]'
               }`}
             />
-            
-            {showLabels && (
-              <span className="truncate flex-1 text-left">{item.label}</span>
-            )}
+
+            {showLabels && <span className="truncate flex-1 text-left">{item.label}</span>}
 
             {showLabels && item.badge !== undefined && (
               <span
@@ -145,12 +143,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </div>
   );
 
-  const sidebarContent = (
+  const sidebarContent = (opts?: { showDesktopHide?: boolean }) => (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="p-4 border-b border-[var(--px-border)] flex items-center justify-between shrink-0">
-        <div 
+      <div className="p-4 border-b border-[var(--px-border)] flex items-center justify-between gap-2 shrink-0">
+        <div
           onClick={() => handleNav('home')}
-          className="flex items-center gap-3 cursor-pointer group min-w-0"
+          className="flex items-center gap-3 cursor-pointer group min-w-0 flex-1"
           role="link"
           tabIndex={0}
           onKeyDown={(e) => {
@@ -159,23 +157,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <BrandLogo size={36} decorative className="shrink-0" />
 
-          {showLabels && (
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-display font-bold text-base text-[var(--px-heading)] tracking-tight leading-none">
-                  PrepX
-                </span>
-                <span className="px-badge px-badge-primary">Nepal</span>
-              </div>
-              <span className="text-[11px] text-[var(--px-muted)] font-medium mt-0.5">
-                CEE preparation
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-display font-bold text-base text-[var(--px-heading)] tracking-tight leading-none">
+                PrepX
               </span>
+              <span className="px-badge px-badge-primary">Nepal</span>
             </div>
-          )}
+            <span className="text-[11px] text-[var(--px-muted)] font-medium mt-0.5">
+              CEE preparation
+            </span>
+          </div>
         </div>
 
+        {opts?.showDesktopHide ? (
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(true)}
+            className="hidden md:inline-flex touch-target items-center justify-center p-2 text-[var(--px-muted)] hover:text-[var(--px-heading)] hover:bg-[var(--px-surface-muted)] rounded-[12px] transition-colors duration-200 shrink-0 cursor-pointer"
+            title="Hide sidebar"
+            aria-label="Hide sidebar"
+          >
+            <AppIcon icon={PanelLeftClose} size="btn" />
+          </button>
+        ) : null}
+
         {mobileOpen && (
-          <button 
+          <button
             type="button"
             onClick={() => setMobileOpen(false)}
             className="md:hidden touch-target inline-flex items-center justify-center p-2 text-[var(--px-muted)] hover:text-[var(--px-heading)] hover:bg-[var(--px-surface-muted)] rounded-[12px] transition-colors duration-200 shrink-0"
@@ -196,52 +204,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       <div className="p-3 border-t border-[var(--px-border)] space-y-2 shrink-0 bg-[var(--px-surface)]">
-        {showLabels && (
-          <div className="bg-[var(--px-surface-muted)] p-2.5 rounded-[12px] border border-[var(--px-border)] flex items-center gap-2.5 text-xs min-w-0">
-            <div className="w-7 h-7 rounded-[10px] bg-[var(--px-primary-light)] text-[var(--px-primary)] font-display font-bold flex items-center justify-center shrink-0">
-              {userProfile.name ? userProfile.name.charAt(0) : 'U'}
+        <div className="bg-[var(--px-surface-muted)] p-2.5 rounded-[12px] border border-[var(--px-border)] flex items-center gap-2.5 text-xs min-w-0">
+          <div className="w-7 h-7 rounded-[10px] bg-[var(--px-primary-light)] text-[var(--px-primary)] font-display font-bold flex items-center justify-center shrink-0">
+            {userProfile.name ? userProfile.name.charAt(0) : 'U'}
+          </div>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="font-semibold text-[var(--px-heading)] truncate text-[11px]">
+              {userProfile.name}
             </div>
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <div className="font-semibold text-[var(--px-heading)] truncate text-[11px]">
-                {userProfile.name}
-              </div>
-              <div className="text-[10px] text-[var(--px-muted)] truncate">{planDisplayName(userProfile.plan)} plan</div>
+            <div className="text-[10px] text-[var(--px-muted)] truncate">
+              {planDisplayName(userProfile.plan)} plan
             </div>
           </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden md:flex w-full items-center justify-center min-h-11 p-2 text-[var(--px-muted)] hover:text-[var(--px-heading)] hover:bg-[var(--px-surface-muted)] rounded-[12px] transition-colors duration-200 cursor-pointer"
-          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {isCollapsed ? <AppIcon icon={ChevronRight} size="nav" /> : <AppIcon icon={ChevronLeft} size="nav" />}
-        </button>
+        </div>
       </div>
     </div>
   );
 
   return (
     <>
-      <aside 
-        className={`hidden md:flex md:flex-col sticky top-4 h-[calc(100dvh-2rem)] my-4 ml-4 rounded-[16px] bg-[var(--px-surface)] border border-[var(--px-border)] shadow-[var(--px-shadow)] transition-all duration-300 ease-[var(--px-ease)] z-30 shrink-0 overflow-hidden min-h-0 ${
-          isCollapsed ? 'w-20' : 'w-64'
+      {/* Reserves horizontal space so fixed sidebar does not cover content */}
+      <div
+        className={`hidden md:block shrink-0 transition-[width,margin] duration-300 ease-[var(--px-ease)] ${
+          isCollapsed ? 'w-0 ml-0' : 'w-64 ml-4'
+        }`}
+        aria-hidden
+      />
+
+      <aside
+        className={`hidden md:flex md:flex-col fixed z-30 top-4 left-4 h-[calc(100dvh-2rem)] w-64 rounded-[16px] bg-[var(--px-surface)] border border-[var(--px-border)] shadow-[var(--px-shadow)] transition-transform duration-300 ease-[var(--px-ease)] overflow-hidden min-h-0 ${
+          isCollapsed
+            ? '-translate-x-[calc(100%+1.5rem)] pointer-events-none'
+            : 'translate-x-0'
         }`}
         aria-label="Sidebar"
+        aria-hidden={isCollapsed}
       >
-        {sidebarContent}
+        {sidebarContent({ showDesktopHide: true })}
       </aside>
 
+      {isCollapsed ? (
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(false)}
+          className="hidden md:inline-flex fixed z-30 top-5 left-4 items-center justify-center min-h-11 min-w-11 p-2.5 rounded-[12px] bg-[var(--px-surface)] border border-[var(--px-border)] shadow-[var(--px-shadow)] text-[var(--px-muted)] hover:text-[var(--px-heading)] hover:bg-[var(--px-surface-muted)] transition-colors cursor-pointer"
+          title="Show sidebar"
+          aria-label="Show sidebar"
+        >
+          <AppIcon icon={PanelLeftOpen} size="nav" />
+        </button>
+      ) : null}
+
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Navigation">
-          <div 
+        <div
+          className="md:hidden fixed inset-0 z-50 flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
+        >
+          <div
             className="absolute inset-0 bg-[var(--px-heading)]/40 backdrop-blur-[2px]"
             onClick={() => setMobileOpen(false)}
           />
           <aside className="relative w-[min(20rem,88vw)] h-full min-h-0 flex flex-col bg-[var(--px-surface)] border-r border-[var(--px-border)] shadow-[var(--px-shadow-lg)] animate-[slideIn_200ms_ease-out] overflow-hidden">
-            {sidebarContent}
+            {sidebarContent()}
           </aside>
         </div>
       )}

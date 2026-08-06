@@ -1,60 +1,54 @@
-import React, { useMemo, useState } from 'react';
-import { Trophy } from 'lucide-react';
-import { UserProfile, AttemptReport } from '../types';
+import React, { useEffect, useState } from 'react';
+import { Download, Trophy } from 'lucide-react';
+import { UserProfile } from '../types';
 import { isStaffRole } from '../lib/clerkUserMapper';
+import {
+  downloadWeeklyLeaderboardCsv,
+  downloadWeeklyLeaderboardPdfFile,
+  fetchWeeklyLeaderboard,
+  type WeeklyLeaderboardResponse,
+  type WeeklyLeaderboardRow,
+} from '../lib/leaderboardApi';
+import { formatWindowLabel } from '../lib/weeklyMock';
 import { AppIcon } from './ui';
+import { useFeedback } from './FeedbackProvider';
 
 interface LeaderboardViewProps {
   userProfile: UserProfile;
-  pastReports: AttemptReport[];
-  usersList: UserProfile[];
-}
-
-function displayUsername(name: string, email: string): string {
-  const trimmed = (name || '').trim();
-  if (trimmed && trimmed.toLowerCase() !== 'clerk user') return trimmed;
-  if (email) return email.split('@')[0];
-  return 'Aspirant';
+  getToken: () => Promise<string | null>;
 }
 
 export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
   userProfile,
-  pastReports,
-  usersList,
+  getToken,
 }) => {
-  const [activeTab, setActiveTab] = useState<'cee_rank' | 'coins'>('cee_rank');
+  const feedback = useFeedback();
+  const [weekly, setWeekly] = useState<WeeklyLeaderboardResponse | null>(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(true);
+  const [weeklyError, setWeeklyError] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const canExport = isStaffRole(userProfile);
 
-  const latestReport = pastReports[0] || null;
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setWeeklyLoading(true);
+      setWeeklyError(null);
+      try {
+        const data = await fetchWeeklyLeaderboard(getToken);
+        if (!cancelled) setWeekly(data);
+      } catch (err: any) {
+        if (!cancelled) setWeeklyError(err?.message || 'Failed to load weekly leaderboard');
+      } finally {
+        if (!cancelled) setWeeklyLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken]);
 
-  const sortedRankers = useMemo(() => {
-    const roster = usersList.length > 0 ? usersList : userProfile.clerkId ? [userProfile] : [];
-
-    const rows = roster
-      .filter((u) => u.isClerkLive && u.email)
-      // Public roster: exclude internal operator accounts from ranking display.
-      .filter((u) => !isStaffRole(u))
-      .map((u) => {
-        const isUser = u.clerkId === userProfile.clerkId || u.email === userProfile.email;
-        const score =
-          isUser && latestReport
-            ? latestReport.overallScore
-            : typeof u.lastMockScore === 'number'
-              ? u.lastMockScore
-              : 0;
-        return {
-          id: u.id,
-          username: displayUsername(u.name, u.email),
-          score,
-          coins: u.studyCoinBalance,
-          avatar: u.avatarUrl || '',
-          isUser,
-        };
-      });
-
-    return [...rows]
-      .sort((a, b) => (activeTab === 'cee_rank' ? b.score - a.score : b.coins - a.coins))
-      .map((r, idx) => ({ ...r, rank: idx + 1 }));
-  }, [activeTab, latestReport, userProfile, usersList]);
+  const weeklyRows: WeeklyLeaderboardRow[] = weekly?.rows || [];
 
   const Avatar: React.FC<{ name: string; avatar: string; size: 'sm' | 'lg' }> = ({
     name,
@@ -81,55 +75,124 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
     );
   };
 
+  const statusLabel =
+    weekly?.status === 'open'
+      ? 'Open now'
+      : weekly?.status === 'upcoming'
+        ? 'Upcoming'
+        : weekly?.status === 'closed'
+          ? 'Closed — results'
+          : 'No weekly mock';
+
   return (
     <div className="px-page space-y-6 select-none">
-      <div className="border-b border-[var(--px-border)] pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-xl sm:text-2xl font-bold text-[var(--px-heading)] tracking-tight flex flex-wrap items-center gap-2">
-            <AppIcon icon={Trophy} size="lg" className="text-[var(--px-heading)]" />
-            <span>Nepal CEE 2026 Aspirants Leaderboard</span>
-          </h1>
-          <p className="text-xs text-[var(--px-muted)] mt-1">
-            Ranked by latest mock score or Study Coins — username, photo, and score.
+      <div className="border-b border-[var(--px-border)] pb-4">
+        <h1 className="font-display text-xl sm:text-2xl font-bold text-[var(--px-heading)] tracking-tight flex flex-wrap items-center gap-2">
+          <AppIcon icon={Trophy} size="lg" className="text-[var(--px-heading)]" />
+          <span>Nepal CEE Aspirants Leaderboard</span>
+        </h1>
+        <p className="text-xs text-[var(--px-muted)] mt-1">
+          Ranked from this week’s open mock only (one timed attempt per student).
+        </p>
+        {weekly?.mock ? (
+          <p className="text-xs text-[var(--px-heading)] mt-2 font-semibold">
+            {weekly.mock.title} · {statusLabel}
+            <span className="block text-[var(--px-muted)] font-medium mt-0.5">
+              {formatWindowLabel(weekly.mock.opensAt, weekly.mock.closesAt)}
+            </span>
           </p>
-        </div>
-
-        <div className="flex items-center gap-1 bg-[var(--px-surface-muted)] p-1 rounded-[12px] text-xs font-bold border border-[var(--px-border)] w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('cee_rank')}
-            className={`flex-1 sm:flex-none min-h-11 px-3 py-1.5 rounded-[10px] transition-all cursor-pointer ${
-              activeTab === 'cee_rank'
-                ? 'bg-[var(--px-surface)] text-[var(--px-heading)] shadow-[var(--px-shadow)]'
-                : 'text-[var(--px-muted)]'
-            }`}
-          >
-            CEE Rankers
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('coins')}
-            className={`flex-1 sm:flex-none min-h-11 px-3 py-1.5 rounded-[10px] transition-all cursor-pointer ${
-              activeTab === 'coins'
-                ? 'bg-[var(--px-surface)] text-[var(--px-heading)] shadow-[var(--px-shadow)]'
-                : 'text-[var(--px-muted)]'
-            }`}
-          >
-            Coin Champions
-          </button>
-        </div>
+        ) : null}
+        {canExport && weekly?.mock ? (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={exportBusy}
+              onClick={() => {
+                void (async () => {
+                  setExportBusy(true);
+                  try {
+                    await downloadWeeklyLeaderboardCsv(getToken);
+                    feedback.toast({
+                      variant: 'success',
+                      message: 'Downloaded weekly student ranks CSV (includes email).',
+                    });
+                  } catch (err: any) {
+                    await feedback.alert({
+                      variant: 'error',
+                      title: 'CSV export failed',
+                      message: err?.message || 'Could not export CSV',
+                    });
+                  } finally {
+                    setExportBusy(false);
+                  }
+                })();
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--px-primary)] hover:underline cursor-pointer disabled:opacity-50"
+            >
+              <AppIcon icon={Download} size="btn" />
+              {exportBusy ? 'Exporting…' : 'Export CSV'}
+            </button>
+            <button
+              type="button"
+              disabled={exportBusy}
+              onClick={() => {
+                void (async () => {
+                  setExportBusy(true);
+                  try {
+                    const file = await downloadWeeklyLeaderboardPdfFile(getToken);
+                    feedback.toast({
+                      variant: 'success',
+                      message: `Downloaded ${file}`,
+                    });
+                  } catch (err: any) {
+                    await feedback.alert({
+                      variant: 'error',
+                      title: 'PDF export failed',
+                      message: err?.message || 'Could not export PDF',
+                    });
+                  } finally {
+                    setExportBusy(false);
+                  }
+                })();
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--px-primary)] hover:underline cursor-pointer disabled:opacity-50"
+            >
+              <AppIcon icon={Download} size="btn" />
+              {exportBusy ? 'Exporting…' : 'Export PDF'}
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      {sortedRankers.length === 0 ? (
+      {weeklyLoading ? (
         <div className="px-surface p-8 text-center text-sm text-[var(--px-muted)] font-semibold">
-          The leaderboard is empty. Complete a mock to take your place.
+          Loading this week’s leaderboard…
+        </div>
+      ) : weeklyError ? (
+        <div className="px-surface p-8 text-center text-sm text-rose-600 font-semibold">
+          {weeklyError}
+        </div>
+      ) : !weekly?.mock ? (
+        <div className="px-surface p-8 text-center text-sm text-[var(--px-muted)] font-semibold">
+          No weekly open mock is configured yet. Check back when admin publishes this week’s paper.
+        </div>
+      ) : weeklyRows.length === 0 ? (
+        <div className="px-surface p-8 text-center text-sm text-[var(--px-muted)] font-semibold">
+          {weekly.status === 'upcoming'
+            ? 'This week’s mock has not opened yet.'
+            : weekly.status === 'open'
+              ? 'No attempts yet — be the first on the board.'
+              : 'No attempts were recorded for this week’s mock.'}
+          {weekly.youAttempted && weekly.yourScore != null ? (
+            <p className="mt-2 text-[var(--px-heading)]">Your score: {weekly.yourScore} pts</p>
+          ) : null}
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {sortedRankers.slice(0, 3).map((usr, i) => (
+            {weeklyRows.slice(0, 3).map((usr, i) => (
               <div
-                key={usr.id}
+                key={`${usr.rank}-${usr.displayName}`}
                 className={`p-5 rounded-[16px] border relative overflow-hidden shadow-[var(--px-shadow)] ${
                   i === 0
                     ? 'bg-gradient-to-b from-amber-50 to-white border-amber-300'
@@ -138,7 +201,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative shrink-0">
-                    <Avatar name={usr.username} avatar={usr.avatar} size="lg" />
+                    <Avatar name={usr.displayName} avatar={usr.avatarUrl} size="lg" />
                     <span
                       className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full font-mono text-[10px] font-black flex items-center justify-center text-white ${
                         i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-amber-700'
@@ -149,25 +212,14 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="font-bold text-[var(--px-heading)] text-sm truncate">
-                      {usr.username}
-                      {usr.isUser ? ' (You)' : ''}
+                      {usr.displayName}
+                      {usr.isYou ? ' (You)' : ''}
                     </h3>
                     <p className="mt-0.5 font-mono text-sm font-bold tabular-nums text-[var(--px-heading)]">
-                      {activeTab === 'cee_rank' ? (
-                        <>
-                          {usr.score}
-                          <span className="ml-1 text-[10px] font-semibold text-[var(--px-muted)]">
-                            pts
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          {usr.coins}
-                          <span className="ml-1 text-[10px] font-semibold text-[var(--px-muted)]">
-                            coins
-                          </span>
-                        </>
-                      )}
+                      {usr.score}
+                      <span className="ml-1 text-[10px] font-semibold text-[var(--px-muted)]">
+                        pts
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -178,17 +230,14 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
           <div className="px-surface overflow-hidden">
             <div className="px-5 py-3 bg-[var(--px-surface-muted)] border-b border-[var(--px-border)] text-xs font-bold text-[var(--px-muted)] flex items-center justify-between gap-3">
               <span>Rank &amp; aspirant</span>
-              <span className="tabular-nums">
-                {activeTab === 'cee_rank' ? 'Score' : 'Coins'}
-              </span>
+              <span className="tabular-nums">Score</span>
             </div>
-
             <div className="divide-y divide-[var(--px-border)] text-xs">
-              {sortedRankers.map((usr) => (
+              {weeklyRows.map((usr) => (
                 <div
-                  key={usr.id}
+                  key={`${usr.rank}-${usr.displayName}-${usr.completedAt}`}
                   className={`p-4 flex items-center gap-3 transition-colors ${
-                    usr.isUser
+                    usr.isYou
                       ? 'bg-[var(--px-primary-light)]/50 font-bold border-l-4 border-[var(--px-primary)]'
                       : 'hover:bg-[var(--px-surface-muted)]'
                   }`}
@@ -200,20 +249,17 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                   >
                     #{usr.rank}
                   </span>
-
-                  <Avatar name={usr.username} avatar={usr.avatar} size="sm" />
-
+                  <Avatar name={usr.displayName} avatar={usr.avatarUrl} size="sm" />
                   <div className="font-bold text-[var(--px-heading)] flex items-center gap-1.5 min-w-0 flex-1">
-                    <span className="truncate">{usr.username}</span>
-                    {usr.isUser && (
+                    <span className="truncate">{usr.displayName}</span>
+                    {usr.isYou && (
                       <span className="text-[9px] uppercase font-mono font-bold bg-[var(--px-primary)] text-white px-1.5 py-0.5 rounded shrink-0">
                         You
                       </span>
                     )}
                   </div>
-
                   <span className="shrink-0 font-mono text-sm font-black tabular-nums text-[var(--px-heading)]">
-                    {activeTab === 'cee_rank' ? usr.score : usr.coins}
+                    {usr.score}
                   </span>
                 </div>
               ))}

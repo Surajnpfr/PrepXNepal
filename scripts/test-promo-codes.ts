@@ -22,7 +22,7 @@ function assert(cond: unknown, msg: string) {
 
 assert(canManagePromoCodes('Admin'), 'admin can manage');
 assert(canManagePromoCodes(undefined, true), 'bootstrap can manage');
-assert(!canManagePromoCodes('Moderator (Billing)'), 'billing cannot manage');
+assert(!canManagePromoCodes('Billing'), 'billing cannot manage');
 assert(!canManagePromoCodes('Student'), 'student cannot manage');
 
 assert(normalizePromoCode(' cee20 ') === 'CEE20', 'normalize upper');

@@ -17,7 +17,7 @@ function assert(cond: unknown, msg: string) {
 
 assert(canManageNotices('Admin'), 'admin can manage');
 assert(canManageNotices(undefined, true), 'bootstrap can manage');
-assert(!canManageNotices('Moderator (Billing)'), 'billing cannot manage');
+assert(!canManageNotices('Billing'), 'billing cannot manage');
 assert(!canManageNotices('Student'), 'student cannot manage');
 
 const now = new Date('2026-06-15T12:00:00.000Z');

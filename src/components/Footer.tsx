@@ -21,7 +21,7 @@ const EXPLORE_LINKS: FooterLink[] = [
   { label: 'Dashboard', tab: 'home' },
   { label: 'Performance Reports', tab: 'reports' },
   { label: 'Saved Questions', tab: 'saved' },
-  { label: 'Study Coins Wallet', tab: 'coins' },
+  { label: 'Study Coins (Coming soon)', tab: 'coins' },
   { label: 'Subscription Pricing', tab: 'payment' },
 ];
 
@@ -38,7 +38,7 @@ const HELP_LINKS: FooterLink[] = [
 const LEGAL_LINKS: FooterLink[] = [
   { label: 'Terms of Service', tab: 'policies', subTab: 'terms' },
   { label: 'Privacy Policy', tab: 'policies', subTab: 'privacy' },
-  { label: 'Study Coins Policy', tab: 'policies', subTab: 'coins-policy' },
+  { label: 'Study Coins Policy (Coming soon)', tab: 'policies', subTab: 'coins-policy' },
   { label: 'Refund Policy', tab: 'policies', subTab: 'refund' },
 ];
 
@@ -124,7 +124,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
             <p className="text-[var(--px-muted)] text-[13px] leading-relaxed max-w-[36ch]">
               PrepX Nepal is Nepal’s online CEE prep platform for MBBS entrance—MEC-style timed
-              mocks, chapter reports, and Study Coins revision.
+              mocks, chapter reports, and revision tools.
             </p>
 
             <p className="text-[11px] text-[var(--px-muted)] font-medium flex items-start gap-2 max-w-[32ch]">

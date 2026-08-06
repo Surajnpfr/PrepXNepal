@@ -9,7 +9,7 @@ import {
   type PromoCode,
 } from '../lib/promoCodesApi';
 import { useFeedback } from './FeedbackProvider';
-import { AppIcon } from './ui';
+import { AppIcon, Select } from './ui';
 
 const emptyForm = {
   code: '',
@@ -158,7 +158,7 @@ export const AdminPromoCodesPanel: React.FC = () => {
         </label>
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Type
-          <select
+          <Select
             value={form.discountType}
             onChange={(e) =>
               setForm((f) => ({
@@ -166,11 +166,10 @@ export const AdminPromoCodesPanel: React.FC = () => {
                 discountType: e.target.value as 'percent' | 'fixed',
               }))
             }
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
           >
             <option value="percent">Percent off</option>
             <option value="fixed">Fixed NPR off</option>
-          </select>
+          </Select>
         </label>
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Value {form.discountType === 'percent' ? '(%)' : '(NPR)'}

@@ -4,7 +4,7 @@ import type { MockAllocation, MockScope, MockTest, SubjectName } from '../types'
 import type { ChapterQuestionCount, SubjectQuestionCount } from '../lib/questionsApi';
 import type { MockImportBatch } from '../lib/mocksApi';
 import { useFeedback } from './FeedbackProvider';
-import { AppIcon } from './ui';
+import { AppIcon, Select } from './ui';
 const SUBJECTS: SubjectName[] = ['Physics', 'Chemistry', 'Zoology', 'Botany', 'MAT', 'Mixed'];
 
 const MOCK_IMPORT_PLACEHOLDER = `[
@@ -315,6 +315,71 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
     }
   };
 
+  const toDatetimeLocalValue = (iso?: string | null) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const handleConfigureWeekly = async (m: MockTest) => {
+    if (!canEdit) return;
+    if ((m.mode || 'fixed') !== 'fixed' || (m.scope || 'full') !== 'full') {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Not eligible',
+        message: 'Weekly open mock must be a fixed full-syllabus paper.',
+      });
+      return;
+    }
+    const opensRaw = await feedback.prompt({
+      title: 'Weekly open mock — opens at',
+      message: `Paper: ${m.title}\nUse local datetime (YYYY-MM-DDTHH:mm).`,
+      label: 'Opens at',
+      defaultValue: toDatetimeLocalValue(m.opensAt) || toDatetimeLocalValue(new Date().toISOString()),
+      confirmLabel: 'Next',
+      validate: (v) => (Date.parse(v.trim()) ? null : 'Enter a valid datetime'),
+    });
+    if (opensRaw == null) return;
+    const closesDefault = m.closesAt
+      ? toDatetimeLocalValue(m.closesAt)
+      : toDatetimeLocalValue(new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString());
+    const closesRaw = await feedback.prompt({
+      title: 'Weekly open mock — closes at',
+      message: `Opens: ${opensRaw.trim()}`,
+      label: 'Closes at',
+      defaultValue: closesDefault,
+      confirmLabel: 'Save weekly',
+      validate: (v) => {
+        const closesMs = Date.parse(v.trim());
+        const opensMs = Date.parse(opensRaw.trim());
+        if (!closesMs || !opensMs) return 'Enter a valid datetime';
+        if (opensMs >= closesMs) return 'closesAt must be after opensAt';
+        return null;
+      },
+    });
+    if (closesRaw == null) return;
+    try {
+      await onUpdateMock(m.id, {
+        isWeeklyOpen: true,
+        isPublished: true,
+        opensAt: new Date(opensRaw.trim()).toISOString(),
+        closesAt: new Date(closesRaw.trim()).toISOString(),
+      });
+      feedback.toast({
+        variant: 'success',
+        message: `“${m.title}” is this week’s open mock (one timed attempt).`,
+      });
+    } catch (err: any) {
+      await feedback.alert({
+        variant: 'error',
+        title: 'Weekly setup failed',
+        message: err?.message || 'Could not mark weekly mock',
+      });
+    }
+  };
+
   const handleRenameBatchFile = async (b: MockImportBatch) => {
     if (!canEdit || !onUpdateMockBatch) return;
     const current = b.filename || `${b.label}.json`;
@@ -588,7 +653,14 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
                         )}
                       </td>
                     ) : null}
-                    <td className="p-3 font-semibold text-slate-800">{m.title}</td>
+                    <td className="p-3 font-semibold text-slate-800">
+                      {m.title}
+                      {m.isWeeklyOpen ? (
+                        <span className="ml-2 inline-flex items-center rounded bg-amber-100 text-amber-800 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5">
+                          Weekly
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="p-3 font-mono uppercase">{m.mode || 'fixed'}</td>
                     <td className="p-3">
                       {m.scope || 'full'}
@@ -608,6 +680,34 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
                             <AppIcon icon={Pencil} size="btn" />
                             {renameBusyId === m.id ? 'Saving…' : 'Rename'}
                           </button>
+                          {(m.mode || 'fixed') === 'fixed' && (m.scope || 'full') === 'full' ? (
+                            <button
+                              type="button"
+                              className={`text-[11px] font-bold cursor-pointer ${
+                                m.isWeeklyOpen
+                                  ? 'text-amber-700 hover:text-amber-900'
+                                  : 'text-violet-700 hover:text-violet-900'
+                              }`}
+                              onClick={() => void handleConfigureWeekly(m)}
+                            >
+                              {m.isWeeklyOpen ? 'Edit weekly' : 'Set weekly'}
+                            </button>
+                          ) : null}
+                          {m.isWeeklyOpen ? (
+                            <button
+                              type="button"
+                              className="text-[11px] font-bold text-rose-700 hover:text-rose-900 cursor-pointer"
+                              onClick={() =>
+                                void onUpdateMock(m.id, {
+                                  isWeeklyOpen: false,
+                                  opensAt: null,
+                                  closesAt: null,
+                                })
+                              }
+                            >
+                              Clear weekly
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className="text-[11px] font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
@@ -928,15 +1028,14 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
             </label>
             <label className="space-y-1">
               <span className="font-bold text-slate-700">Scope</span>
-              <select
+              <Select
                 value={dynScope}
                 onChange={(e) => setDynScope(e.target.value as MockScope)}
-                className="w-full p-2 border border-slate-300 rounded-lg"
               >
                 <option value="full">Full</option>
                 <option value="subject">Subject-wise</option>
                 <option value="chapter">Chapter-wise</option>
-              </select>
+              </Select>
             </label>
             <label className="space-y-1">
               <span className="font-bold text-slate-700">Duration (sec)</span>
@@ -950,17 +1049,16 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
             {dynScope !== 'full' && (
               <label className="space-y-1">
                 <span className="font-bold text-slate-700">Subject</span>
-                <select
+                <Select
                   value={dynSubject}
                   onChange={(e) => setDynSubject(e.target.value as SubjectName)}
-                  className="w-full p-2 border border-slate-300 rounded-lg"
                 >
                   {SUBJECTS.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             )}
             {dynScope === 'chapter' && (
@@ -1029,17 +1127,17 @@ export const AdminMocksPanel: React.FC<AdminMocksPanelProps> = ({
             <div className="space-y-2 border-t border-slate-100 pt-3">
               <h4 className="text-xs font-bold text-slate-700">Optional chapter rules (count against subject quota)</h4>
               <div className="flex flex-wrap gap-2 items-end text-xs">
-                <select
+                <Select
                   value={chapterRuleSubject}
                   onChange={(e) => setChapterRuleSubject(e.target.value as SubjectName)}
-                  className="p-2 border border-slate-300 rounded-lg"
+                  className="w-auto min-w-[8rem]"
                 >
                   {SUBJECTS.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <input
                   value={chapterRuleName}
                   onChange={(e) => setChapterRuleName(e.target.value)}

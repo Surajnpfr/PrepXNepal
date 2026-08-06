@@ -44,6 +44,10 @@ function normalizeMock(raw: any): MockTest {
     year: raw.year,
     allocation: raw.allocation,
     importBatchId: raw.importBatchId,
+    opensAt: typeof raw.opensAt === 'string' ? raw.opensAt : raw.opensAt === null ? null : undefined,
+    closesAt:
+      typeof raw.closesAt === 'string' ? raw.closesAt : raw.closesAt === null ? null : undefined,
+    isWeeklyOpen: Boolean(raw.isWeeklyOpen),
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : undefined,
     questions: Array.isArray(raw.questions) ? (raw.questions as Question[]) : [],
   };

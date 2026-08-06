@@ -1,4 +1,10 @@
 import type { PlanTier, UserProfile, UserRole } from '../types';
+import {
+  canManageBillingRole,
+  isPrivilegedRoleName,
+  isStaffRoleName,
+  normalizeUserRole,
+} from './userRoles';
 
 export const BOOTSTRAP_ADMIN_EMAIL = 'surajnepal2058@gmail.com';
 
@@ -62,7 +68,9 @@ export function mapClerkUserToProfile(user: ClerkMetaSource): UserProfile {
 
   const isBootstrapAdmin = email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
   const plan = (meta.plan as PlanTier) || (isBootstrapAdmin ? 'Unlimited' : 'Free');
-  const role = (meta.role as UserRole) || (isBootstrapAdmin ? 'Admin' : 'Student');
+  const role: UserRole = isBootstrapAdmin
+    ? 'Admin'
+    : normalizeUserRole(meta.role);
   const mocksRemaining =
     meta.mocksRemaining !== undefined
       ? (meta.mocksRemaining as number | null)
@@ -94,7 +102,7 @@ export function mapClerkUserToProfile(user: ClerkMetaSource): UserProfile {
 export function buildPublicMetadataPatch(profile: Partial<UserProfile>): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
   if (profile.plan !== undefined) patch.plan = profile.plan;
-  if (profile.role !== undefined) patch.role = profile.role;
+  if (profile.role !== undefined) patch.role = normalizeUserRole(profile.role);
   if (profile.mocksRemaining !== undefined) patch.mocksRemaining = profile.mocksRemaining;
   if (profile.studyCoinBalance !== undefined) patch.studyCoinBalance = profile.studyCoinBalance;
   if (profile.targetScore !== undefined) patch.targetScore = profile.targetScore;
@@ -119,32 +127,25 @@ export function buildStudentSelfPatch(profile: Partial<UserProfile>): Record<str
 }
 
 export function isStaffRole(profile: Pick<UserProfile, 'email' | 'role'>): boolean {
-  return (
-    profile.email === BOOTSTRAP_ADMIN_EMAIL ||
-    profile.role === 'Admin' ||
-    profile.role === 'Moderator (Questions)' ||
-    profile.role === 'Moderator (Billing)'
+  return isStaffRoleName(
+    profile.role,
+    profile.email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase()
   );
 }
 
-/** Admin + Billing mods (and bootstrap) — payment claim moderation. */
+/** Admin + Billing (and bootstrap) — payment claim moderation. */
 export function canModeratePaymentClaims(
   profile: Pick<UserProfile, 'email' | 'role'>
 ): boolean {
-  return (
-    profile.email === BOOTSTRAP_ADMIN_EMAIL ||
-    profile.role === 'Admin' ||
-    profile.role === 'Moderator (Billing)'
+  return canManageBillingRole(
+    profile.role,
+    profile.email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase()
   );
 }
 
 /** Elevated roles that grant Admin Desk / privileged APIs. */
 export function isPrivilegedRole(role: UserRole): boolean {
-  return (
-    role === 'Admin' ||
-    role === 'Moderator (Questions)' ||
-    role === 'Moderator (Billing)'
-  );
+  return isPrivilegedRoleName(role);
 }
 
 /**

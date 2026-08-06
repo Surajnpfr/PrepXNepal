@@ -691,6 +691,9 @@ function mapRow2(row, questionIds) {
     year: row.year || void 0,
     allocation,
     importBatchId: row.import_batch_id || void 0,
+    opensAt: row.opens_at == null ? null : asIso2(row.opens_at),
+    closesAt: row.closes_at == null ? null : asIso2(row.closes_at),
+    isWeeklyOpen: Boolean(row.is_weekly_open),
     questionIds,
     createdAt: asIso2(row.created_at),
     updatedAt: asIso2(row.updated_at)
@@ -762,6 +765,22 @@ function createMysqlMocksRepo(pool) {
           INDEX idx_mocks_batch (import_batch_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `);
+      for (const ddl of [
+        "ALTER TABLE mock_tests ADD COLUMN opens_at DATETIME(3) NULL",
+        "ALTER TABLE mock_tests ADD COLUMN closes_at DATETIME(3) NULL",
+        "ALTER TABLE mock_tests ADD COLUMN is_weekly_open TINYINT(1) NOT NULL DEFAULT 0"
+      ]) {
+        try {
+          await pool.query(ddl);
+        } catch (err) {
+          if (err?.code !== "ER_DUP_FIELDNAME" && err?.errno !== 1060) throw err;
+        }
+      }
+      try {
+        await pool.query("CREATE INDEX idx_mocks_weekly ON mock_tests (is_weekly_open)");
+      } catch (err) {
+        if (err?.code !== "ER_DUP_KEYNAME" && err?.errno !== 1061) throw err;
+      }
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mock_questions (
           mock_id VARCHAR(64) NOT NULL,
@@ -807,8 +826,9 @@ function createMysqlMocksRepo(pool) {
           `INSERT INTO mock_tests (
             id, title, exam_type, mode, scope, subject, chapter_name, duration_sec,
             total_questions, questions_per_page, correct_marks, wrong_marks, unanswered_marks,
-            is_published, coin_price, year, allocation_json, import_batch_id, created_at, updated_at
-          ) VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+            is_published, coin_price, year, allocation_json, import_batch_id,
+            opens_at, closes_at, is_weekly_open, created_at, updated_at
+          ) VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
           [
             mock.id,
             mock.title,
@@ -826,6 +846,9 @@ function createMysqlMocksRepo(pool) {
             mock.coinPrice ?? null,
             mock.year ?? null,
             mock.importBatchId ?? null,
+            mock.opensAt ? new Date(mock.opensAt) : null,
+            mock.closesAt ? new Date(mock.closesAt) : null,
+            mock.isWeeklyOpen ? 1 : 0,
             now,
             now
           ]
@@ -851,8 +874,9 @@ function createMysqlMocksRepo(pool) {
         `INSERT INTO mock_tests (
           id, title, exam_type, mode, scope, subject, chapter_name, duration_sec,
           total_questions, questions_per_page, correct_marks, wrong_marks, unanswered_marks,
-          is_published, coin_price, year, allocation_json, import_batch_id, created_at, updated_at
-        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+          is_published, coin_price, year, allocation_json, import_batch_id,
+          opens_at, closes_at, is_weekly_open, created_at, updated_at
+        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
         [
           mock.id,
           mock.title,
@@ -870,6 +894,9 @@ function createMysqlMocksRepo(pool) {
           mock.coinPrice ?? null,
           mock.year ?? null,
           JSON.stringify(mock.allocation || { subjects: {}, chapters: [] }),
+          mock.opensAt ? new Date(mock.opensAt) : null,
+          mock.closesAt ? new Date(mock.closesAt) : null,
+          mock.isWeeklyOpen ? 1 : 0,
           now,
           now
         ]
@@ -889,14 +916,18 @@ function createMysqlMocksRepo(pool) {
         unansweredMarks: patch.unansweredMarks ?? existing.unansweredMarks,
         coinPrice: patch.coinPrice !== void 0 ? patch.coinPrice : existing.coinPrice,
         allocation: patch.allocation ?? existing.allocation,
-        totalQuestions: patch.totalQuestions ?? existing.totalQuestions
+        totalQuestions: patch.totalQuestions ?? existing.totalQuestions,
+        opensAt: patch.opensAt !== void 0 ? patch.opensAt : existing.opensAt,
+        closesAt: patch.closesAt !== void 0 ? patch.closesAt : existing.closesAt,
+        isWeeklyOpen: patch.isWeeklyOpen !== void 0 ? patch.isWeeklyOpen : Boolean(existing.isWeeklyOpen)
       };
       const now = /* @__PURE__ */ new Date();
       await pool.query(
         `UPDATE mock_tests SET
           title = ?, is_published = ?, duration_sec = ?, questions_per_page = ?,
           correct_marks = ?, wrong_marks = ?, unanswered_marks = ?, coin_price = ?,
-          allocation_json = ?, total_questions = ?, updated_at = ?
+          allocation_json = ?, total_questions = ?,
+          opens_at = ?, closes_at = ?, is_weekly_open = ?, updated_at = ?
          WHERE id = ?`,
         [
           next.title,
@@ -909,11 +940,21 @@ function createMysqlMocksRepo(pool) {
           next.coinPrice ?? null,
           next.allocation ? JSON.stringify(next.allocation) : null,
           next.totalQuestions,
+          next.opensAt ? new Date(next.opensAt) : null,
+          next.closesAt ? new Date(next.closesAt) : null,
+          next.isWeeklyOpen ? 1 : 0,
           now,
           id
         ]
       );
       return this.getById(id);
+    },
+    async clearWeeklyOpenFlags(keepId) {
+      if (keepId) {
+        await pool.query("UPDATE mock_tests SET is_weekly_open = 0 WHERE id <> ?", [keepId]);
+      } else {
+        await pool.query("UPDATE mock_tests SET is_weekly_open = 0");
+      }
     },
     async deleteOne(id) {
       const questionIds = await loadQuestionIds(id);
@@ -2048,6 +2089,24 @@ function createMysqlAttemptReportsRepo(pool) {
       );
       return rows.map(mapRow6);
     },
+    async listByMockId(mockId) {
+      const [rows] = await pool.query(
+        `SELECT * FROM attempt_reports
+         WHERE mock_id = ?
+         ORDER BY overall_score DESC, completed_at ASC`,
+        [mockId]
+      );
+      return rows.map(mapRow6);
+    },
+    async existsByClerkUserIdAndMockId(clerkUserId, mockId) {
+      const [rows] = await pool.query(
+        `SELECT id FROM attempt_reports
+         WHERE clerk_user_id = ? AND mock_id = ?
+         LIMIT 1`,
+        [clerkUserId, mockId]
+      );
+      return rows.length > 0;
+    },
     async listAll() {
       const [rows] = await pool.query(
         `SELECT * FROM attempt_reports ORDER BY completed_at DESC`
@@ -2590,6 +2649,9 @@ function mapRow9(row, questionIds) {
     year: row.year || void 0,
     allocation,
     importBatchId: row.import_batch_id || void 0,
+    opensAt: row.opens_at || null,
+    closesAt: row.closes_at || null,
+    isWeeklyOpen: Boolean(row.is_weekly_open),
     questionIds,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -2665,6 +2727,18 @@ function createSqliteMocksRepo(dbFilePath) {
         CREATE INDEX IF NOT EXISTS idx_mocks_mode_scope ON mock_tests(mode, scope);
         CREATE INDEX IF NOT EXISTS idx_mock_questions_mock ON mock_questions(mock_id);
       `);
+      const cols = db.prepare("PRAGMA table_info(mock_tests)").all();
+      const names = new Set(cols.map((c) => c.name));
+      if (!names.has("opens_at")) {
+        db.exec("ALTER TABLE mock_tests ADD COLUMN opens_at TEXT NULL");
+      }
+      if (!names.has("closes_at")) {
+        db.exec("ALTER TABLE mock_tests ADD COLUMN closes_at TEXT NULL");
+      }
+      if (!names.has("is_weekly_open")) {
+        db.exec("ALTER TABLE mock_tests ADD COLUMN is_weekly_open INTEGER NOT NULL DEFAULT 0");
+      }
+      db.exec("CREATE INDEX IF NOT EXISTS idx_mocks_weekly ON mock_tests(is_weekly_open)");
     },
     async list(opts) {
       const clauses = [];
@@ -2699,8 +2773,9 @@ function createSqliteMocksRepo(dbFilePath) {
           `INSERT INTO mock_tests (
             id, title, exam_type, mode, scope, subject, chapter_name, duration_sec,
             total_questions, questions_per_page, correct_marks, wrong_marks, unanswered_marks,
-            is_published, coin_price, year, allocation_json, import_batch_id, created_at, updated_at
-          ) VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`
+            is_published, coin_price, year, allocation_json, import_batch_id,
+            opens_at, closes_at, is_weekly_open, created_at, updated_at
+          ) VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`
         ).run(
           mock.id,
           mock.title,
@@ -2718,6 +2793,9 @@ function createSqliteMocksRepo(dbFilePath) {
           mock.coinPrice ?? null,
           mock.year ?? null,
           mock.importBatchId ?? null,
+          mock.opensAt ?? null,
+          mock.closesAt ?? null,
+          mock.isWeeklyOpen ? 1 : 0,
           now,
           now
         );
@@ -2738,8 +2816,9 @@ function createSqliteMocksRepo(dbFilePath) {
         `INSERT INTO mock_tests (
           id, title, exam_type, mode, scope, subject, chapter_name, duration_sec,
           total_questions, questions_per_page, correct_marks, wrong_marks, unanswered_marks,
-          is_published, coin_price, year, allocation_json, import_batch_id, created_at, updated_at
-        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`
+          is_published, coin_price, year, allocation_json, import_batch_id,
+          opens_at, closes_at, is_weekly_open, created_at, updated_at
+        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`
       ).run(
         mock.id,
         mock.title,
@@ -2757,6 +2836,9 @@ function createSqliteMocksRepo(dbFilePath) {
         mock.coinPrice ?? null,
         mock.year ?? null,
         JSON.stringify(mock.allocation || { subjects: {}, chapters: [] }),
+        mock.opensAt ?? null,
+        mock.closesAt ?? null,
+        mock.isWeeklyOpen ? 1 : 0,
         now,
         now
       );
@@ -2775,14 +2857,18 @@ function createSqliteMocksRepo(dbFilePath) {
         unansweredMarks: patch.unansweredMarks ?? existing.unansweredMarks,
         coinPrice: patch.coinPrice !== void 0 ? patch.coinPrice : existing.coinPrice,
         allocation: patch.allocation ?? existing.allocation,
-        totalQuestions: patch.totalQuestions ?? existing.totalQuestions
+        totalQuestions: patch.totalQuestions ?? existing.totalQuestions,
+        opensAt: patch.opensAt !== void 0 ? patch.opensAt : existing.opensAt,
+        closesAt: patch.closesAt !== void 0 ? patch.closesAt : existing.closesAt,
+        isWeeklyOpen: patch.isWeeklyOpen !== void 0 ? patch.isWeeklyOpen : Boolean(existing.isWeeklyOpen)
       };
       const now = (/* @__PURE__ */ new Date()).toISOString();
       db.prepare(
         `UPDATE mock_tests SET
           title = ?, is_published = ?, duration_sec = ?, questions_per_page = ?,
           correct_marks = ?, wrong_marks = ?, unanswered_marks = ?, coin_price = ?,
-          allocation_json = ?, total_questions = ?, updated_at = ?
+          allocation_json = ?, total_questions = ?,
+          opens_at = ?, closes_at = ?, is_weekly_open = ?, updated_at = ?
          WHERE id = ?`
       ).run(
         next.title,
@@ -2795,10 +2881,20 @@ function createSqliteMocksRepo(dbFilePath) {
         next.coinPrice ?? null,
         next.allocation ? JSON.stringify(next.allocation) : null,
         next.totalQuestions,
+        next.opensAt ?? null,
+        next.closesAt ?? null,
+        next.isWeeklyOpen ? 1 : 0,
         now,
         id
       );
       return this.getById(id);
+    },
+    async clearWeeklyOpenFlags(keepId) {
+      if (keepId) {
+        db.prepare("UPDATE mock_tests SET is_weekly_open = 0 WHERE id <> ?").run(keepId);
+      } else {
+        db.prepare("UPDATE mock_tests SET is_weekly_open = 0").run();
+      }
     },
     async deleteOne(id) {
       const questionIds = loadQuestionIds(id);
@@ -3840,6 +3936,22 @@ function createSqliteAttemptReportsRepo(dbFilePath) {
       ).all(clerkUserId);
       return rows.map(mapRow13);
     },
+    async listByMockId(mockId) {
+      const rows = db.prepare(
+        `SELECT * FROM attempt_reports
+           WHERE mock_id = ?
+           ORDER BY overall_score DESC, completed_at ASC`
+      ).all(mockId);
+      return rows.map(mapRow13);
+    },
+    async existsByClerkUserIdAndMockId(clerkUserId, mockId) {
+      const row = db.prepare(
+        `SELECT id FROM attempt_reports
+           WHERE clerk_user_id = ? AND mock_id = ?
+           LIMIT 1`
+      ).get(clerkUserId, mockId);
+      return Boolean(row);
+    },
     async listAll() {
       const rows = db.prepare(`SELECT * FROM attempt_reports ORDER BY completed_at DESC`).all();
       return rows.map(mapRow13);
@@ -4785,6 +4897,19 @@ function createAttemptSession(input) {
   }
   return id;
 }
+function findActiveAttemptSession(userId, mockId) {
+  const now = Date.now();
+  for (const [sessionId, session] of attemptSessions) {
+    if (session.expiresAt < now) {
+      attemptSessions.delete(sessionId);
+      continue;
+    }
+    if (session.userId === userId && session.mockId === mockId) {
+      return { sessionId, session };
+    }
+  }
+  return null;
+}
 function consumeAttemptSession(sessionId, userId, questionIds) {
   const session = attemptSessions.get(sessionId);
   if (!session) {
@@ -4869,6 +4994,58 @@ async function updatePublicMetadataAtomic(opts) {
   });
 }
 
+// server/userRoles.ts
+var USER_ROLES = [
+  "Student",
+  "Content Manager",
+  "Billing",
+  "QAD",
+  "Admin"
+];
+var LEGACY_ROLE_ALIASES = {
+  "Moderator (Questions)": "Content Manager",
+  "Moderator (Billing)": "Billing",
+  Moderator: "Content Manager"
+};
+function isUserRoleName(value) {
+  return typeof value === "string" && USER_ROLES.includes(value);
+}
+function normalizeUserRole(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return "Student";
+  const trimmed = raw.trim();
+  if (isUserRoleName(trimmed)) return trimmed;
+  const aliased = LEGACY_ROLE_ALIASES[trimmed];
+  if (aliased) return aliased;
+  return "Student";
+}
+function isAdminRole(role) {
+  return normalizeUserRole(role) === "Admin";
+}
+function isStaffRoleName(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  const r = normalizeUserRole(role);
+  return r === "Admin" || r === "Content Manager" || r === "Billing" || r === "QAD";
+}
+function canManageQuestionsRole(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  const r = normalizeUserRole(role);
+  return r === "Admin" || r === "Content Manager";
+}
+function canManageBillingRole(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  const r = normalizeUserRole(role);
+  return r === "Admin" || r === "Billing";
+}
+function canManageDailyQuickRole(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  const r = normalizeUserRole(role);
+  return r === "Admin" || r === "QAD";
+}
+function canApproveDailyQuickRole(role, isBootstrap = false) {
+  if (isBootstrap) return true;
+  return isAdminRole(role);
+}
+
 // server/userPatchPolicy.ts
 var STUDENT_SELF_PATCH_KEYS = [
   "targetScore",
@@ -4884,10 +5061,10 @@ var ENTITLEMENT_PATCH_KEYS = [
 ];
 var SCORE_PATCH_KEYS = ["lastMockScore", "lastPercentile"];
 function canManageBilling(actor) {
-  return actor.isBootstrap || actor.role === "Admin" || actor.role === "Moderator (Billing)";
+  return canManageBillingRole(actor.role, actor.isBootstrap);
 }
 function isStaffActor(actor) {
-  return actor.isBootstrap || actor.role === "Admin" || actor.role === "Moderator (Questions)" || actor.role === "Moderator (Billing)";
+  return isStaffRoleName(actor.role, actor.isBootstrap);
 }
 function allowedPatchKeysFor(actor, targetUserId) {
   const isSelf = actor.userId === targetUserId;
@@ -4956,18 +5133,11 @@ function publicErrorMessage(err, fallback) {
 
 // server/referralsDomain.ts
 var REFERRAL_COMMISSION_RATE = 0.3;
-var STAFF_ROLES = /* @__PURE__ */ new Set([
-  "Admin",
-  "Moderator (Questions)",
-  "Moderator (Billing)"
-]);
 function isReferralStaffRole(role, isBootstrap = false) {
-  if (isBootstrap) return true;
-  return Boolean(role && STAFF_ROLES.has(role));
+  return isStaffRoleName(role, isBootstrap);
 }
 function canRecordReferralCommission(role, isBootstrap = false) {
-  if (isBootstrap) return true;
-  return role === "Admin" || role === "Moderator (Billing)";
+  return canManageBillingRole(role, isBootstrap);
 }
 function canSettleReferralCommission(role, isBootstrap = false) {
   if (isBootstrap) return true;
@@ -5064,8 +5234,7 @@ function isPaymentMethod(value) {
   return typeof value === "string" && PAYMENT_METHODS.has(value);
 }
 function canModeratePaymentClaims(role, isBootstrap = false) {
-  if (isBootstrap) return true;
-  return role === "Admin" || role === "Moderator (Billing)";
+  return canManageBillingRole(role, isBootstrap);
 }
 function sortClaimsForQueue(claims) {
   const pending = claims.filter((c) => c.status === "pending").sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
@@ -5098,8 +5267,7 @@ function isSupportIssueCategory(value) {
   return typeof value === "string" && SUPPORT_ISSUE_CATEGORIES.has(value);
 }
 function canTriageSupportIssues(role, isBootstrap = false) {
-  if (isBootstrap) return true;
-  return role === "Admin" || role === "Moderator (Questions)" || role === "Moderator (Billing)";
+  return isStaffRoleName(role, isBootstrap);
 }
 function normalizeIssueBody(raw) {
   return raw.trim().replace(/\s+/g, " ").slice(0, 4e3);
@@ -5506,6 +5674,7 @@ function isFreePlanAllowedMock(mockId) {
 }
 function assertFreePlanMockAccess(plan, mockId, opts) {
   if (opts?.staffBypass) return { ok: true };
+  if (opts?.weeklyOpenBypass) return { ok: true };
   if (!isFreePlan(plan)) return { ok: true };
   if (isFreePlanAllowedMock(mockId)) return { ok: true };
   return { ok: false, error: FREE_PLAN_MOCK_ACCESS_ERROR, status: 403 };
@@ -5514,6 +5683,264 @@ function assertFreePlanPracticeAccess(plan, opts) {
   if (opts?.staffBypass) return { ok: true };
   if (!isFreePlan(plan)) return { ok: true };
   return { ok: false, error: FREE_PLAN_MOCK_ACCESS_ERROR, status: 403 };
+}
+
+// server/dailyQuickDomain.ts
+var DAILY_QUICK_TAG = "daily-quick";
+var DAILY_QUICK_CHAPTER = "Daily Quick";
+var DAILY_QUICK_SOURCE = "daily-quick";
+var DAILY_QUICK_SUBJECTS = [
+  "Physics",
+  "Chemistry",
+  "Botany",
+  "Zoology"
+];
+function isDailyQuickSubject(value) {
+  return typeof value === "string" && DAILY_QUICK_SUBJECTS.includes(value);
+}
+function isDailyQuickQuestion(q) {
+  if (q.tags?.includes(DAILY_QUICK_TAG)) return true;
+  if (q.chapter === DAILY_QUICK_CHAPTER) return true;
+  if (q.source === DAILY_QUICK_SOURCE) return true;
+  return false;
+}
+function canUploadDailyQuick(role, isBootstrap = false) {
+  return canManageDailyQuickRole(role, isBootstrap);
+}
+function canApproveDailyQuick(role, isBootstrap = false) {
+  return canApproveDailyQuickRole(role, isBootstrap);
+}
+function canEditOrDeleteDailyQuick(role, isBootstrap = false) {
+  return canManageDailyQuickRole(role, isBootstrap);
+}
+function pickActiveDailyQuickSet(questions) {
+  const bySubject = /* @__PURE__ */ new Map();
+  const published = questions.filter((q) => isDailyQuickQuestion(q) && q.status === "published").filter((q) => isDailyQuickSubject(q.subject)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  for (const q of published) {
+    const subject = q.subject;
+    if (!bySubject.has(subject)) bySubject.set(subject, q);
+  }
+  return DAILY_QUICK_SUBJECTS.map((s) => bySubject.get(s)).filter(
+    (q) => Boolean(q)
+  );
+}
+function listDailyQuickQueue(questions) {
+  return questions.filter(isDailyQuickQuestion).filter((q) => isDailyQuickSubject(q.subject)).sort((a, b) => {
+    if (a.status !== b.status) {
+      if (a.status === "pending_review") return -1;
+      if (b.status === "pending_review") return 1;
+    }
+    return b.updatedAt.localeCompare(a.updatedAt);
+  });
+}
+function validateDailyQuickCreate(raw) {
+  if (!isDailyQuickSubject(raw.subject)) {
+    return {
+      ok: false,
+      error: `Subject must be one of ${DAILY_QUICK_SUBJECTS.join(", ")}`
+    };
+  }
+  const stemRaw = typeof raw.question === "string" && raw.question.trim() ? raw.question.trim() : typeof raw.stem === "string" && raw.stem.trim() ? raw.stem.trim() : "";
+  if (!stemRaw) return { ok: false, error: "Question text is required" };
+  if (stemRaw.length > 4e3) return { ok: false, error: "Question text is too long" };
+  const options = normalizeOptions(raw.options);
+  if (!options) return { ok: false, error: "Options A\u2013D are required" };
+  const correctRaw = raw.correctAnswer ?? raw.correctOptionKey;
+  if (!isOptionKey(correctRaw)) {
+    return { ok: false, error: "Correct answer must be A, B, C, or D" };
+  }
+  const explanation = typeof raw.explanation === "string" && raw.explanation.trim() ? raw.explanation.trim() : "";
+  if (!explanation) return { ok: false, error: "Explanation is required" };
+  if (explanation.length > 8e3) return { ok: false, error: "Explanation is too long" };
+  return {
+    ok: true,
+    subject: raw.subject,
+    stem: stemRaw,
+    options,
+    correctOptionKey: correctRaw,
+    explanation
+  };
+}
+function buildDailyQuickQuestionDraft(input, id) {
+  return {
+    id,
+    subject: input.subject,
+    chapter: DAILY_QUICK_CHAPTER,
+    stem: input.stem,
+    options: input.options,
+    correctOptionKey: input.correctOptionKey,
+    explanation: input.explanation,
+    tags: [DAILY_QUICK_TAG],
+    language: "en",
+    status: "pending_review",
+    source: DAILY_QUICK_SOURCE,
+    flagCount: 0
+  };
+}
+function applyDailyQuickApproval(question) {
+  if (!isDailyQuickQuestion(question)) {
+    return { error: "Not a Daily Quick question" };
+  }
+  if (question.status === "published") {
+    return { error: "Already published" };
+  }
+  return { ...question, status: "published" };
+}
+function mergeDailyQuickUpdate(existing, validated) {
+  const status = existing.status === "published" ? "published" : "pending_review";
+  return {
+    id: existing.id,
+    subject: validated.subject,
+    chapter: DAILY_QUICK_CHAPTER,
+    stem: validated.stem,
+    options: validated.options,
+    correctOptionKey: validated.correctOptionKey,
+    explanation: validated.explanation,
+    tags: existing.tags.includes(DAILY_QUICK_TAG) ? existing.tags : [...existing.tags, DAILY_QUICK_TAG],
+    language: existing.language || "en",
+    status,
+    source: DAILY_QUICK_SOURCE,
+    flagCount: existing.flagCount,
+    batchId: existing.batchId,
+    imageUrl: existing.imageUrl,
+    optionImages: existing.optionImages
+  };
+}
+
+// server/weeklyMockDomain.ts
+var WEEKLY_MOCK_SHAPE_ERROR = "Weekly open mock must be a published fixed full-syllabus paper with opensAt before closesAt.";
+var WEEKLY_WINDOW_CLOSED_ERROR = "This week\u2019s open mock is outside its time window. Check the leaderboard for results.";
+var WEEKLY_ALREADY_ATTEMPTED_ERROR = "You have already used your single attempt for this week\u2019s open mock.";
+var WEEKLY_STUDY_BLOCKED_ERROR = "Study mode is disabled for the weekly open mock (one timed attempt only).";
+function parseIsoOrNull(value) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const ms = Date.parse(trimmed);
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms).toISOString();
+}
+function weeklyWindowStatus(mock, nowMs = Date.now()) {
+  const opens = mock.opensAt ? Date.parse(mock.opensAt) : NaN;
+  const closes = mock.closesAt ? Date.parse(mock.closesAt) : NaN;
+  if (Number.isNaN(opens) || Number.isNaN(closes)) return "unscheduled";
+  if (nowMs < opens) return "upcoming";
+  if (nowMs > closes) return "closed";
+  return "open";
+}
+function isWeeklyWindowOpen(mock, nowMs = Date.now()) {
+  return weeklyWindowStatus(mock, nowMs) === "open";
+}
+function assertWeeklyMockShape(mock) {
+  if (!mock.isWeeklyOpen) return { ok: true };
+  if (mock.mode !== "fixed" || mock.scope !== "full" || !mock.isPublished) {
+    return { ok: false, error: WEEKLY_MOCK_SHAPE_ERROR };
+  }
+  if (!mock.opensAt || !mock.closesAt) {
+    return { ok: false, error: WEEKLY_MOCK_SHAPE_ERROR };
+  }
+  const opens = Date.parse(mock.opensAt);
+  const closes = Date.parse(mock.closesAt);
+  if (Number.isNaN(opens) || Number.isNaN(closes) || opens >= closes) {
+    return { ok: false, error: WEEKLY_MOCK_SHAPE_ERROR };
+  }
+  return { ok: true };
+}
+function resolveWeeklyMock(mocks, nowMs = Date.now()) {
+  const weekly = mocks.filter((m) => m.isWeeklyOpen);
+  if (weekly.length === 0) return null;
+  const open = weekly.find((m) => weeklyWindowStatus(m, nowMs) === "open");
+  if (open) return open;
+  const closed = weekly.filter((m) => weeklyWindowStatus(m, nowMs) === "closed").sort((a, b) => Date.parse(b.closesAt || "") - Date.parse(a.closesAt || ""));
+  if (closed[0]) return closed[0];
+  const upcoming = weekly.filter((m) => weeklyWindowStatus(m, nowMs) === "upcoming").sort((a, b) => Date.parse(a.opensAt || "") - Date.parse(b.opensAt || ""));
+  return upcoming[0] || weekly[0] || null;
+}
+function rankWeeklyAttempts(rows, viewerClerkId) {
+  const eligible = rows.filter((r) => !r.excludeFromLeaderboard);
+  const sorted = [...eligible].sort((a, b) => {
+    const scoreA = Number(a.overallScore) || 0;
+    const scoreB = Number(b.overallScore) || 0;
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    const timeA = Date.parse(a.completedAt) || 0;
+    const timeB = Date.parse(b.completedAt) || 0;
+    return timeA - timeB;
+  });
+  return sorted.map((r, idx) => ({
+    ...r,
+    overallScore: Number(r.overallScore) || 0,
+    rank: idx + 1,
+    isYou: Boolean(viewerClerkId && r.clerkUserId === viewerClerkId)
+  }));
+}
+function formatExportDateTime(iso) {
+  if (!iso) return "\u2014";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString("en-US");
+}
+function usernameFromEmail(email) {
+  const raw = (email || "").trim();
+  if (!raw || !raw.includes("@")) return "";
+  return raw.split("@")[0].trim();
+}
+function fullNameFromProfile(name) {
+  const trimmed = (name || "").trim();
+  if (!trimmed || trimmed.toLowerCase() === "clerk user") return "";
+  return trimmed;
+}
+function resolveExportIdentity(row) {
+  const fromEmail = usernameFromEmail(row.email);
+  const username = (row.username || "").trim() || fromEmail || "aspirant";
+  const storedFull = (row.fullName || "").trim();
+  const display = (row.displayName || "").trim();
+  let fullName = storedFull;
+  if (!fullName && display && display.toLowerCase() !== username.toLowerCase()) {
+    fullName = display;
+  }
+  if (!fullName) fullName = display || username || "Aspirant";
+  return { fullName, username };
+}
+function formatWeeklyLeaderboardCsv(meta, rows) {
+  const escape = (v) => {
+    const s = String(v ?? "");
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  const windowLine = [
+    meta.opensAt ? `Opens: ${formatExportDateTime(meta.opensAt)}` : null,
+    meta.closesAt ? `Closes: ${formatExportDateTime(meta.closesAt)}` : null,
+    `Status: ${meta.status}`,
+    `Exported: ${formatExportDateTime(meta.exportedAt)}`
+  ].filter(Boolean).join("  \xB7  ");
+  const preamble = [
+    "# PrepX Nepal \u2014 Weekly Open Mock Results",
+    `# Weekly Set: ${meta.title || "Weekly mock"}`,
+    `# ${windowLine}`
+  ];
+  const headers = ["Rank", "Full Name", "Username", "Email", "Score", "Completed At"];
+  const lines = [headers.join(",")];
+  for (const r of rows) {
+    lines.push(
+      [
+        String(r.rank),
+        escape(r.fullName || "Aspirant"),
+        escape(r.username || "aspirant"),
+        escape((r.email || "").trim()),
+        String(Number(r.score) || 0),
+        escape(formatExportDateTime(r.completedAt))
+      ].join(",")
+    );
+  }
+  return [...preamble, ...lines].join("\n") + "\n";
+}
+function displayNameFromParts(name, email) {
+  const trimmed = fullNameFromProfile(name);
+  if (trimmed) return trimmed;
+  const user = usernameFromEmail(email);
+  if (user) return user;
+  return "Aspirant";
 }
 
 // server/planEntitlementsStore.ts
@@ -5722,7 +6149,7 @@ function mapUser(user) {
   const meta = user.publicMetadata || {};
   const isBootstrapAdmin = email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
   const plan = meta.plan || (isBootstrapAdmin ? "Unlimited" : "Free");
-  const role = meta.role || (isBootstrapAdmin ? "Admin" : "Student");
+  const role = isBootstrapAdmin ? "Admin" : normalizeUserRole(meta.role);
   const mocksRemaining = meta.mocksRemaining !== void 0 ? meta.mocksRemaining : defaultMocksForPlan(plan, getPlanEntitlements());
   const studyCoinBalance = typeof meta.studyCoinBalance === "number" ? meta.studyCoinBalance : isBootstrapAdmin ? 9999 : 0;
   const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || email.split("@")[0] || "Clerk User";
@@ -5752,13 +6179,16 @@ function isBootstrapAdminEmail(email) {
   return (email || "").toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
 }
 function isStaff(role, email) {
-  return isBootstrapAdminEmail(email) || role === "Admin" || role === "Moderator (Questions)" || role === "Moderator (Billing)";
+  return isStaffRoleName(role, isBootstrapAdminEmail(email));
 }
 function canManageBilling2(role, email) {
-  return isBootstrapAdminEmail(email) || role === "Admin" || role === "Moderator (Billing)";
+  return canManageBillingRole(role, isBootstrapAdminEmail(email));
 }
 function canManageQuestions(role, email) {
-  return isBootstrapAdminEmail(email) || role === "Admin" || role === "Moderator (Questions)";
+  return canManageQuestionsRole(role, isBootstrapAdminEmail(email));
+}
+function canManageDailyQuick(role, email) {
+  return canManageDailyQuickRole(role, isBootstrapAdminEmail(email));
 }
 function canDeleteImportFiles(role, email) {
   return isBootstrapAdminEmail(email) || role === "Admin";
@@ -5846,7 +6276,11 @@ async function chargeMockCoinPrice(clerkUserId, coinPrice) {
     return { ok: true, next: draft };
   });
 }
-async function authorizeStartedMock(clerkUserId, coinPrice) {
+async function authorizeStartedMock(clerkUserId, coinPrice, opts) {
+  if (opts?.skipQuota) {
+    const user = await clerk.users.getUser(clerkUserId);
+    return { profile: mapUser(user), coinPriceCharged: 0 };
+  }
   const price = typeof coinPrice === "number" && coinPrice > 0 ? Math.floor(coinPrice) : 0;
   if (price > 0) {
     const profile2 = await chargeMockCoinPrice(clerkUserId, price);
@@ -5881,8 +6315,8 @@ async function assertStudyAccess(clerkUserId, coinPrice, opts) {
   err.status = 402;
   throw err;
 }
-function rejectUnlessFreePlanMockAllowed(plan, mockId, staffBypass) {
-  return assertFreePlanMockAccess(plan, mockId, { staffBypass });
+function rejectUnlessFreePlanMockAllowed(plan, mockId, staffBypass, weeklyOpenBypass = false) {
+  return assertFreePlanMockAccess(plan, mockId, { staffBypass, weeklyOpenBypass });
 }
 function sessionMarksFromMock(mock) {
   return {
@@ -5946,6 +6380,9 @@ function toClientMock(m, questions) {
     year: m.year,
     allocation: m.allocation,
     importBatchId: m.importBatchId,
+    opensAt: m.opensAt ?? null,
+    closesAt: m.closesAt ?? null,
+    isWeeklyOpen: Boolean(m.isWeeklyOpen),
     createdAt: m.createdAt,
     questions: questions || []
   };
@@ -6708,6 +7145,32 @@ app.patch("/api/mocks/:id", requireAuth, async (req, res) => {
       allocation = parsed.allocation;
       totalQuestions = totalFromAllocation(allocation);
     }
+    const opensAt = body.opensAt === null ? null : body.opensAt !== void 0 ? parseIsoOrNull(body.opensAt) : void 0;
+    if (body.opensAt !== void 0 && body.opensAt !== null && opensAt === null) {
+      return res.status(400).json({ error: "opensAt must be a valid ISO datetime" });
+    }
+    const closesAt = body.closesAt === null ? null : body.closesAt !== void 0 ? parseIsoOrNull(body.closesAt) : void 0;
+    if (body.closesAt !== void 0 && body.closesAt !== null && closesAt === null) {
+      return res.status(400).json({ error: "closesAt must be a valid ISO datetime" });
+    }
+    const isWeeklyOpen = typeof body.isWeeklyOpen === "boolean" ? body.isWeeklyOpen : void 0;
+    const existingForWeekly = await mocksRepo.getById(req.params.id);
+    if (!existingForWeekly) return res.status(404).json({ error: "Mock not found" });
+    const nextWeeklyShape = {
+      mode: existingForWeekly.mode,
+      scope: existingForWeekly.scope,
+      isPublished: typeof body.isPublished === "boolean" ? body.isPublished : existingForWeekly.isPublished,
+      opensAt: opensAt !== void 0 ? opensAt : existingForWeekly.opensAt,
+      closesAt: closesAt !== void 0 ? closesAt : existingForWeekly.closesAt,
+      isWeeklyOpen: isWeeklyOpen !== void 0 ? isWeeklyOpen : Boolean(existingForWeekly.isWeeklyOpen)
+    };
+    const weeklyCheck = assertWeeklyMockShape(nextWeeklyShape);
+    if (weeklyCheck.ok === false) {
+      return res.status(400).json({ error: weeklyCheck.error });
+    }
+    if (isWeeklyOpen === true) {
+      await mocksRepo.clearWeeklyOpenFlags(req.params.id);
+    }
     const saved = await mocksRepo.updateMeta(req.params.id, {
       title: typeof body.title === "string" ? body.title : void 0,
       isPublished: typeof body.isPublished === "boolean" ? body.isPublished : void 0,
@@ -6718,7 +7181,10 @@ app.patch("/api/mocks/:id", requireAuth, async (req, res) => {
       unansweredMarks: typeof body.unansweredMarks === "number" ? body.unansweredMarks : void 0,
       coinPrice: body.coinPrice === null ? null : typeof body.coinPrice === "number" ? body.coinPrice : void 0,
       allocation,
-      totalQuestions
+      totalQuestions,
+      opensAt,
+      closesAt,
+      isWeeklyOpen
     });
     if (!saved) return res.status(404).json({ error: "Mock not found" });
     res.json({
@@ -6783,8 +7249,18 @@ app.post("/api/mocks/:id/start", requireAuth, async (req, res) => {
         return res.status(403).json({ error: "Mock is not published" });
       }
     }
+    const isWeekly = Boolean(mock.isWeeklyOpen);
+    if (isWeekly) {
+      if (!isWeeklyWindowOpen(mock)) {
+        return res.status(403).json({ error: WEEKLY_WINDOW_CLOSED_ERROR });
+      }
+      const already = await attemptReportsRepo.existsByClerkUserIdAndMockId(userId, mock.id);
+      if (already) {
+        return res.status(403).json({ error: WEEKLY_ALREADY_ATTEMPTED_ERROR });
+      }
+    }
     const staffQs = canManageQuestions(profile.role, profile.email);
-    const freeGate = rejectUnlessFreePlanMockAllowed(profile.plan, mock.id, staffQs);
+    const freeGate = rejectUnlessFreePlanMockAllowed(profile.plan, mock.id, staffQs, isWeekly);
     if (freeGate.ok === false) {
       return res.status(freeGate.status).json({ error: freeGate.error });
     }
@@ -6797,9 +7273,26 @@ app.post("/api/mocks/:id/start", requireAuth, async (req, res) => {
           error: `Fixed mock is missing questions in the bank (${records.length}/${ids.length} found)`
         });
       }
+      if (isWeekly) {
+        const existingSession = findActiveAttemptSession(userId, mock.id);
+        if (existingSession) {
+          return res.json({
+            mock: toClientMock(
+              mock,
+              records.map((q) => toClientQuestion(q, false))
+            ),
+            attemptSessionId: existingSession.sessionId,
+            syncedAt: (/* @__PURE__ */ new Date()).toISOString(),
+            source: mocksRepo.driver,
+            resumed: true
+          });
+        }
+      }
       let coinPriceCharged2 = 0;
       try {
-        const access = await authorizeStartedMock(userId, mock.coinPrice);
+        const access = await authorizeStartedMock(userId, mock.coinPrice, {
+          skipQuota: isWeekly
+        });
         coinPriceCharged2 = access.coinPriceCharged;
       } catch (accessErr) {
         return res.status(accessErr?.status || 402).json({ error: accessErr?.message || "Quota exhausted" });
@@ -6886,6 +7379,9 @@ app.post("/api/mocks/:id/study", requireAuth, async (req, res) => {
         error: "Study mode is available for fixed papers only. Generate a practice mock to attempt instead."
       });
     }
+    if (mock.isWeeklyOpen) {
+      return res.status(403).json({ error: WEEKLY_STUDY_BLOCKED_ERROR });
+    }
     const ids = mock.questionIds || [];
     const records = await questionsRepo.getByIds(ids);
     if (records.length !== ids.length) {
@@ -6937,6 +7433,13 @@ app.post("/api/mocks/score", requireAuth, async (req, res) => {
       session = consumeAttemptSession(attemptSessionId, userId, questionIds);
     } catch (sessionErr) {
       return res.status(sessionErr?.status || 403).json({ error: sessionErr?.message || "Invalid session" });
+    }
+    const mockForGate = await mocksRepo.getById(session.mockId);
+    if (mockForGate?.isWeeklyOpen) {
+      const already = await attemptReportsRepo.existsByClerkUserIdAndMockId(userId, session.mockId);
+      if (already) {
+        return res.status(403).json({ error: WEEKLY_ALREADY_ATTEMPTED_ERROR });
+      }
     }
     const records = await questionsRepo.getByIds(questionIds);
     if (records.length !== questionIds.length) {
@@ -7029,7 +7532,7 @@ app.post("/api/mocks/score", requireAuth, async (req, res) => {
       mockId,
       mockTitle,
       examType: "Nepal CEE",
-      completedAt: (/* @__PURE__ */ new Date()).toLocaleString(),
+      completedAt: (/* @__PURE__ */ new Date()).toISOString(),
       overallScore: netScore,
       maxScore,
       accuracyPercentage: accuracy,
@@ -7051,7 +7554,13 @@ app.post("/api/mocks/score", requireAuth, async (req, res) => {
       targetScore: profile.targetScore,
       targetGap: Math.max(0, profile.targetScore - netScore),
       recommendations,
-      shareToken: `px-token-${Math.floor(Math.random() * 899999 + 1e5)}`
+      shareToken: `px-token-${Math.floor(Math.random() * 899999 + 1e5)}`,
+      leaderboardDisplayName: displayNameFromParts(profile.name, profile.email),
+      leaderboardFullName: fullNameFromProfile(profile.name) || displayNameFromParts(profile.name, profile.email),
+      leaderboardUsername: usernameFromEmail(profile.email) || displayNameFromParts(profile.name, profile.email),
+      leaderboardAvatarUrl: typeof profile.avatarUrl === "string" ? profile.avatarUrl : "",
+      leaderboardEmail: typeof profile.email === "string" ? profile.email : "",
+      excludeFromLeaderboard: isStaff(profile.role, profile.email)
     };
     const updatedUser = await mutateClerkMeta(userId, (draft) => {
       const prevCoins = typeof draft.studyCoinBalance === "number" ? draft.studyCoinBalance : 0;
@@ -7090,6 +7599,160 @@ app.post("/api/mocks/score", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("POST /api/mocks/score failed:", err);
     res.status(500).json({ error: publicErrorMessage(err, "Failed to score attempt") });
+  }
+});
+app.get("/api/leaderboard/weekly", requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const mocks = await mocksRepo.list({});
+    const weekly = resolveWeeklyMock(mocks);
+    if (!weekly) {
+      return res.json({
+        mock: null,
+        status: "unscheduled",
+        rows: [],
+        youAttempted: false,
+        yourScore: null,
+        syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+    const status = weeklyWindowStatus(weekly);
+    const attempts = await attemptReportsRepo.listByMockId(weekly.id);
+    const mapped = attempts.map((a) => {
+      const report = a.report || {};
+      const displayNameRaw = report.leaderboardDisplayName;
+      const avatarRaw = report.leaderboardAvatarUrl;
+      const emailRaw = report.leaderboardEmail;
+      return {
+        clerkUserId: a.clerkUserId,
+        overallScore: Number(a.overallScore) || 0,
+        completedAt: a.completedAt,
+        displayName: typeof displayNameRaw === "string" && displayNameRaw.trim() ? displayNameRaw.trim() : "Aspirant",
+        avatarUrl: typeof avatarRaw === "string" ? avatarRaw : "",
+        email: typeof emailRaw === "string" ? emailRaw : "",
+        excludeFromLeaderboard: Boolean(report.excludeFromLeaderboard)
+      };
+    });
+    const ranked = rankWeeklyAttempts(mapped, userId);
+    const yours = attempts.find((a) => a.clerkUserId === userId);
+    const yoursReport = yours ? yours.report || {} : null;
+    const youAreStaffExcluded = Boolean(yoursReport?.excludeFromLeaderboard);
+    res.json({
+      mock: {
+        mockId: weekly.id,
+        title: weekly.title,
+        opensAt: weekly.opensAt ?? null,
+        closesAt: weekly.closesAt ?? null,
+        durationSec: weekly.durationSec,
+        totalQuestions: weekly.totalQuestions,
+        status
+      },
+      status,
+      rows: ranked.map((r) => ({
+        rank: r.rank,
+        displayName: r.displayName,
+        avatarUrl: r.avatarUrl,
+        score: Number(r.overallScore) || 0,
+        completedAt: r.completedAt,
+        isYou: r.isYou
+      })),
+      youAttempted: Boolean(yours) && !youAreStaffExcluded,
+      yourScore: yours != null && !youAreStaffExcluded ? Number(yours.overallScore) || 0 : null,
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("GET /api/leaderboard/weekly failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load weekly leaderboard") });
+  }
+});
+app.get("/api/leaderboard/weekly/export", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!isStaff(profile.role, profile.email)) {
+      return res.status(403).json({ error: "Staff only" });
+    }
+    const format = typeof req.query.format === "string" && req.query.format.toLowerCase() === "json" ? "json" : "csv";
+    const mocks = await mocksRepo.list({});
+    const weekly = resolveWeeklyMock(mocks);
+    if (!weekly) {
+      return res.status(404).json({ error: "No weekly open mock configured" });
+    }
+    const attempts = await attemptReportsRepo.listByMockId(weekly.id);
+    const mapped = attempts.map((a) => {
+      const report = a.report || {};
+      const displayNameRaw = report.leaderboardDisplayName;
+      const emailRaw = report.leaderboardEmail;
+      const fullNameRaw = report.leaderboardFullName;
+      const usernameRaw = report.leaderboardUsername;
+      return {
+        clerkUserId: a.clerkUserId,
+        overallScore: Number(a.overallScore) || 0,
+        completedAt: a.completedAt,
+        displayName: typeof displayNameRaw === "string" && displayNameRaw.trim() ? displayNameRaw.trim() : "Aspirant",
+        avatarUrl: "",
+        email: typeof emailRaw === "string" ? emailRaw : "",
+        fullName: typeof fullNameRaw === "string" ? fullNameRaw : "",
+        username: typeof usernameRaw === "string" ? usernameRaw : "",
+        excludeFromLeaderboard: Boolean(report.excludeFromLeaderboard)
+      };
+    });
+    const ranked = rankWeeklyAttempts(mapped);
+    const exportedAt = (/* @__PURE__ */ new Date()).toISOString();
+    const pdfRows = ranked.map((r) => {
+      const id = resolveExportIdentity(r);
+      return {
+        rank: r.rank,
+        fullName: id.fullName,
+        username: id.username,
+        score: Number(r.overallScore) || 0,
+        completedAt: r.completedAt
+      };
+    });
+    const csvRows = ranked.map((r) => {
+      const id = resolveExportIdentity(r);
+      return {
+        rank: r.rank,
+        fullName: id.fullName,
+        username: id.username,
+        email: (r.email || "").trim(),
+        score: Number(r.overallScore) || 0,
+        completedAt: r.completedAt
+      };
+    });
+    const payload = {
+      mock: {
+        mockId: weekly.id,
+        title: weekly.title,
+        opensAt: weekly.opensAt ?? null,
+        closesAt: weekly.closesAt ?? null,
+        status: weeklyWindowStatus(weekly)
+      },
+      rows: pdfRows,
+      exportedAt
+    };
+    if (format === "json") {
+      return res.json(payload);
+    }
+    const csv = formatWeeklyLeaderboardCsv(
+      {
+        title: weekly.title,
+        opensAt: weekly.opensAt ?? null,
+        closesAt: weekly.closesAt ?? null,
+        status: weeklyWindowStatus(weekly),
+        exportedAt
+      },
+      csvRows
+    );
+    const safeName = weekly.title.replace(/[^\w\-]+/g, "_").slice(0, 60) || "weekly";
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="weekly-leaderboard-${safeName}.csv"`
+    );
+    res.send(csv);
+  } catch (err) {
+    console.error("GET /api/leaderboard/weekly/export failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to export weekly leaderboard") });
   }
 });
 app.get("/api/plan-entitlements", (_req, res) => {
@@ -7189,6 +7852,10 @@ app.patch("/api/users/:clerkId", requireAuth, async (req, res) => {
             return { ok: false, error: "Invalid mocksRemaining", status: 400 };
           }
           draft.mocksRemaining = val === null ? null : Math.floor(val);
+          continue;
+        }
+        if (key === "role") {
+          draft.role = normalizeUserRole(val);
           continue;
         }
         draft[key] = val;
@@ -8046,6 +8713,134 @@ app.get("/api/notices/active", async (_req, res) => {
   } catch (err) {
     console.error("GET /api/notices/active failed:", err);
     res.status(500).json({ error: publicErrorMessage(err, "Failed to load notice") });
+  }
+});
+app.get("/api/daily-quick/active", async (_req, res) => {
+  try {
+    const all = await questionsRepo.list();
+    const active = pickActiveDailyQuickSet(all);
+    res.json({
+      questions: active.map((q) => toClientQuestion(q, true)),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("GET /api/daily-quick/active failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load Daily Quick") });
+  }
+});
+app.get("/api/daily-quick", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canManageDailyQuick(profile.role, profile.email)) {
+      return res.status(403).json({ error: "QAD or Admin required" });
+    }
+    const all = await questionsRepo.list();
+    const queue = listDailyQuickQueue(all);
+    res.json({
+      questions: queue.map((q) => toClientQuestion(q, true)),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("GET /api/daily-quick failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to load Daily Quick queue") });
+  }
+});
+app.post("/api/daily-quick", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canUploadDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "QAD or Admin required" });
+    }
+    const validated = validateDailyQuickCreate(req.body || {});
+    if (validated.ok === false) {
+      return res.status(400).json({ error: validated.error });
+    }
+    const id = `dq-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const draft = buildDailyQuickQuestionDraft(validated, id);
+    const saved = await questionsRepo.insertOne(draft);
+    res.status(201).json({
+      question: toClientQuestion(saved, true),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("POST /api/daily-quick failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to create Daily Quick") });
+  }
+});
+app.patch("/api/daily-quick/:id", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canEditOrDeleteDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "QAD or Admin required" });
+    }
+    const id = String(req.params.id || "");
+    const existingList = await questionsRepo.getByIds([id]);
+    const existing = existingList[0];
+    if (!existing || !isDailyQuickQuestion(existing)) {
+      return res.status(404).json({ error: "Daily Quick question not found" });
+    }
+    const validated = validateDailyQuickCreate(req.body || {});
+    if (validated.ok === false) {
+      return res.status(400).json({ error: validated.error });
+    }
+    const merged = mergeDailyQuickUpdate(existing, validated);
+    const saved = await questionsRepo.updateOne(merged);
+    if (!saved) return res.status(404).json({ error: "Daily Quick question not found" });
+    res.json({
+      question: toClientQuestion(saved, true),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("PATCH /api/daily-quick/:id failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to update Daily Quick") });
+  }
+});
+app.post("/api/daily-quick/:id/approve", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canApproveDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "Admin approval required" });
+    }
+    const id = String(req.params.id || "");
+    const existingList = await questionsRepo.getByIds([id]);
+    const existing = existingList[0];
+    if (!existing || !isDailyQuickQuestion(existing)) {
+      return res.status(404).json({ error: "Daily Quick question not found" });
+    }
+    const next = applyDailyQuickApproval(existing);
+    if ("error" in next) {
+      return res.status(400).json({ error: next.error });
+    }
+    const { createdAt: _c, updatedAt: _u, ...rest } = next;
+    const saved = await questionsRepo.updateOne(rest);
+    if (!saved) return res.status(404).json({ error: "Daily Quick question not found" });
+    res.json({
+      question: toClientQuestion(saved, true),
+      syncedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (err) {
+    console.error("POST /api/daily-quick/:id/approve failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to approve Daily Quick") });
+  }
+});
+app.delete("/api/daily-quick/:id", requireAuth, async (req, res) => {
+  try {
+    const { profile } = req.auth;
+    if (!canEditOrDeleteDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: "QAD or Admin required" });
+    }
+    const id = String(req.params.id || "");
+    const existingList = await questionsRepo.getByIds([id]);
+    const existing = existingList[0];
+    if (!existing || !isDailyQuickQuestion(existing)) {
+      return res.status(404).json({ error: "Daily Quick question not found" });
+    }
+    const deleted = await questionsRepo.deleteOne(id);
+    if (!deleted) return res.status(404).json({ error: "Daily Quick question not found" });
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error("DELETE /api/daily-quick/:id failed:", err);
+    res.status(500).json({ error: publicErrorMessage(err, "Failed to delete Daily Quick") });
   }
 });
 app.get("/api/notices", requireAuth, async (req, res) => {

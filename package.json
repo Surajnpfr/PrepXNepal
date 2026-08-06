@@ -23,6 +23,7 @@
     "test:entitlements": "tsx scripts/test-plan-entitlements.ts",
     "test:questions": "tsx scripts/test-questions-db.ts",
     "test:mocks": "tsx scripts/test-mocks-domain.ts",
+    "test:weekly": "tsx scripts/test-weekly-mock-domain.ts",
     "test:security": "tsx scripts/verify-security-attempt-session.ts && tsx scripts/verify-security-policies.ts",
     "test:referrals": "tsx scripts/test-referrals-domain.ts && tsx scripts/test-referrals-repo.ts",
     "test:payments": "tsx scripts/test-payment-claims.ts",
@@ -32,6 +33,7 @@
     "test:notifications": "tsx scripts/test-notifications-sync.ts",
     "test:promos": "tsx scripts/test-promo-codes.ts",
     "test:notices": "tsx scripts/test-notices-domain.ts",
+    "test:daily-quick": "tsx scripts/test-daily-quick-domain.ts",
     "db:seed": "tsx scripts/seed-questions.ts"
   },
   "main": "server.js",

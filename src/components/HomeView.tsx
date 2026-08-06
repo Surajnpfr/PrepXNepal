@@ -16,8 +16,14 @@ import {
   formatExamDateShort,
   isExamDateSet,
 } from '../lib/examSchedule';
+import {
+  formatWindowLabel,
+  resolveWeeklyMockFromList,
+  weeklyWindowStatus,
+} from '../lib/weeklyMock';
 import { useFeedback } from './FeedbackProvider';
 import { Badge, Button, Card, PageHeader, ProgressBar, AppIcon } from './ui';
+import { DailyQuickPractice } from './DailyQuickPractice';
 
 interface HomeViewProps {
   userProfile: UserProfile;
@@ -52,6 +58,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const nextMock =
     mockTests.find((m) => !pastReports.some((r) => r.mockId === m.id)) || mockTests[0] || null;
   const latestReport = pastReports[0] || null;
+
+  const weeklyMock = resolveWeeklyMockFromList(mockTests);
+  const weeklyStatus = weeklyMock
+    ? weeklyWindowStatus(weeklyMock.opensAt, weeklyMock.closesAt)
+    : 'unscheduled';
+  const weeklyAttempt = weeklyMock
+    ? pastReports.find((r) => r.mockId === weeklyMock.id)
+    : undefined;
 
   // Calculate overall readiness dynamically based on past mock reports
   const averageScore = pastReports.length > 0 
@@ -206,15 +220,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <span>Study coins</span>
             <AppIcon icon={Coins} size="btn" className="text-[var(--px-muted)]" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-display font-bold tabular-nums text-[var(--px-heading)]">{userProfile.studyCoinBalance}</span>
+          <div className="space-y-1">
+            <p className="text-sm font-display font-bold text-[var(--px-heading)]">Coming soon</p>
+            <p className="text-[11px] text-[var(--px-muted)] leading-snug">
+              Rewards and redemptions launch with the new wallet.
+            </p>
           </div>
           <button
             type="button"
             onClick={() => onNavigate('coins')}
             className="text-xs font-semibold text-[var(--px-primary)] hover:underline self-start cursor-pointer"
           >
-            Open wallet
+            Learn more
           </button>
         </Card>
 
@@ -248,6 +265,49 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </Card>
 
       </div>
+
+      {weeklyMock ? (
+        <Card padding="lg" className="border-amber-200 bg-gradient-to-r from-amber-50/80 to-[var(--px-surface)]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">
+                This week’s open mock · {weeklyStatus}
+              </p>
+              <h2 className="font-display text-lg font-bold text-[var(--px-heading)] truncate">
+                {weeklyMock.title}
+              </h2>
+              <p className="text-xs text-[var(--px-muted)]">
+                {formatWindowLabel(weeklyMock.opensAt, weeklyMock.closesAt)}
+              </p>
+              <p className="text-xs text-[var(--px-body)]">
+                One timed attempt · auto-submit at 00:00:00 · ranks on Leaderboard
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 shrink-0 w-full sm:w-auto">
+              {weeklyAttempt ? (
+                <>
+                  <p className="text-sm font-bold text-[var(--px-heading)] text-center sm:text-right">
+                    Your score: {weeklyAttempt.overallScore} pts
+                  </p>
+                  <Button type="button" fullWidth onClick={() => onNavigate('leaderboard')}>
+                    View weekly leaderboard
+                  </Button>
+                </>
+              ) : weeklyStatus === 'open' ? (
+                <Button type="button" fullWidth onClick={() => onStartMock(weeklyMock)}>
+                  Start weekly mock
+                </Button>
+              ) : (
+                <Button type="button" fullWidth onClick={() => onNavigate('leaderboard')}>
+                  {weeklyStatus === 'upcoming' ? 'Opens soon — leaderboard' : 'View results'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      <DailyQuickPractice variant="dashboard" />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         

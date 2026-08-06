@@ -37,7 +37,7 @@ import type {
   ReferralsRepository,
   SupportIssuesRepository,
 } from './db/types.ts';
-import { consumeAttemptSession, createAttemptSession } from './attemptSessions.ts';
+import { consumeAttemptSession, createAttemptSession, findActiveAttemptSession } from './attemptSessions.ts';
 import type { AttemptSession } from './attemptSessions.ts';
 import { updatePublicMetadataAtomic, type PublicMeta } from './clerkMeta.ts';
 import {
@@ -89,6 +89,41 @@ import {
   assertFreePlanMockAccess,
   assertFreePlanPracticeAccess,
 } from './mockAccessDomain.ts';
+import {
+  canManageBillingRole,
+  canManageDailyQuickRole,
+  canManageQuestionsRole,
+  isStaffRoleName,
+  normalizeUserRole,
+} from './userRoles.ts';
+import {
+  applyDailyQuickApproval,
+  buildDailyQuickQuestionDraft,
+  canApproveDailyQuick,
+  canEditOrDeleteDailyQuick,
+  canUploadDailyQuick,
+  isDailyQuickQuestion,
+  listDailyQuickQueue,
+  mergeDailyQuickUpdate,
+  pickActiveDailyQuickSet,
+  validateDailyQuickCreate,
+} from './dailyQuickDomain.ts';
+import {
+  assertWeeklyMockShape,
+  displayNameFromParts,
+  formatWeeklyLeaderboardCsv,
+  fullNameFromProfile,
+  isWeeklyWindowOpen,
+  parseIsoOrNull,
+  rankWeeklyAttempts,
+  resolveExportIdentity,
+  resolveWeeklyMock,
+  usernameFromEmail,
+  weeklyWindowStatus,
+  WEEKLY_ALREADY_ATTEMPTED_ERROR,
+  WEEKLY_STUDY_BLOCKED_ERROR,
+  WEEKLY_WINDOW_CLOSED_ERROR,
+} from './weeklyMockDomain.ts';
 import { getPlanEntitlements, setPlanEntitlements } from './planEntitlementsStore.ts';
 import {
   emailDomainBlockedMessage,
@@ -170,7 +205,7 @@ function mapUser(user: Awaited<ReturnType<typeof clerk.users.getUser>>) {
   const meta = (user.publicMetadata || {}) as AppMeta;
   const isBootstrapAdmin = email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
   const plan = meta.plan || (isBootstrapAdmin ? 'Unlimited' : 'Free');
-  const role = meta.role || (isBootstrapAdmin ? 'Admin' : 'Student');
+  const role = isBootstrapAdmin ? 'Admin' : normalizeUserRole(meta.role);
   const mocksRemaining =
     meta.mocksRemaining !== undefined
       ? meta.mocksRemaining
@@ -210,28 +245,19 @@ function isBootstrapAdminEmail(email: string | undefined): boolean {
 }
 
 function isStaff(role: string | undefined, email: string): boolean {
-  return (
-    isBootstrapAdminEmail(email) ||
-    role === 'Admin' ||
-    role === 'Moderator (Questions)' ||
-    role === 'Moderator (Billing)'
-  );
+  return isStaffRoleName(role, isBootstrapAdminEmail(email));
 }
 
 function canManageBilling(role: string | undefined, email: string): boolean {
-  return (
-    isBootstrapAdminEmail(email) ||
-    role === 'Admin' ||
-    role === 'Moderator (Billing)'
-  );
+  return canManageBillingRole(role, isBootstrapAdminEmail(email));
 }
 
 function canManageQuestions(role: string | undefined, email: string): boolean {
-  return (
-    isBootstrapAdminEmail(email) ||
-    role === 'Admin' ||
-    role === 'Moderator (Questions)'
-  );
+  return canManageQuestionsRole(role, isBootstrapAdminEmail(email));
+}
+
+function canManageDailyQuick(role: string | undefined, email: string): boolean {
+  return canManageDailyQuickRole(role, isBootstrapAdminEmail(email));
 }
 
 /** Destructive import-file / batch / Set removal — Admin only. */
@@ -349,8 +375,13 @@ async function chargeMockCoinPrice(
  */
 async function authorizeStartedMock(
   clerkUserId: string,
-  coinPrice: number | null | undefined
+  coinPrice: number | null | undefined,
+  opts?: { skipQuota?: boolean }
 ): Promise<{ profile: ReturnType<typeof mapUser>; coinPriceCharged: number }> {
+  if (opts?.skipQuota) {
+    const user = await clerk.users.getUser(clerkUserId);
+    return { profile: mapUser(user), coinPriceCharged: 0 };
+  }
   const price = typeof coinPrice === 'number' && coinPrice > 0 ? Math.floor(coinPrice) : 0;
   if (price > 0) {
     const profile = await chargeMockCoinPrice(clerkUserId, price);
@@ -399,9 +430,10 @@ async function assertStudyAccess(
 function rejectUnlessFreePlanMockAllowed(
   plan: string | undefined,
   mockId: string,
-  staffBypass: boolean
+  staffBypass: boolean,
+  weeklyOpenBypass = false
 ): { ok: true } | { ok: false; status: number; error: string } {
-  return assertFreePlanMockAccess(plan, mockId, { staffBypass });
+  return assertFreePlanMockAccess(plan, mockId, { staffBypass, weeklyOpenBypass });
 }
 
 function sessionMarksFromMock(mock: { correctMarks?: number; wrongMarks?: number }) {
@@ -472,6 +504,9 @@ function toClientMock(m: MockRecord, questions?: ReturnType<typeof toClientQuest
     year: m.year,
     allocation: m.allocation,
     importBatchId: m.importBatchId,
+    opensAt: m.opensAt ?? null,
+    closesAt: m.closesAt ?? null,
+    isWeeklyOpen: Boolean(m.isWeeklyOpen),
     createdAt: m.createdAt,
     questions: questions || [],
   };
@@ -1388,6 +1423,49 @@ app.patch('/api/mocks/:id', requireAuth, async (req, res) => {
       allocation = parsed.allocation;
       totalQuestions = totalFromAllocation(allocation);
     }
+    const opensAt =
+      body.opensAt === null
+        ? null
+        : body.opensAt !== undefined
+          ? parseIsoOrNull(body.opensAt)
+          : undefined;
+    if (body.opensAt !== undefined && body.opensAt !== null && opensAt === null) {
+      return res.status(400).json({ error: 'opensAt must be a valid ISO datetime' });
+    }
+    const closesAt =
+      body.closesAt === null
+        ? null
+        : body.closesAt !== undefined
+          ? parseIsoOrNull(body.closesAt)
+          : undefined;
+    if (body.closesAt !== undefined && body.closesAt !== null && closesAt === null) {
+      return res.status(400).json({ error: 'closesAt must be a valid ISO datetime' });
+    }
+    const isWeeklyOpen =
+      typeof body.isWeeklyOpen === 'boolean' ? body.isWeeklyOpen : undefined;
+
+    const existingForWeekly = await mocksRepo.getById(req.params.id);
+    if (!existingForWeekly) return res.status(404).json({ error: 'Mock not found' });
+
+    const nextWeeklyShape = {
+      mode: existingForWeekly.mode,
+      scope: existingForWeekly.scope,
+      isPublished:
+        typeof body.isPublished === 'boolean' ? body.isPublished : existingForWeekly.isPublished,
+      opensAt: opensAt !== undefined ? opensAt : existingForWeekly.opensAt,
+      closesAt: closesAt !== undefined ? closesAt : existingForWeekly.closesAt,
+      isWeeklyOpen:
+        isWeeklyOpen !== undefined ? isWeeklyOpen : Boolean(existingForWeekly.isWeeklyOpen),
+    };
+    const weeklyCheck = assertWeeklyMockShape(nextWeeklyShape);
+    if (weeklyCheck.ok === false) {
+      return res.status(400).json({ error: weeklyCheck.error });
+    }
+
+    if (isWeeklyOpen === true) {
+      await mocksRepo.clearWeeklyOpenFlags(req.params.id);
+    }
+
     const saved = await mocksRepo.updateMeta(req.params.id, {
       title: typeof body.title === 'string' ? body.title : undefined,
       isPublished: typeof body.isPublished === 'boolean' ? body.isPublished : undefined,
@@ -1399,6 +1477,9 @@ app.patch('/api/mocks/:id', requireAuth, async (req, res) => {
       coinPrice: body.coinPrice === null ? null : typeof body.coinPrice === 'number' ? body.coinPrice : undefined,
       allocation,
       totalQuestions,
+      opensAt,
+      closesAt,
+      isWeeklyOpen,
     } as any);
     if (!saved) return res.status(404).json({ error: 'Mock not found' });
     res.json({
@@ -1468,8 +1549,19 @@ app.post('/api/mocks/:id/start', requireAuth, async (req, res) => {
       }
     }
 
+    const isWeekly = Boolean(mock.isWeeklyOpen);
+    if (isWeekly) {
+      if (!isWeeklyWindowOpen(mock)) {
+        return res.status(403).json({ error: WEEKLY_WINDOW_CLOSED_ERROR });
+      }
+      const already = await attemptReportsRepo.existsByClerkUserIdAndMockId(userId, mock.id);
+      if (already) {
+        return res.status(403).json({ error: WEEKLY_ALREADY_ATTEMPTED_ERROR });
+      }
+    }
+
     const staffQs = canManageQuestions(profile.role, profile.email);
-    const freeGate = rejectUnlessFreePlanMockAllowed(profile.plan, mock.id, staffQs);
+    const freeGate = rejectUnlessFreePlanMockAllowed(profile.plan, mock.id, staffQs, isWeekly);
     if (freeGate.ok === false) {
       return res.status(freeGate.status).json({ error: freeGate.error });
     }
@@ -1484,9 +1576,28 @@ app.post('/api/mocks/:id/start', requireAuth, async (req, res) => {
           error: `Fixed mock is missing questions in the bank (${records.length}/${ids.length} found)`,
         });
       }
+
+      if (isWeekly) {
+        const existingSession = findActiveAttemptSession(userId, mock.id);
+        if (existingSession) {
+          return res.json({
+            mock: toClientMock(
+              mock,
+              records.map((q) => toClientQuestion(q, false))
+            ),
+            attemptSessionId: existingSession.sessionId,
+            syncedAt: new Date().toISOString(),
+            source: mocksRepo.driver,
+            resumed: true,
+          });
+        }
+      }
+
       let coinPriceCharged = 0;
       try {
-        const access = await authorizeStartedMock(userId, mock.coinPrice);
+        const access = await authorizeStartedMock(userId, mock.coinPrice, {
+          skipQuota: isWeekly,
+        });
         coinPriceCharged = access.coinPriceCharged;
       } catch (accessErr: any) {
         return res
@@ -1585,6 +1696,9 @@ app.post('/api/mocks/:id/study', requireAuth, async (req, res) => {
         error: 'Study mode is available for fixed papers only. Generate a practice mock to attempt instead.',
       });
     }
+    if (mock.isWeeklyOpen) {
+      return res.status(403).json({ error: WEEKLY_STUDY_BLOCKED_ERROR });
+    }
 
     const ids = mock.questionIds || [];
     const records = await questionsRepo.getByIds(ids);
@@ -1653,6 +1767,14 @@ app.post('/api/mocks/score', requireAuth, async (req, res) => {
       session = consumeAttemptSession(attemptSessionId, userId, questionIds);
     } catch (sessionErr: any) {
       return res.status(sessionErr?.status || 403).json({ error: sessionErr?.message || 'Invalid session' });
+    }
+
+    const mockForGate = await mocksRepo.getById(session.mockId);
+    if (mockForGate?.isWeeklyOpen) {
+      const already = await attemptReportsRepo.existsByClerkUserIdAndMockId(userId, session.mockId);
+      if (already) {
+        return res.status(403).json({ error: WEEKLY_ALREADY_ATTEMPTED_ERROR });
+      }
     }
 
     const records = await questionsRepo.getByIds(questionIds);
@@ -1765,7 +1887,7 @@ app.post('/api/mocks/score', requireAuth, async (req, res) => {
       mockId,
       mockTitle,
       examType: 'Nepal CEE',
-      completedAt: new Date().toLocaleString(),
+      completedAt: new Date().toISOString(),
       overallScore: netScore,
       maxScore,
       accuracyPercentage: accuracy,
@@ -1788,6 +1910,12 @@ app.post('/api/mocks/score', requireAuth, async (req, res) => {
       targetGap: Math.max(0, profile.targetScore - netScore),
       recommendations,
       shareToken: `px-token-${Math.floor(Math.random() * 899999 + 100000)}`,
+      leaderboardDisplayName: displayNameFromParts(profile.name, profile.email),
+      leaderboardFullName: fullNameFromProfile(profile.name) || displayNameFromParts(profile.name, profile.email),
+      leaderboardUsername: usernameFromEmail(profile.email) || displayNameFromParts(profile.name, profile.email),
+      leaderboardAvatarUrl: typeof profile.avatarUrl === 'string' ? profile.avatarUrl : '',
+      leaderboardEmail: typeof profile.email === 'string' ? profile.email : '',
+      excludeFromLeaderboard: isStaff(profile.role, profile.email),
     };
 
     // Award coins + sync score into Clerk (fresh metadata + per-user lock).
@@ -1831,6 +1959,186 @@ app.post('/api/mocks/score', requireAuth, async (req, res) => {
   } catch (err: any) {
     console.error('POST /api/mocks/score failed:', err);
     res.status(500).json({ error: publicErrorMessage(err, 'Failed to score attempt') });
+  }
+});
+
+/**
+ * Public weekly mock leaderboard for students.
+ * Source of truth: attempt_reports for the resolved weekly mock (not Clerk lastMockScore).
+ */
+app.get('/api/leaderboard/weekly', requireAuth, async (req, res) => {
+  try {
+    const { userId } = (req as any).auth;
+    const mocks = await mocksRepo.list({});
+    const weekly = resolveWeeklyMock(mocks);
+    if (!weekly) {
+      return res.json({
+        mock: null,
+        status: 'unscheduled',
+        rows: [],
+        youAttempted: false,
+        yourScore: null,
+        syncedAt: new Date().toISOString(),
+      });
+    }
+
+    const status = weeklyWindowStatus(weekly);
+    const attempts = await attemptReportsRepo.listByMockId(weekly.id);
+    const mapped = attempts.map((a) => {
+      const report = (a.report || {}) as Record<string, unknown>;
+      const displayNameRaw = report.leaderboardDisplayName;
+      const avatarRaw = report.leaderboardAvatarUrl;
+      const emailRaw = report.leaderboardEmail;
+      return {
+        clerkUserId: a.clerkUserId,
+        overallScore: Number(a.overallScore) || 0,
+        completedAt: a.completedAt,
+        displayName:
+          typeof displayNameRaw === 'string' && displayNameRaw.trim()
+            ? displayNameRaw.trim()
+            : 'Aspirant',
+        avatarUrl: typeof avatarRaw === 'string' ? avatarRaw : '',
+        email: typeof emailRaw === 'string' ? emailRaw : '',
+        excludeFromLeaderboard: Boolean(report.excludeFromLeaderboard),
+      };
+    });
+    const ranked = rankWeeklyAttempts(mapped, userId);
+    const yours = attempts.find((a) => a.clerkUserId === userId);
+    const yoursReport = yours ? ((yours.report || {}) as Record<string, unknown>) : null;
+    const youAreStaffExcluded = Boolean(yoursReport?.excludeFromLeaderboard);
+
+    res.json({
+      mock: {
+        mockId: weekly.id,
+        title: weekly.title,
+        opensAt: weekly.opensAt ?? null,
+        closesAt: weekly.closesAt ?? null,
+        durationSec: weekly.durationSec,
+        totalQuestions: weekly.totalQuestions,
+        status,
+      },
+      status,
+      rows: ranked.map((r) => ({
+        rank: r.rank,
+        displayName: r.displayName,
+        avatarUrl: r.avatarUrl,
+        score: Number(r.overallScore) || 0,
+        completedAt: r.completedAt,
+        isYou: r.isYou,
+      })),
+      youAttempted: Boolean(yours) && !youAreStaffExcluded,
+      yourScore:
+        yours != null && !youAreStaffExcluded ? Number(yours.overallScore) || 0 : null,
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('GET /api/leaderboard/weekly failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load weekly leaderboard') });
+  }
+});
+
+/**
+ * Staff: export weekly leaderboard (students only — staff attempts excluded).
+ * Query: ?format=csv (default, CSV with email) | json (PDF — no email)
+ * Includes score 0. CSV includes email for staff; JSON/PDF omit email.
+ */
+app.get('/api/leaderboard/weekly/export', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!isStaff(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'Staff only' });
+    }
+    const format =
+      typeof req.query.format === 'string' && req.query.format.toLowerCase() === 'json'
+        ? 'json'
+        : 'csv';
+    const mocks = await mocksRepo.list({});
+    const weekly = resolveWeeklyMock(mocks);
+    if (!weekly) {
+      return res.status(404).json({ error: 'No weekly open mock configured' });
+    }
+    const attempts = await attemptReportsRepo.listByMockId(weekly.id);
+    const mapped = attempts.map((a) => {
+      const report = (a.report || {}) as Record<string, unknown>;
+      const displayNameRaw = report.leaderboardDisplayName;
+      const emailRaw = report.leaderboardEmail;
+      const fullNameRaw = report.leaderboardFullName;
+      const usernameRaw = report.leaderboardUsername;
+      return {
+        clerkUserId: a.clerkUserId,
+        overallScore: Number(a.overallScore) || 0,
+        completedAt: a.completedAt,
+        displayName:
+          typeof displayNameRaw === 'string' && displayNameRaw.trim()
+            ? displayNameRaw.trim()
+            : 'Aspirant',
+        avatarUrl: '',
+        email: typeof emailRaw === 'string' ? emailRaw : '',
+        fullName: typeof fullNameRaw === 'string' ? fullNameRaw : '',
+        username: typeof usernameRaw === 'string' ? usernameRaw : '',
+        excludeFromLeaderboard: Boolean(report.excludeFromLeaderboard),
+      };
+    });
+    const ranked = rankWeeklyAttempts(mapped);
+    const exportedAt = new Date().toISOString();
+    // PDF/JSON: no emails. CSV: includes email for staff follow-up.
+    const pdfRows = ranked.map((r) => {
+      const id = resolveExportIdentity(r);
+      return {
+        rank: r.rank,
+        fullName: id.fullName,
+        username: id.username,
+        score: Number(r.overallScore) || 0,
+        completedAt: r.completedAt,
+      };
+    });
+    const csvRows = ranked.map((r) => {
+      const id = resolveExportIdentity(r);
+      return {
+        rank: r.rank,
+        fullName: id.fullName,
+        username: id.username,
+        email: (r.email || '').trim(),
+        score: Number(r.overallScore) || 0,
+        completedAt: r.completedAt,
+      };
+    });
+    const payload = {
+      mock: {
+        mockId: weekly.id,
+        title: weekly.title,
+        opensAt: weekly.opensAt ?? null,
+        closesAt: weekly.closesAt ?? null,
+        status: weeklyWindowStatus(weekly),
+      },
+      rows: pdfRows,
+      exportedAt,
+    };
+
+    if (format === 'json') {
+      return res.json(payload);
+    }
+
+    const csv = formatWeeklyLeaderboardCsv(
+      {
+        title: weekly.title,
+        opensAt: weekly.opensAt ?? null,
+        closesAt: weekly.closesAt ?? null,
+        status: weeklyWindowStatus(weekly),
+        exportedAt,
+      },
+      csvRows
+    );
+    const safeName = weekly.title.replace(/[^\w\-]+/g, '_').slice(0, 60) || 'weekly';
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="weekly-leaderboard-${safeName}.csv"`
+    );
+    res.send(csv);
+  } catch (err: any) {
+    console.error('GET /api/leaderboard/weekly/export failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to export weekly leaderboard') });
   }
 });
 
@@ -1951,6 +2259,10 @@ app.patch('/api/users/:clerkId', requireAuth, async (req, res) => {
             return { ok: false, error: 'Invalid mocksRemaining', status: 400 };
           }
           draft.mocksRemaining = val === null ? null : Math.floor(val);
+          continue;
+        }
+        if (key === 'role') {
+          draft.role = normalizeUserRole(val);
           continue;
         }
         draft[key] = val;
@@ -2970,6 +3282,149 @@ app.get('/api/notices/active', async (_req, res) => {
   } catch (err: any) {
     console.error('GET /api/notices/active failed:', err);
     res.status(500).json({ error: publicErrorMessage(err, 'Failed to load notice') });
+  }
+});
+
+/**
+ * Public Daily Quick set — up to one published question per Phy/Chem/Bot/Zoo.
+ * Includes answers so the client can grade locally (attempts are never stored).
+ */
+app.get('/api/daily-quick/active', async (_req, res) => {
+  try {
+    const all = await questionsRepo.list();
+    const active = pickActiveDailyQuickSet(all);
+    res.json({
+      questions: active.map((q) => toClientQuestion(q, true)),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('GET /api/daily-quick/active failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load Daily Quick') });
+  }
+});
+
+/** QAD / Admin: queue of Daily Quick bank items (pending + published). */
+app.get('/api/daily-quick', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canManageDailyQuick(profile.role, profile.email)) {
+      return res.status(403).json({ error: 'QAD or Admin required' });
+    }
+    const all = await questionsRepo.list();
+    const queue = listDailyQuickQueue(all);
+    res.json({
+      questions: queue.map((q) => toClientQuestion(q, true)),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('GET /api/daily-quick failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load Daily Quick queue') });
+  }
+});
+
+/** QAD / Admin: create Daily Quick question in the bank (pending until Admin approves). */
+app.post('/api/daily-quick', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canUploadDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'QAD or Admin required' });
+    }
+    const validated = validateDailyQuickCreate(req.body || {});
+    if (validated.ok === false) {
+      return res.status(400).json({ error: validated.error });
+    }
+    const id = `dq-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const draft = buildDailyQuickQuestionDraft(validated, id);
+    const saved = await questionsRepo.insertOne(draft);
+    res.status(201).json({
+      question: toClientQuestion(saved, true),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('POST /api/daily-quick failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to create Daily Quick') });
+  }
+});
+
+/** QAD / Admin: edit a Daily Quick bank item. */
+app.patch('/api/daily-quick/:id', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canEditOrDeleteDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'QAD or Admin required' });
+    }
+    const id = String(req.params.id || '');
+    const existingList = await questionsRepo.getByIds([id]);
+    const existing = existingList[0];
+    if (!existing || !isDailyQuickQuestion(existing)) {
+      return res.status(404).json({ error: 'Daily Quick question not found' });
+    }
+    const validated = validateDailyQuickCreate(req.body || {});
+    if (validated.ok === false) {
+      return res.status(400).json({ error: validated.error });
+    }
+    const merged = mergeDailyQuickUpdate(existing, validated);
+    const saved = await questionsRepo.updateOne(merged);
+    if (!saved) return res.status(404).json({ error: 'Daily Quick question not found' });
+    res.json({
+      question: toClientQuestion(saved, true),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('PATCH /api/daily-quick/:id failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to update Daily Quick') });
+  }
+});
+
+/** Admin only: publish a pending Daily Quick item (goes live on landing + home). */
+app.post('/api/daily-quick/:id/approve', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canApproveDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'Admin approval required' });
+    }
+    const id = String(req.params.id || '');
+    const existingList = await questionsRepo.getByIds([id]);
+    const existing = existingList[0];
+    if (!existing || !isDailyQuickQuestion(existing)) {
+      return res.status(404).json({ error: 'Daily Quick question not found' });
+    }
+    const next = applyDailyQuickApproval(existing);
+    if ('error' in next) {
+      return res.status(400).json({ error: next.error });
+    }
+    const { createdAt: _c, updatedAt: _u, ...rest } = next;
+    const saved = await questionsRepo.updateOne(rest);
+    if (!saved) return res.status(404).json({ error: 'Daily Quick question not found' });
+    res.json({
+      question: toClientQuestion(saved, true),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.error('POST /api/daily-quick/:id/approve failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to approve Daily Quick') });
+  }
+});
+
+/** QAD / Admin: delete a Daily Quick item from the bank. */
+app.delete('/api/daily-quick/:id', requireAuth, async (req, res) => {
+  try {
+    const { profile } = (req as any).auth;
+    if (!canEditOrDeleteDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
+      return res.status(403).json({ error: 'QAD or Admin required' });
+    }
+    const id = String(req.params.id || '');
+    const existingList = await questionsRepo.getByIds([id]);
+    const existing = existingList[0];
+    if (!existing || !isDailyQuickQuestion(existing)) {
+      return res.status(404).json({ error: 'Daily Quick question not found' });
+    }
+    const deleted = await questionsRepo.deleteOne(id);
+    if (!deleted) return res.status(404).json({ error: 'Daily Quick question not found' });
+    res.json({ ok: true, id });
+  } catch (err: any) {
+    console.error('DELETE /api/daily-quick/:id failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to delete Daily Quick') });
   }
 });
 

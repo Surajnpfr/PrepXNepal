@@ -10,6 +10,7 @@ import {
   BOOTSTRAP_ADMIN_EMAIL,
   GUEST_PROFILE,
 } from '../src/lib/clerkUserMapper.ts';
+import { normalizeUserRole } from '../src/lib/userRoles.ts';
 
 function testMapStudentDefaults() {
   const profile = mapClerkUserToProfile({
@@ -60,21 +61,43 @@ function testPublicOverridesUnsafe() {
   assert.equal(profile.mocksRemaining, 15);
 }
 
+function testLegacyRoleAliases() {
+  assert.equal(normalizeUserRole('Moderator (Questions)'), 'Content Manager');
+  assert.equal(normalizeUserRole('Moderator (Billing)'), 'Billing');
+  assert.equal(normalizeUserRole('Moderator'), 'Content Manager');
+  assert.equal(normalizeUserRole('QAD'), 'QAD');
+
+  const legacy = mapClerkUserToProfile({
+    id: 'user_legacy',
+    fullName: 'Legacy Mod',
+    imageUrl: '',
+    primaryEmailAddress: { emailAddress: 'legacy@example.com' },
+    publicMetadata: { role: 'Moderator (Questions)' },
+  });
+  assert.equal(legacy.role, 'Content Manager');
+  assert.ok(isStaffRole(legacy));
+  assert.equal(canModeratePaymentClaims(legacy), false);
+}
+
 function testPatchBuilder() {
   const patch = buildPublicMetadataPatch({
     plan: 'Unlimited',
-    role: 'Moderator (Billing)',
+    role: 'Billing',
     mocksRemaining: null,
     studyCoinBalance: 12,
     lastPercentile: 98.5,
   });
   assert.deepEqual(patch, {
     plan: 'Unlimited',
-    role: 'Moderator (Billing)',
+    role: 'Billing',
     mocksRemaining: null,
     studyCoinBalance: 12,
     lastPercentile: 98.5,
   });
+
+  // Legacy input normalized on write
+  const legacyPatch = buildPublicMetadataPatch({ role: 'Moderator (Billing)' as any });
+  assert.equal(legacyPatch.role, 'Billing');
 }
 
 function testGuestNotStaff() {
@@ -85,14 +108,12 @@ function testGuestNotStaff() {
 
 function testBillingModerationRoles() {
   assert.equal(canModeratePaymentClaims({ email: 'a@b.com', role: 'Admin' }), true);
+  assert.equal(canModeratePaymentClaims({ email: 'a@b.com', role: 'Billing' }), true);
   assert.equal(
-    canModeratePaymentClaims({ email: 'a@b.com', role: 'Moderator (Billing)' }),
-    true
-  );
-  assert.equal(
-    canModeratePaymentClaims({ email: 'a@b.com', role: 'Moderator (Questions)' }),
+    canModeratePaymentClaims({ email: 'a@b.com', role: 'Content Manager' }),
     false
   );
+  assert.equal(canModeratePaymentClaims({ email: 'a@b.com', role: 'QAD' }), false);
   assert.equal(canModeratePaymentClaims({ email: 'a@b.com', role: 'Student' }), false);
   assert.equal(
     canModeratePaymentClaims({ email: BOOTSTRAP_ADMIN_EMAIL, role: 'Student' }),
@@ -102,22 +123,21 @@ function testBillingModerationRoles() {
 
 function testRoleConfirmationPolicy() {
   assert.equal(isPrivilegedRole('Admin'), true);
-  assert.equal(isPrivilegedRole('Moderator (Questions)'), true);
+  assert.equal(isPrivilegedRole('Content Manager'), true);
+  assert.equal(isPrivilegedRole('QAD'), true);
   assert.equal(isPrivilegedRole('Student'), false);
 
   assert.equal(requiresRoleChangeConfirmation('Student', 'Student'), false);
   assert.equal(requiresRoleChangeConfirmation('Student', 'Admin'), true);
   assert.equal(requiresRoleChangeConfirmation('Admin', 'Student'), true);
-  assert.equal(
-    requiresRoleChangeConfirmation('Moderator (Questions)', 'Moderator (Billing)'),
-    true
-  );
+  assert.equal(requiresRoleChangeConfirmation('Content Manager', 'Billing'), true);
   assert.equal(ROLE_CONFIRM_PHRASE, 'CONFIRM ROLE');
 }
 
 testMapStudentDefaults();
 testMapBootstrapAdmin();
 testPublicOverridesUnsafe();
+testLegacyRoleAliases();
 testPatchBuilder();
 testGuestNotStaff();
 testBillingModerationRoles();

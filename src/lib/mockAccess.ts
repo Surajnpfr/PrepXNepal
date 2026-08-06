@@ -29,8 +29,10 @@ export function isFreePlanAllowedMock(mockId: string | null | undefined): boolea
 /** Catalog: can Free user Study / Give Mock this paper? */
 export function canFreePlanAccessMock(
   plan: string | null | undefined,
-  mockId: string | null | undefined
+  mockId: string | null | undefined,
+  opts?: { weeklyOpenBypass?: boolean }
 ): boolean {
   if (!isFreePlan(plan)) return true;
+  if (opts?.weeklyOpenBypass) return true;
   return isFreePlanAllowedMock(mockId);
 }

@@ -61,6 +61,24 @@ export function createAttemptSession(input: AttemptSessionCreateInput): string {
   return id;
 }
 
+/** Return live session id for user+mock if present (weekly one-attempt resume). */
+export function findActiveAttemptSession(
+  userId: string,
+  mockId: string
+): { sessionId: string; session: AttemptSession } | null {
+  const now = Date.now();
+  for (const [sessionId, session] of attemptSessions) {
+    if (session.expiresAt < now) {
+      attemptSessions.delete(sessionId);
+      continue;
+    }
+    if (session.userId === userId && session.mockId === mockId) {
+      return { sessionId, session };
+    }
+  }
+  return null;
+}
+
 export function consumeAttemptSession(
   sessionId: string,
   userId: string,

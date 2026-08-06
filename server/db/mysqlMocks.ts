@@ -28,6 +28,9 @@ type MockRow = RowDataPacket & {
   year: string | null;
   allocation_json: string | MockAllocation | null;
   import_batch_id: string | null;
+  opens_at: Date | string | null;
+  closes_at: Date | string | null;
+  is_weekly_open: number | boolean;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -91,6 +94,9 @@ function mapRow(row: MockRow, questionIds?: string[]): MockRecord {
     year: row.year || undefined,
     allocation,
     importBatchId: row.import_batch_id || undefined,
+    opensAt: row.opens_at == null ? null : asIso(row.opens_at),
+    closesAt: row.closes_at == null ? null : asIso(row.closes_at),
+    isWeeklyOpen: Boolean(row.is_weekly_open),
     questionIds,
     createdAt: asIso(row.created_at),
     updatedAt: asIso(row.updated_at),
@@ -167,6 +173,24 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
           INDEX idx_mocks_batch (import_batch_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
       `);
+      // Migrate weekly columns on existing deployments.
+      for (const ddl of [
+        'ALTER TABLE mock_tests ADD COLUMN opens_at DATETIME(3) NULL',
+        'ALTER TABLE mock_tests ADD COLUMN closes_at DATETIME(3) NULL',
+        'ALTER TABLE mock_tests ADD COLUMN is_weekly_open TINYINT(1) NOT NULL DEFAULT 0',
+      ]) {
+        try {
+          await pool.query(ddl);
+        } catch (err: any) {
+          // Duplicate column = already migrated
+          if (err?.code !== 'ER_DUP_FIELDNAME' && err?.errno !== 1060) throw err;
+        }
+      }
+      try {
+        await pool.query('CREATE INDEX idx_mocks_weekly ON mock_tests (is_weekly_open)');
+      } catch (err: any) {
+        if (err?.code !== 'ER_DUP_KEYNAME' && err?.errno !== 1061) throw err;
+      }
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mock_questions (
           mock_id VARCHAR(64) NOT NULL,
@@ -215,8 +239,9 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
           `INSERT INTO mock_tests (
             id, title, exam_type, mode, scope, subject, chapter_name, duration_sec,
             total_questions, questions_per_page, correct_marks, wrong_marks, unanswered_marks,
-            is_published, coin_price, year, allocation_json, import_batch_id, created_at, updated_at
-          ) VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+            is_published, coin_price, year, allocation_json, import_batch_id,
+            opens_at, closes_at, is_weekly_open, created_at, updated_at
+          ) VALUES (?, ?, ?, 'fixed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
           [
             mock.id,
             mock.title,
@@ -234,6 +259,9 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
             mock.coinPrice ?? null,
             mock.year ?? null,
             mock.importBatchId ?? null,
+            mock.opensAt ? new Date(mock.opensAt) : null,
+            mock.closesAt ? new Date(mock.closesAt) : null,
+            mock.isWeeklyOpen ? 1 : 0,
             now,
             now,
           ]
@@ -260,8 +288,9 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
         `INSERT INTO mock_tests (
           id, title, exam_type, mode, scope, subject, chapter_name, duration_sec,
           total_questions, questions_per_page, correct_marks, wrong_marks, unanswered_marks,
-          is_published, coin_price, year, allocation_json, import_batch_id, created_at, updated_at
-        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+          is_published, coin_price, year, allocation_json, import_batch_id,
+          opens_at, closes_at, is_weekly_open, created_at, updated_at
+        ) VALUES (?, ?, ?, 'dynamic', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
         [
           mock.id,
           mock.title,
@@ -279,6 +308,9 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
           mock.coinPrice ?? null,
           mock.year ?? null,
           JSON.stringify(mock.allocation || { subjects: {}, chapters: [] }),
+          mock.opensAt ? new Date(mock.opensAt) : null,
+          mock.closesAt ? new Date(mock.closesAt) : null,
+          mock.isWeeklyOpen ? 1 : 0,
           now,
           now,
         ]
@@ -300,13 +332,18 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
         coinPrice: patch.coinPrice !== undefined ? patch.coinPrice : existing.coinPrice,
         allocation: patch.allocation ?? existing.allocation,
         totalQuestions: patch.totalQuestions ?? existing.totalQuestions,
+        opensAt: patch.opensAt !== undefined ? patch.opensAt : existing.opensAt,
+        closesAt: patch.closesAt !== undefined ? patch.closesAt : existing.closesAt,
+        isWeeklyOpen:
+          patch.isWeeklyOpen !== undefined ? patch.isWeeklyOpen : Boolean(existing.isWeeklyOpen),
       };
       const now = new Date();
       await pool.query(
         `UPDATE mock_tests SET
           title = ?, is_published = ?, duration_sec = ?, questions_per_page = ?,
           correct_marks = ?, wrong_marks = ?, unanswered_marks = ?, coin_price = ?,
-          allocation_json = ?, total_questions = ?, updated_at = ?
+          allocation_json = ?, total_questions = ?,
+          opens_at = ?, closes_at = ?, is_weekly_open = ?, updated_at = ?
          WHERE id = ?`,
         [
           next.title,
@@ -319,11 +356,22 @@ export function createMysqlMocksRepo(pool: Pool): MocksRepository {
           next.coinPrice ?? null,
           next.allocation ? JSON.stringify(next.allocation) : null,
           next.totalQuestions,
+          next.opensAt ? new Date(next.opensAt) : null,
+          next.closesAt ? new Date(next.closesAt) : null,
+          next.isWeeklyOpen ? 1 : 0,
           now,
           id,
         ]
       );
       return this.getById(id);
+    },
+
+    async clearWeeklyOpenFlags(keepId) {
+      if (keepId) {
+        await pool.query('UPDATE mock_tests SET is_weekly_open = 0 WHERE id <> ?', [keepId]);
+      } else {
+        await pool.query('UPDATE mock_tests SET is_weekly_open = 0');
+      }
     },
 
     async deleteOne(id) {

@@ -9,7 +9,7 @@ import {
   type SiteNotice,
 } from '../lib/noticesApi';
 import { useFeedback } from './FeedbackProvider';
-import { AppIcon } from './ui';
+import { AppIcon, Select } from './ui';
 
 const CTA_TAB_OPTIONS = [
   { value: '', label: 'None' },
@@ -251,17 +251,16 @@ export const AdminNoticesPanel: React.FC = () => {
         </label>
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           CTA tab
-          <select
+          <Select
             value={form.ctaHrefTab}
             onChange={(e) => setForm((f) => ({ ...f, ctaHrefTab: e.target.value }))}
-            className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
           >
             {CTA_TAB_OPTIONS.map((opt) => (
               <option key={opt.value || 'none'} value={opt.value}>
                 {opt.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="space-y-1 text-xs font-semibold text-slate-700 flex flex-col justify-end">
           <span className="inline-flex items-center gap-2 pt-5">

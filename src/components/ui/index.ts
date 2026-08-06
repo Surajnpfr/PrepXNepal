@@ -6,6 +6,8 @@ export { Badge } from './Badge';
 export type { BadgeProps } from './Badge';
 export { Input, TextArea } from './Input';
 export type { InputProps, TextAreaProps } from './Input';
+export { Select } from './Select';
+export type { SelectProps } from './Select';
 export { PageHeader, ProgressBar } from './PageHeader';
 export type { PageHeaderProps, ProgressBarProps } from './PageHeader';
 export { AppIcon, APP_ICON_STROKE } from './AppIcon';

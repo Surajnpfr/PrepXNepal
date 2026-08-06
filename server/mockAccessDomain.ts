@@ -32,13 +32,15 @@ export function isFreePlanAllowedMock(mockId: string | null | undefined): boolea
 /**
  * Free users may only open SetA / SetB / SetC (Give Mock / Study).
  * Premium / Unlimited / staff bypass are unrestricted here.
+ * Weekly open mock bypasses SetA/B/C lock when opts.weeklyOpenBypass is true.
  */
 export function assertFreePlanMockAccess(
   plan: string | null | undefined,
   mockId: string | null | undefined,
-  opts?: { staffBypass?: boolean }
+  opts?: { staffBypass?: boolean; weeklyOpenBypass?: boolean }
 ): { ok: true } | { ok: false; error: string; status: 403 } {
   if (opts?.staffBypass) return { ok: true };
+  if (opts?.weeklyOpenBypass) return { ok: true };
   if (!isFreePlan(plan)) return { ok: true };
   if (isFreePlanAllowedMock(mockId)) return { ok: true };
   return { ok: false, error: FREE_PLAN_MOCK_ACCESS_ERROR, status: 403 };

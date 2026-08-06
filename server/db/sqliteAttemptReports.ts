@@ -140,6 +140,28 @@ export function createSqliteAttemptReportsRepo(
       return rows.map(mapRow);
     },
 
+    async listByMockId(mockId) {
+      const rows = db
+        .prepare(
+          `SELECT * FROM attempt_reports
+           WHERE mock_id = ?
+           ORDER BY overall_score DESC, completed_at ASC`
+        )
+        .all(mockId) as ReportRow[];
+      return rows.map(mapRow);
+    },
+
+    async existsByClerkUserIdAndMockId(clerkUserId, mockId) {
+      const row = db
+        .prepare(
+          `SELECT id FROM attempt_reports
+           WHERE clerk_user_id = ? AND mock_id = ?
+           LIMIT 1`
+        )
+        .get(clerkUserId, mockId) as { id: string } | undefined;
+      return Boolean(row);
+    },
+
     async listAll() {
       const rows = db
         .prepare(`SELECT * FROM attempt_reports ORDER BY completed_at DESC`)

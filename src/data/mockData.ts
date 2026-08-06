@@ -462,6 +462,7 @@ export const INITIAL_PRICING_PLANS: PricingPlan[] = [
     description: 'Essential CEE preparation tools with free demo diagnostic mock tests.',
     features: [
       '3 Free Mock Test Credits',
+      '1 Weekly Mock test',
       'Basic Performance Report & Score',
       'High-Yield Formula Sheet Access',
       'Bookmark & Save Questions',
@@ -478,14 +479,17 @@ export const INITIAL_PRICING_PLANS: PricingPlan[] = [
     originalPriceNpr: 299,
     mocksGranted: 15,
     coinsGranted: 100,
-    description: '15 Premium CEE mock credits with national rank prediction & report PDF download.',
+    description:
+      '15 Premium CEE mock credits with national rank prediction & report PDF — valid until CEE 2026 finishes.',
     features: [
       '15 Premium Mock Test Credits',
+      '1 Weekly Mock test',
       'Complete Performance Analytics & Rank',
       'Chapter-wise & Subject Weakness Breakdown',
-      '2x Study Coin Reward Multiplier',
+      '2x Study Coin rewards (coming soon)',
       'Download & Share Performance PDF',
-      'Saved Questions Review Desk'
+      'Saved Questions Review Desk',
+      'Valid until CEE 2026 finishes (through Kartik 2026)',
     ],
     isPopular: true,
     badgeText: 'Most Popular',
@@ -500,14 +504,18 @@ export const INITIAL_PRICING_PLANS: PricingPlan[] = [
     originalPriceNpr: 1999,
     mocksGranted: null,
     coinsGranted: 500,
-    description: 'Unlimited access to all grand mocks, chapter tests, and future model papers.',
+    description:
+      'Unlimited access to all grand mocks, chapter tests, and future model papers — valid until CEE 2026 finishes.',
     features: [
       'Unlimited Mock Test Attempts',
+      '1 Weekly Mock test',
+      'Dynamic Mock tests',
       'Unlimited Chapter-wise Speed Practice',
       'Priority Help & Support Desk',
-      '500 Bonus Study Coins Instant Boost',
+      'Study Coins bonus on activate (coming soon)',
       'All Future 2026 Model Mocks Included',
-      'AI Study Planner Customization'
+      'AI Study Planner Customization',
+      'Valid until CEE 2026 finishes (through Kartik 2026)',
     ],
     badgeText: 'Best Value',
     status: 'active'

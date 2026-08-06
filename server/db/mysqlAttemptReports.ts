@@ -136,6 +136,26 @@ export function createMysqlAttemptReportsRepo(pool: Pool): AttemptReportsReposit
       return rows.map(mapRow);
     },
 
+    async listByMockId(mockId) {
+      const [rows] = await pool.query<ReportRow[]>(
+        `SELECT * FROM attempt_reports
+         WHERE mock_id = ?
+         ORDER BY overall_score DESC, completed_at ASC`,
+        [mockId]
+      );
+      return rows.map(mapRow);
+    },
+
+    async existsByClerkUserIdAndMockId(clerkUserId, mockId) {
+      const [rows] = await pool.query<ReportRow[]>(
+        `SELECT id FROM attempt_reports
+         WHERE clerk_user_id = ? AND mock_id = ?
+         LIMIT 1`,
+        [clerkUserId, mockId]
+      );
+      return rows.length > 0;
+    },
+
     async listAll() {
       const [rows] = await pool.query<ReportRow[]>(
         `SELECT * FROM attempt_reports ORDER BY completed_at DESC`

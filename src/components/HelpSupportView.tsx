@@ -16,11 +16,14 @@ import {
   MessageSquareHeart,
   Clock,
   CheckCircle2,
+  CreditCard,
+  FileWarning,
+  Timer,
 } from 'lucide-react';
 import { PoliciesView } from './PoliciesView';
 import { WorkflowView } from './WorkflowView';
 import { useFeedback } from './FeedbackProvider';
-import { AppIcon } from './ui';
+import { AppIcon, Select } from './ui';
 import {
   fetchSupportIssues,
   submitSupportIssue,
@@ -51,11 +54,36 @@ const HELP_SECTIONS: { id: HelpSubTab; label: string }[] = [
   { id: 'refund', label: 'Refunds' },
 ];
 
-const ISSUE_CATEGORIES: { value: SupportIssueCategory; label: string }[] = [
-  { value: 'technical', label: 'App bug / timer' },
-  { value: 'content', label: 'Question or explanation error' },
-  { value: 'payment', label: 'Payment verification delay' },
-  { value: 'coins', label: 'Study Coins wallet' },
+const ISSUE_CATEGORIES: {
+  value: SupportIssueCategory;
+  label: string;
+  hint: string;
+  icon: typeof Bug;
+}[] = [
+  {
+    value: 'technical',
+    label: 'App bug / timer',
+    hint: 'Crashes, freezes, timer issues',
+    icon: Timer,
+  },
+  {
+    value: 'content',
+    label: 'Question or explanation',
+    hint: 'Wrong answer, typo, unclear stem',
+    icon: FileWarning,
+  },
+  {
+    value: 'payment',
+    label: 'Payment verification',
+    hint: 'Claim delay or rejection',
+    icon: CreditCard,
+  },
+  {
+    value: 'coins',
+    label: 'Study Coins wallet',
+    hint: 'Balance, redeem, rewards',
+    icon: Coins,
+  },
 ];
 
 const MIN_BODY = 10;
@@ -241,7 +269,7 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
     },
     {
       q: 'Do Study Coins expire?',
-      a: 'No. Study Coins stay in your wallet until you redeem them for practice packs or formula resources.',
+      a: 'Study Coins rewards are coming soon. When the wallet launches, coins will stay in your account until you redeem them — they will not expire.',
     },
     {
       q: 'How do I report a wrong answer or typo?',
@@ -328,25 +356,17 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
           <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
             Section
           </span>
-          <div className="relative">
-            <select
-              value={activeSubTab}
-              onChange={(e) => setActiveSubTab(e.target.value as HelpSubTab)}
-              className={`${fieldClass} appearance-none pr-11`}
-              aria-label="Help section"
-            >
-              {HELP_SECTIONS.map((tab) => (
-                <option key={tab.id} value={tab.id}>
-                  {tab.label}
-                </option>
-              ))}
-            </select>
-            <AppIcon
-              icon={ChevronDown}
-              size="btn"
-              className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-          </div>
+          <Select
+            value={activeSubTab}
+            onChange={(e) => setActiveSubTab(e.target.value as HelpSubTab)}
+            aria-label="Help section"
+          >
+            {HELP_SECTIONS.map((tab) => (
+              <option key={tab.id} value={tab.id}>
+                {tab.label}
+              </option>
+            ))}
+          </Select>
         </label>
 
         <div
@@ -467,21 +487,56 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
             ) : (
               <form onSubmit={handleIssueSubmit} className="space-y-4" noValidate>
                 <div className="space-y-1.5">
-                  <label htmlFor="issue-category" className={labelClass}>
+                  <span id="issue-category-label" className={labelClass}>
                     Category
-                  </label>
-                  <select
-                    id="issue-category"
-                    value={issueCategory}
-                    onChange={(e) => setIssueCategory(e.target.value as SupportIssueCategory)}
-                    className={fieldClass}
+                  </span>
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="issue-category-label"
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-2"
                   >
-                    {ISSUE_CATEGORIES.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                    {ISSUE_CATEGORIES.map((opt) => {
+                      const selected = issueCategory === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => setIssueCategory(opt.value)}
+                          className={`text-left min-h-11 rounded-xl border px-3.5 py-3 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/30 ${
+                            selected
+                              ? 'border-blue-600 bg-blue-50 shadow-xs'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span
+                              className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                                selected
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              <AppIcon icon={opt.icon} size="btn" />
+                            </span>
+                            <span className="min-w-0 space-y-0.5">
+                              <span
+                                className={`block text-sm font-bold ${
+                                  selected ? 'text-blue-900' : 'text-slate-900'
+                                }`}
+                              >
+                                {opt.label}
+                              </span>
+                              <span className="block text-[11px] text-slate-500 leading-snug">
+                                {opt.hint}
+                              </span>
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -835,6 +890,17 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
                 medical curriculum feedback, and adjust coin rewards algorithms dynamically.
               </span>
             </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-slate-900 font-bold block mb-1">
+                4. Subscription validity (CEE 2026)
+              </span>
+              <span>
+                Paid Standard and Premium plans are valid until CEE 2026 finishes (through Kartik
+                2026). Access and unused mock credits apply only within that season window. Free
+                plan demo access is not season-bound. Validity dates may be updated when MEC
+                publishes the official CEE 2026 schedule.
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -874,26 +940,21 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
             <AppIcon icon={Coins} size="btn" className="text-amber-500" />
             <span>Study Coins policy</span>
           </h2>
-          <p>
-            Study Coins are practice rewards that encourage consistent study. They have no cash value.
-          </p>
-          <div className="space-y-3 pt-2 font-semibold">
-            <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/60">
-              <span className="text-amber-950 font-bold block mb-1">Earn Multipliers</span>
-              <span>
-                Students receive +10 coins upon CEE mock completions and +15 coins upon completing
-                weak chapter revision packs. Repeated retakes of the same mock test do not award
-                additional coins.
-              </span>
-            </div>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-slate-900 font-bold block mb-1">Redemptions</span>
-              <span>
-                Coins can be redeemed for mock attempts or formula packs. They have no cash value and
-                cannot be transferred, sold, or withdrawn as NPR.
-              </span>
-            </div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-black uppercase tracking-widest">
+            Coming soon
           </div>
+          <p>
+            Study Coins are practice tokens that will encourage consistent study. They will have no
+            cash value and cannot be withdrawn as NPR.
+          </p>
+          <p className="text-slate-600">
+            Earn rules, redemptions, and the wallet catalog are paused while we redesign the rewards
+            system. When Study Coins launch, this page will list the official earning and redemption
+            policy.
+          </p>
+          <p className="text-xs text-slate-500">
+            Open <strong>Study Coins</strong> in the app for the Coming soon notice.
+          </p>
         </div>
       )}
 
@@ -907,7 +968,8 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
           <div className="space-y-3 pt-2 font-semibold">
             <p>
               <strong>Payment review:</strong> Claims are checked against your transaction reference.
-              Once approved, your Standard or Premium plan benefits are activated.
+              Once approved, your Standard or Premium plan benefits are activated and remain valid
+              until CEE 2026 finishes (through Kartik 2026).
             </p>
             <p>
               <strong>Refund Eligibility:</strong> Because mock credentials can be consumed
