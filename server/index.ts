@@ -3322,7 +3322,7 @@ app.get('/api/daily-quick', requireAuth, async (req, res) => {
   }
 });
 
-/** QAD / Admin: create Daily Quick question in the bank (pending until Admin approves). */
+/** QAD / Admin: create Daily Quick question in the bank (pending until QAD/Admin approves). */
 app.post('/api/daily-quick', requireAuth, async (req, res) => {
   try {
     const { profile } = (req as any).auth;
@@ -3376,12 +3376,12 @@ app.patch('/api/daily-quick/:id', requireAuth, async (req, res) => {
   }
 });
 
-/** Admin only: publish a pending Daily Quick item (goes live on landing + home). */
+/** QAD / Admin: publish a pending Daily Quick item (goes live on landing + home). */
 app.post('/api/daily-quick/:id/approve', requireAuth, async (req, res) => {
   try {
     const { profile } = (req as any).auth;
     if (!canApproveDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
-      return res.status(403).json({ error: 'Admin approval required' });
+      return res.status(403).json({ error: 'QAD or Admin approval required' });
     }
     const id = String(req.params.id || '');
     const existingList = await questionsRepo.getByIds([id]);

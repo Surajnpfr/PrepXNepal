@@ -25,8 +25,10 @@ assert(!canUploadDailyQuick('Content Manager'), 'cm cannot upload');
 assert(!canUploadDailyQuick('Billing'), 'billing cannot upload');
 
 assert(canApproveDailyQuick('Admin'), 'admin can approve');
+assert(canApproveDailyQuick('QAD'), 'qad can approve');
 assert(canApproveDailyQuick(undefined, true), 'bootstrap can approve');
-assert(!canApproveDailyQuick('QAD'), 'qad cannot approve');
+assert(!canApproveDailyQuick('Content Manager'), 'content manager cannot approve daily quick');
+assert(!canApproveDailyQuick('Student'), 'student cannot approve');
 
 const badSubject = validateDailyQuickCreate({
   subject: 'MAT',

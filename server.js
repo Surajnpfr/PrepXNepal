@@ -5018,9 +5018,6 @@ function normalizeUserRole(raw) {
   if (aliased) return aliased;
   return "Student";
 }
-function isAdminRole(role) {
-  return normalizeUserRole(role) === "Admin";
-}
 function isStaffRoleName(role, isBootstrap = false) {
   if (isBootstrap) return true;
   const r = normalizeUserRole(role);
@@ -5043,7 +5040,8 @@ function canManageDailyQuickRole(role, isBootstrap = false) {
 }
 function canApproveDailyQuickRole(role, isBootstrap = false) {
   if (isBootstrap) return true;
-  return isAdminRole(role);
+  const r = normalizeUserRole(role);
+  return r === "Admin" || r === "QAD";
 }
 
 // server/userPatchPolicy.ts
@@ -8799,7 +8797,7 @@ app.post("/api/daily-quick/:id/approve", requireAuth, async (req, res) => {
   try {
     const { profile } = req.auth;
     if (!canApproveDailyQuick(profile.role, isBootstrapAdminEmail(profile.email))) {
-      return res.status(403).json({ error: "Admin approval required" });
+      return res.status(403).json({ error: "QAD or Admin approval required" });
     }
     const id = String(req.params.id || "");
     const existingList = await questionsRepo.getByIds([id]);

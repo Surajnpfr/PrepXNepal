@@ -175,7 +175,7 @@ export const AdminDailyQuickPanel: React.FC<Props> = ({ userProfile }) => {
           </h2>
           <p className="text-xs text-slate-500 leading-relaxed">
             One live question per subject (Physics, Chemistry, Botany, Zoology). New items stay
-            pending until an Admin publishes them. They also enter the question bank.
+            pending until you (QAD) or an Admin publishes them. They also enter the question bank.
           </p>
         </div>
         <button

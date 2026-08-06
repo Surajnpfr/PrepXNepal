@@ -80,10 +80,11 @@ export function canManageDailyQuickRole(role: string | undefined, isBootstrap = 
   return r === 'Admin' || r === 'QAD';
 }
 
-/** Publish Daily Quick to landing/home — Admin only. */
+/** Publish Daily Quick to landing/home — QAD or Admin. */
 export function canApproveDailyQuickRole(role: string | undefined, isBootstrap = false): boolean {
   if (isBootstrap) return true;
-  return isAdminRole(role);
+  const r = normalizeUserRole(role);
+  return r === 'Admin' || r === 'QAD';
 }
 
 export function isPrivilegedRoleName(role: string | undefined): boolean {

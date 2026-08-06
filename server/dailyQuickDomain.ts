@@ -56,7 +56,7 @@ export function canUploadDailyQuick(role: string | undefined, isBootstrap = fals
   return canManageDailyQuickRole(role, isBootstrap);
 }
 
-/** Only Admin (or bootstrap) can publish a pending Daily Quick item. */
+/** QAD or Admin can publish a pending Daily Quick item. */
 export function canApproveDailyQuick(role: string | undefined, isBootstrap = false): boolean {
   return canApproveDailyQuickRole(role, isBootstrap);
 }
