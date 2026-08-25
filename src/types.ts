@@ -42,6 +42,8 @@ export interface UserProfile {
   createdAt?: string;
   /** Paid-plan end (ISO). Set for 100% promo auto-activation (2-month session). */
   planExpiresAt?: string;
+  /** Signup attribution — How did you hear about us? */
+  heardAboutUs?: string;
 }
 
 export type SubjectName = 'Physics' | 'Chemistry' | 'Zoology' | 'Botany' | 'MAT' | 'Mixed';

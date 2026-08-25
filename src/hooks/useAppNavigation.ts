@@ -7,10 +7,12 @@ import {
   resolveAppTab,
   writeAppHistory,
   writeLandingHistory,
+  writeSignUpHistory,
 } from '../lib/appRoutes';
+import { PREPX_LOCATION_EVENT } from '../lib/appLocationEvents';
 
 export type AppNavState = {
-  surface: 'landing' | 'app' | 'not-found';
+  surface: 'landing' | 'sign-up' | 'app' | 'not-found';
   tab: AppTab;
   helpSubTab: HelpSubTab;
   attemptedPath: string | null;
@@ -20,6 +22,9 @@ function readInitialNav(): AppNavState {
   const loc = parseAppLocation();
   if (loc.surface === 'landing') {
     return { surface: 'landing', tab: 'home', helpSubTab: 'info', attemptedPath: null };
+  }
+  if (loc.surface === 'sign-up') {
+    return { surface: 'sign-up', tab: 'home', helpSubTab: 'info', attemptedPath: null };
   }
   if (loc.surface === 'not-found') {
     return {
@@ -51,6 +56,10 @@ export function useAppNavigation() {
       setNav({ surface: 'landing', tab: 'home', helpSubTab: 'info', attemptedPath: null });
       return;
     }
+    if (loc.surface === 'sign-up') {
+      setNav({ surface: 'sign-up', tab: 'home', helpSubTab: 'info', attemptedPath: null });
+      return;
+    }
     if (loc.surface === 'not-found') {
       setNav({
         surface: 'not-found',
@@ -69,9 +78,13 @@ export function useAppNavigation() {
   }, []);
 
   useEffect(() => {
-    const onPop = () => applyLocation();
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    const onNav = () => applyLocation();
+    window.addEventListener('popstate', onNav);
+    window.addEventListener(PREPX_LOCATION_EVENT, onNav);
+    return () => {
+      window.removeEventListener('popstate', onNav);
+      window.removeEventListener(PREPX_LOCATION_EVENT, onNav);
+    };
   }, [applyLocation]);
 
   const goToTab = useCallback((rawTab: string, opts: NavigateOptions = {}) => {
@@ -104,6 +117,12 @@ export function useAppNavigation() {
     window.scrollTo({ top: 0 });
   }, []);
 
+  const goToSignUp = useCallback((replace = false) => {
+    setNav({ surface: 'sign-up', tab: 'home', helpSubTab: 'info', attemptedPath: null });
+    writeSignUpHistory(replace);
+    window.scrollTo({ top: 0 });
+  }, []);
+
   const enterApp = useCallback(
     (initialCategory?: string, replace = false) => {
       const tab = resolveAppTab(initialCategory, 'home');
@@ -127,9 +146,11 @@ export function useAppNavigation() {
     nav,
     goToTab,
     goToLanding,
+    goToSignUp,
     enterApp,
     setHelpSubTab,
     showLanding: nav.surface === 'landing',
+    showSignUp: nav.surface === 'sign-up',
     showNotFound: nav.surface === 'not-found',
     activeTab: nav.tab,
     helpSubTab: nav.helpSubTab,

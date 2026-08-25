@@ -5,6 +5,7 @@ import {
   isStaffRoleName,
   normalizeUserRole,
 } from './userRoles';
+import { normalizeHeardAboutUs } from './heardAboutUs';
 
 export const BOOTSTRAP_ADMIN_EMAIL = 'surajnepal2058@gmail.com';
 
@@ -110,6 +111,11 @@ export function mapClerkUserToProfile(user: ClerkMetaSource): UserProfile {
   const studyCoinBalance =
     typeof meta.studyCoinBalance === 'number' ? meta.studyCoinBalance : isBootstrapAdmin ? 9999 : 0;
 
+  const heardAboutUs =
+    normalizeHeardAboutUs(meta.heardAboutUs) ||
+    normalizeHeardAboutUs((user.unsafeMetadata || {}).heardAboutUs) ||
+    undefined;
+
   return {
     id: `usr-clerk-${user.id}`,
     clerkId: user.id,
@@ -130,6 +136,7 @@ export function mapClerkUserToProfile(user: ClerkMetaSource): UserProfile {
     lastPercentile: typeof meta.lastPercentile === 'number' ? meta.lastPercentile : undefined,
     createdAt: toIsoCreatedAt(user.createdAt),
     planExpiresAt,
+    heardAboutUs,
   };
 }
 
@@ -147,6 +154,10 @@ export function buildPublicMetadataPatch(profile: Partial<UserProfile>): Record<
   if (profile.lastMockScore !== undefined) patch.lastMockScore = profile.lastMockScore;
   if (profile.lastPercentile !== undefined) patch.lastPercentile = profile.lastPercentile;
   if (profile.planExpiresAt !== undefined) patch.planExpiresAt = profile.planExpiresAt;
+  if (profile.heardAboutUs !== undefined) {
+    const n = normalizeHeardAboutUs(profile.heardAboutUs);
+    if (n) patch.heardAboutUs = n;
+  }
   return patch;
 }
 

@@ -62,6 +62,18 @@ function testMapJoinDateAndPromoExpiry() {
   assert.equal(expired.plan, 'Free', 'expired promo session falls back to Free');
 }
 
+function testHeardAboutUsFromUnsafe() {
+  const profile = mapClerkUserToProfile({
+    id: 'user_heard',
+    fullName: 'Heard User',
+    imageUrl: '',
+    primaryEmailAddress: { emailAddress: 'heard@example.com' },
+    publicMetadata: {},
+    unsafeMetadata: { heardAboutUs: 'instagram' },
+  });
+  assert.equal(profile.heardAboutUs, 'instagram');
+}
+
 function testMapBootstrapAdmin() {
   const profile = mapClerkUserToProfile({
     id: 'user_admin',
@@ -167,6 +179,7 @@ function testRoleConfirmationPolicy() {
 
 testMapStudentDefaults();
 testMapJoinDateAndPromoExpiry();
+testHeardAboutUsFromUnsafe();
 testMapBootstrapAdmin();
 testPublicOverridesUnsafe();
 testLegacyRoleAliases();

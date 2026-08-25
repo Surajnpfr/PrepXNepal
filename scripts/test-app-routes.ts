@@ -19,6 +19,9 @@ assert.equal(resolveAppTab('study-paper'), 'mock-study');
 assert.equal(resolveAppTab('study-mock'), 'mock-study');
 
 assert.deepEqual(parseAppLocation('/'), { surface: 'landing' });
+assert.deepEqual(parseAppLocation('/sign-up'), { surface: 'sign-up' });
+assert.deepEqual(parseAppLocation('/signup'), { surface: 'sign-up' });
+assert.equal(parseAppLocation('/sign-up/extra').surface, 'not-found');
 assert.deepEqual(parseAppLocation('/home'), {
   surface: 'app',
   tab: 'home',

@@ -4,6 +4,7 @@ import {createRoot} from 'react-dom/client';
 import {ClerkProvider} from '@clerk/clerk-react';
 import App from './App.tsx';
 import { FeedbackProvider } from './components/FeedbackProvider';
+import { LandingAuthProvider } from './components/ClerkAuthControls';
 import { CLERK_SOFT_REDIRECT, clerkAppearance } from './lib/clerkUi';
 import './index.css';
 import 'katex/dist/katex.min.css';
@@ -24,7 +25,9 @@ createRoot(document.getElementById('root')!).render(
       appearance={clerkAppearance as never}
     >
       <FeedbackProvider>
-        <App />
+        <LandingAuthProvider>
+          <App />
+        </LandingAuthProvider>
       </FeedbackProvider>
     </ClerkProvider>
   </StrictMode>,

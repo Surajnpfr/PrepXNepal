@@ -66,6 +66,7 @@
     "typescript": "~5.8.2"
   },
   "overrides": {
-    "esbuild": "$esbuild"
+    "esbuild": "$esbuild",
+    "dompurify": ">=3.4.13"
   }
 }

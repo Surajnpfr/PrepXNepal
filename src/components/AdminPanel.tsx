@@ -24,6 +24,7 @@ import {
   Megaphone,
 } from 'lucide-react';
 import { PaymentClaim, Question, UserProfile, UserRole, PlanTier, PricingPlan, MockTest, MockScope, FormulaSheet } from '../types';
+import { HEARD_ABOUT_US_OPTIONS, heardAboutUsLabel } from '../lib/heardAboutUs';
 import { BOOTSTRAP_ADMIN_EMAIL, ROLE_CONFIRM_PHRASE } from '../lib/clerkUserMapper';
 import {
   canManageBillingRole,
@@ -266,6 +267,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [userSearchQuery, setUserSearchQuery] = useState<string>('');
   const [userPlanFilter, setUserPlanFilter] = useState<'all' | PlanTier>('all');
+  const [userHeardFilter, setUserHeardFilter] = useState<'all' | 'unset' | string>('all');
   const filteredUsers = (usersList || []).filter((u) => {
     const q = userSearchQuery.toLowerCase();
     const matchesSearch =
@@ -273,7 +275,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       u.name.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q);
     const matchesPlan = userPlanFilter === 'all' || u.plan === userPlanFilter;
-    return matchesSearch && matchesPlan;
+    const matchesHeard =
+      userHeardFilter === 'all' ||
+      (userHeardFilter === 'unset' && !u.heardAboutUs) ||
+      u.heardAboutUs === userHeardFilter;
+    return matchesSearch && matchesPlan && matchesHeard;
   });
   const [editingCoinsUser, setEditingCoinsUser] = useState<UserProfile | null>(null);
   const [targetCoinsInput, setTargetCoinsInput] = useState<string>('');
@@ -2671,6 +2677,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <option value="Premium">Standard</option>
                   <option value="Unlimited">Premium</option>
                 </Select>
+                <Select
+                  value={userHeardFilter}
+                  onChange={(e) => setUserHeardFilter(e.target.value)}
+                  className="sm:w-44"
+                >
+                  <option value="all">All sources</option>
+                  <option value="unset">Not set</option>
+                  {HEARD_ABOUT_US_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </Select>
                 {/* User Search */}
                 <div className="relative sm:w-64 w-full">
                   <AppIcon icon={Search} size="btn" className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -2686,11 +2705,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <div className="overflow-x-auto scroll-x-safe">
-              <table className="w-full text-left text-xs border-collapse min-w-[860px]">
+              <table className="w-full text-left text-xs border-collapse min-w-[980px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                     <th className="p-3">User Profile</th>
                     <th className="p-3">Joined</th>
+                    <th className="p-3">Heard about us</th>
                     <th className="p-3">Role</th>
                     <th className="p-3">Subscription Plan</th>
                     <th className="p-3">Mock Quota</th>
@@ -2701,7 +2721,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-6 text-center text-slate-400 text-xs">
+                      <td colSpan={8} className="p-6 text-center text-slate-400 text-xs">
                         No users match this search / plan filter.
                       </td>
                     </tr>
@@ -2747,6 +2767,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         ) : (
                           <span className="text-slate-400">—</span>
                         )}
+                      </td>
+
+                      <td className="p-3 whitespace-nowrap">
+                        <span
+                          className={
+                            user.heardAboutUs
+                              ? 'inline-flex px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-800'
+                              : 'text-slate-400'
+                          }
+                        >
+                          {heardAboutUsLabel(user.heardAboutUs)}
+                        </span>
                       </td>
 
                       <td className="p-3">

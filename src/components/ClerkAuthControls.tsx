@@ -1,15 +1,59 @@
-import React, { useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import { useClerk } from '@clerk/clerk-react';
 import { captureReferralCodeFromLocation } from '../lib/referralCapture';
 import { CLERK_SOFT_REDIRECT } from '../lib/clerkUi';
+import { writeSignUpHistory } from '../lib/appRoutes';
+import { notifyAppLocationChanged } from '../lib/appLocationEvents';
 import { Button } from './ui';
+
+type LandingAuthContextValue = {
+  promptSignIn: () => void;
+  promptSignUp: () => void;
+};
+
+const LandingAuthContext = createContext<LandingAuthContextValue | null>(null);
+
+/**
+ * Auth openers for landing / CTAs.
+ * Sign Up navigates to the custom `/sign-up` page (attribution on the same form).
+ */
+export const LandingAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { openSignIn } = useClerk();
+
+  const promptSignIn = useCallback(() => {
+    captureReferralCodeFromLocation();
+    void openSignIn({ ...CLERK_SOFT_REDIRECT });
+  }, [openSignIn]);
+
+  const promptSignUp = useCallback(() => {
+    captureReferralCodeFromLocation();
+    writeSignUpHistory(false);
+    notifyAppLocationChanged();
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  const value = useMemo(
+    () => ({ promptSignIn, promptSignUp }),
+    [promptSignIn, promptSignUp]
+  );
+
+  return <LandingAuthContext.Provider value={value}>{children}</LandingAuthContext.Provider>;
+};
+
+export function useLandingAuthModals(): LandingAuthContextValue {
+  const ctx = useContext(LandingAuthContext);
+  if (!ctx) {
+    throw new Error('useLandingAuthModals must be used within LandingAuthProvider');
+  }
+  return ctx;
+}
 
 type ClerkAuthControlsProps = {
   layout?: 'topbar';
 };
 
 /**
- * Topbar Clerk sign-in / sign-up — same openSign* API as landing (no forceRedirect).
+ * Topbar Clerk sign-in / sign-up.
  */
 export const ClerkAuthControls: React.FC<ClerkAuthControlsProps> = () => {
   const { promptSignIn, promptSignUp } = useLandingAuthModals();
@@ -50,28 +94,8 @@ const LANDING_SIGNUP_DESKTOP_CLASS =
 const LANDING_SIGNUP_MOBILE_CLASS =
   'w-full py-2.5 text-sm font-medium text-white bg-[#2563EB] rounded-lg cursor-pointer';
 
-/** Shared landing auth openers (Sign In / Sign Up modals). Soft redirects only. */
-export function useLandingAuthModals() {
-  const { openSignIn, openSignUp } = useClerk();
-
-  const promptSignIn = useCallback(() => {
-    captureReferralCodeFromLocation();
-    void openSignIn({ ...CLERK_SOFT_REDIRECT });
-  }, [openSignIn]);
-
-  const promptSignUp = useCallback(() => {
-    captureReferralCodeFromLocation();
-    void openSignUp({
-      fallbackRedirectUrl: CLERK_SOFT_REDIRECT.fallbackRedirectUrl,
-    });
-  }, [openSignUp]);
-
-  return { promptSignIn, promptSignUp };
-}
-
 /**
  * Landing "Sign In" — always opens Clerk modal.
- * Uses openSignIn() so it cannot accidentally enter the guest dashboard.
  */
 export const LandingSignInButton: React.FC<LandingAuthButtonProps> = ({
   className,
@@ -92,7 +116,7 @@ export const LandingSignInButton: React.FC<LandingAuthButtonProps> = ({
 };
 
 /**
- * Landing "Sign Up" — opens Clerk sign-up modal (used by nav + referral links).
+ * Landing "Sign Up" — goes to custom `/sign-up` (SPA or hard nav).
  */
 export const LandingSignUpButton: React.FC<LandingAuthButtonProps> = ({
   className,
@@ -102,14 +126,17 @@ export const LandingSignUpButton: React.FC<LandingAuthButtonProps> = ({
   const { promptSignUp } = useLandingAuthModals();
 
   return (
-    <button
-      type="button"
+    <a
+      href="/sign-up"
       className={
         className || (fullWidth ? LANDING_SIGNUP_MOBILE_CLASS : LANDING_SIGNUP_DESKTOP_CLASS)
       }
-      onClick={promptSignUp}
+      onClick={(e) => {
+        e.preventDefault();
+        promptSignUp();
+      }}
     >
       {children}
-    </button>
+    </a>
   );
 };

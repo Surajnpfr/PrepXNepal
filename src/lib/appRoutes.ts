@@ -104,6 +104,7 @@ const PATH_BY_TAB: Record<AppTab, string> = {
 
 export type AppLocation =
   | { surface: 'landing' }
+  | { surface: 'sign-up' }
   | { surface: 'app'; tab: AppTab; helpSubTab: HelpSubTab }
   | { surface: 'not-found'; attemptedPath: string };
 
@@ -152,6 +153,14 @@ export function parseAppLocation(pathname = window.location.pathname): AppLocati
 
   if (root === 'welcome' || root === 'landing') {
     return { surface: 'landing' };
+  }
+
+  // Custom Clerk sign-up (includes “How did you hear about us?”)
+  if (root === 'sign-up' || root === 'signup') {
+    if (segments.length > 1) {
+      return { surface: 'not-found', attemptedPath: raw };
+    }
+    return { surface: 'sign-up' };
   }
 
   // /contact → dedicated contact desk (not CEE Rules)
@@ -232,4 +241,16 @@ export function writeLandingHistory(replace = false): void {
     return;
   }
   window.history[method]({ surface: 'landing' }, '', '/');
+}
+
+export function writeSignUpHistory(replace = false): void {
+  if (typeof window === 'undefined') return;
+  const method = replace ? 'replaceState' : 'pushState';
+  const path = '/sign-up';
+  const current = `${window.location.pathname}${window.location.search}`;
+  if (current === path || current.startsWith(`${path}?`)) {
+    window.history.replaceState({ surface: 'sign-up' }, '', path);
+    return;
+  }
+  window.history[method]({ surface: 'sign-up' }, '', path);
 }

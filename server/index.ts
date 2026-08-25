@@ -99,6 +99,7 @@ import {
   isStaffRoleName,
   normalizeUserRole,
 } from './userRoles.ts';
+import { normalizeHeardAboutUs } from './heardAboutUsDomain.ts';
 import {
   applyDailyQuickApproval,
   buildDailyQuickQuestionDraft,
@@ -198,6 +199,7 @@ type AppMeta = {
   referredByClerkId?: string;
   referralCode?: string;
   planExpiresAt?: string;
+  heardAboutUs?: string;
 };
 
 function clerkCreatedAtIso(raw: unknown): string | undefined {
@@ -249,6 +251,12 @@ function mapUser(user: Awaited<ReturnType<typeof clerk.users.getUser>>) {
     email.split('@')[0] ||
     'Clerk User';
 
+  const unsafe = (user.unsafeMetadata || {}) as Record<string, unknown>;
+  const heardAboutUs =
+    normalizeHeardAboutUs(meta.heardAboutUs) ||
+    normalizeHeardAboutUs(unsafe.heardAboutUs) ||
+    undefined;
+
   return {
     id: `usr-clerk-${user.id}`,
     clerkId: user.id,
@@ -270,6 +278,7 @@ function mapUser(user: Awaited<ReturnType<typeof clerk.users.getUser>>) {
     createdAt: clerkCreatedAtIso(user.createdAt),
     updatedAt: clerkCreatedAtIso(user.updatedAt),
     planExpiresAt,
+    heardAboutUs,
   };
 }
 
@@ -2240,8 +2249,34 @@ app.get('/api/users', requireAuth, async (req, res) => {
 
 /** Current signed-in user profile from Clerk. */
 app.get('/api/users/me', requireAuth, async (req, res) => {
-  const { profile } = (req as any).auth;
-  res.json({ user: profile, syncedAt: new Date().toISOString(), source: 'clerk' });
+  try {
+    const { userId, profile } = (req as any).auth;
+    // Promote signup attribution from unsafeMetadata → publicMetadata once.
+    if (!profile.heardAboutUs) {
+      const fresh = await clerk.users.getUser(userId);
+      const fromUnsafe = normalizeHeardAboutUs(
+        (fresh.unsafeMetadata || ({} as any)).heardAboutUs
+      );
+      const fromPublic = normalizeHeardAboutUs(
+        ((fresh.publicMetadata || {}) as AppMeta).heardAboutUs
+      );
+      if (fromUnsafe && !fromPublic) {
+        const updated = await mutateClerkMeta(userId, (draft) => {
+          draft.heardAboutUs = fromUnsafe;
+          return { ok: true, next: draft };
+        });
+        return res.json({
+          user: updated,
+          syncedAt: new Date().toISOString(),
+          source: 'clerk',
+        });
+      }
+    }
+    res.json({ user: profile, syncedAt: new Date().toISOString(), source: 'clerk' });
+  } catch (err: any) {
+    console.error('GET /api/users/me failed:', err);
+    res.status(500).json({ error: publicErrorMessage(err, 'Failed to load profile') });
+  }
 });
 
 /**

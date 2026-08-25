@@ -13,6 +13,7 @@ import { Topbar } from './components/Topbar';
 import { Footer } from './components/Footer';
 import { BrainLanding } from './components/BrainLanding';
 import { LandingSignInButton, LandingSignUpButton } from './components/ClerkAuthControls';
+import { CustomSignUpPage } from './components/CustomSignUpPage';
 import { HomeView } from './components/HomeView';
 import { CatalogView } from './components/CatalogView';
 import { MockEngineView } from './components/MockEngineView';
@@ -56,7 +57,7 @@ import {
   FormulaSheet,
 } from './types';
 import { GUEST_PROFILE, isStaffRole, canModeratePaymentClaims, mapClerkUserToProfile, buildPublicMetadataPatch, buildStudentSelfPatch } from './lib/clerkUserMapper';
-import { fetchClerkUsers, patchClerkUser } from './lib/clerkApi';
+import { fetchClerkUsers, fetchClerkMe, patchClerkUser } from './lib/clerkApi';
 import {
   PLAN_ENTITLEMENTS_SEED,
   applyEntitlementsToPlans,
@@ -284,16 +285,23 @@ export function App() {
     syncingRef.current = true;
     const staff = isStaffRole(mapClerkUserToProfile(user));
     try {
+      // Promote signup attribution (unsafe → public) and refresh self profile.
+      const meData = await fetchClerkMe(getToken);
       if (staff) {
         const data = await fetchClerkUsers(getToken);
-        setUsersList(data.users);
+        const withoutMe = data.users.filter(
+          (u) => u.clerkId !== meData.user.clerkId && u.id !== meData.user.id
+        );
+        setUsersList([meData.user, ...withoutMe]);
         setLastUsersSyncAt(data.syncedAt);
         setUsersSyncError(null);
       } else {
-        const me = mapClerkUserToProfile(user);
-        setUsersList([me]);
-        setLastUsersSyncAt(new Date().toISOString());
+        setUsersList([meData.user]);
+        setLastUsersSyncAt(meData.syncedAt);
         setUsersSyncError(null);
+      }
+      if (user.id === meData.user.clerkId) {
+        await user.reload();
       }
     } catch (err: any) {
       setUsersList([mapClerkUserToProfile(user)]);
@@ -541,6 +549,7 @@ export function App() {
 
   const {
     showLanding,
+    showSignUp,
     showNotFound,
     activeTab,
     helpSubTab: helpActiveSubTab,
@@ -584,7 +593,7 @@ export function App() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    if (isSignedIn && showLanding) {
+    if (isSignedIn && (showLanding || showSignUp)) {
       // Defer shell swap so Clerk can finish closing the OTP modal (no forceRedirect thrash).
       setAuthHandoff(true);
       const id = window.setTimeout(() => {
@@ -592,7 +601,13 @@ export function App() {
       }, 450);
       return () => window.clearTimeout(id);
     }
-    if (!isSignedIn && !showLanding && !showNotFound && !PUBLIC_SEO_TABS.has(activeTab)) {
+    if (
+      !isSignedIn &&
+      !showLanding &&
+      !showSignUp &&
+      !showNotFound &&
+      !PUBLIC_SEO_TABS.has(activeTab)
+    ) {
       setAuthHandoff(false);
       goToLanding(true);
     }
@@ -600,6 +615,7 @@ export function App() {
     isLoaded,
     isSignedIn,
     showLanding,
+    showSignUp,
     showNotFound,
     activeTab,
     enterApp,
@@ -608,18 +624,27 @@ export function App() {
   ]);
 
   useEffect(() => {
-    if (!showLanding && isSignedIn) {
+    if (!showLanding && !showSignUp && isSignedIn) {
       setAuthHandoff(false);
     }
-  }, [showLanding, isSignedIn]);
+  }, [showLanding, showSignUp, isSignedIn]);
 
   const showPublicSeo =
-    isLoaded && !isSignedIn && !showLanding && !showNotFound && PUBLIC_SEO_TABS.has(activeTab);
+    isLoaded &&
+    !isSignedIn &&
+    !showLanding &&
+    !showSignUp &&
+    !showNotFound &&
+    PUBLIC_SEO_TABS.has(activeTab);
+  // Never show welcome over /sign-up (even while Clerk is still loading).
+  const showCustomSignUp = showSignUp && !authHandoff && (!isLoaded || !isSignedIn);
   const showWelcome =
     !authHandoff &&
+    !showSignUp &&
     (!isLoaded || (!isSignedIn && !showPublicSeo) || (isSignedIn && showLanding));
-  const showAppShell = isLoaded && isSignedIn && !showLanding && !showNotFound && !authHandoff;
-  const showAppNotFound = isLoaded && isSignedIn && showNotFound && !showLanding;
+  const showAppShell =
+    isLoaded && isSignedIn && !showLanding && !showSignUp && !showNotFound && !authHandoff;
+  const showAppNotFound = isLoaded && isSignedIn && showNotFound && !showLanding && !showSignUp;
   const pageSeo = seoForTab(
     showPublicSeo || showAppShell ? activeTab : null,
     Boolean(showWelcome && !showPublicSeo)
@@ -1700,6 +1725,16 @@ export function App() {
               return;
             }
             goToTab(tab);
+          }}
+        />
+      )}
+
+      {showCustomSignUp && (
+        <CustomSignUpPage
+          onBackToWelcome={() => goToLanding(false)}
+          onSignedIn={() => {
+            setAuthHandoff(true);
+            window.setTimeout(() => enterApp('home', true), 200);
           }}
         />
       )}
