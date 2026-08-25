@@ -85,3 +85,17 @@ export function defaultEntitlementsForPlan(
   }
   return { tier: 'Premium', mocksGranted: entitlements.premiumMocks, coinsGranted: 100 };
 }
+
+/** Placeholder receipt fields for auto-activated 100% promo claims. */
+export function freePromoClaimPlaceholders(promoCode: string): {
+  transactionRef: string;
+  screenshotUrl: string;
+  paymentMethod: PaymentMethod;
+} {
+  const code = (promoCode || 'FREE').trim().toUpperCase() || 'FREE';
+  return {
+    transactionRef: `PROMO-${code}`,
+    screenshotUrl: 'promo://full-discount',
+    paymentMethod: 'Fonepay',
+  };
+}

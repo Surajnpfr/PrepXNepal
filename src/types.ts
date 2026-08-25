@@ -38,6 +38,10 @@ export interface UserProfile {
   lastMockScore?: number;
   /** Latest mock percentile synced to Clerk publicMetadata for leaderboard. */
   lastPercentile?: number;
+  /** Clerk account created-at (ISO). Admin Users join date/time. */
+  createdAt?: string;
+  /** Paid-plan end (ISO). Set for 100% promo auto-activation (2-month session). */
+  planExpiresAt?: string;
 }
 
 export type SubjectName = 'Physics' | 'Chemistry' | 'Zoology' | 'Botany' | 'MAT' | 'Mixed';

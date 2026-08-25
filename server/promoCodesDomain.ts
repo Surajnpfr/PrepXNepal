@@ -78,7 +78,11 @@ export function planMatchesPromo(planCode: string, applicable: string[]): boolea
   return applicable.some((p) => p.trim().toLowerCase() === needle);
 }
 
-/** Compute discount + payable from list price. Never returns payable < 1 NPR for paid claims. */
+/**
+ * Compute discount + payable from list price.
+ * Full coverage (100% / fixed ≥ list) yields payable NPR 0 — no payment proof required.
+ * Partial discounts keep at least NPR 1 so the claim remains a real payment verification.
+ */
 export function computePromoDiscount(
   listAmountNpr: number,
   discountType: PromoDiscountType,
@@ -95,13 +99,32 @@ export function computePromoDiscount(
     discountNpr = Math.min(list, Math.max(0, Math.round(discountValue)));
   }
 
-  // Keep at least NPR 1 payable so the claim stays a real payment verification.
   let payableNpr = list - discountNpr;
+  const isFullCoverage =
+    (discountType === 'percent' && discountValue >= 100) || discountNpr >= list;
+  if (isFullCoverage) {
+    return { discountNpr: list, payableNpr: 0 };
+  }
+  // Partial promo: keep at least NPR 1 payable for receipt verification.
   if (payableNpr < 1 && list >= 1) {
     payableNpr = 1;
     discountNpr = list - 1;
   }
   return { discountNpr, payableNpr };
+}
+
+/** True when checkout needs no payment (100% / full fixed). */
+export function isZeroPayablePromo(payableNpr: number): boolean {
+  return Number.isFinite(payableNpr) && payableNpr <= 0;
+}
+
+/** Promo free-plan session length (months) from activation. */
+export const PROMO_FREE_SESSION_MONTHS = 2;
+
+export function computePromoPlanExpiresAt(from: Date = new Date()): string {
+  const d = new Date(from.getTime());
+  d.setMonth(d.getMonth() + PROMO_FREE_SESSION_MONTHS);
+  return d.toISOString();
 }
 
 export function evaluatePromoForCheckout(

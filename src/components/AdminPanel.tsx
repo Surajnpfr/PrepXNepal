@@ -265,10 +265,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [copiedRef, setCopiedRef] = useState(false);
 
   const [userSearchQuery, setUserSearchQuery] = useState<string>('');
-  const filteredUsers = (usersList || []).filter(u => 
-    u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
-    u.email.toLowerCase().includes(userSearchQuery.toLowerCase())
-  );
+  const [userPlanFilter, setUserPlanFilter] = useState<'all' | PlanTier>('all');
+  const filteredUsers = (usersList || []).filter((u) => {
+    const q = userSearchQuery.toLowerCase();
+    const matchesSearch =
+      !q ||
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q);
+    const matchesPlan = userPlanFilter === 'all' || u.plan === userPlanFilter;
+    return matchesSearch && matchesPlan;
+  });
   const [editingCoinsUser, setEditingCoinsUser] = useState<UserProfile | null>(null);
   const [targetCoinsInput, setTargetCoinsInput] = useState<string>('');
   const [confirmUsernameInput, setConfirmUsernameInput] = useState<string>('');
@@ -2645,7 +2651,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 sm:w-auto w-full">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:w-auto w-full">
                 {onRefreshClerkUsers && (
                   <button
                     type="button"
@@ -2655,6 +2661,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Refresh Clerk
                   </button>
                 )}
+                <Select
+                  value={userPlanFilter}
+                  onChange={(e) => setUserPlanFilter(e.target.value as 'all' | PlanTier)}
+                  className="sm:w-40"
+                >
+                  <option value="all">All plans</option>
+                  <option value="Free">Free</option>
+                  <option value="Premium">Standard</option>
+                  <option value="Unlimited">Premium</option>
+                </Select>
                 {/* User Search */}
                 <div className="relative sm:w-64 w-full">
                   <AppIcon icon={Search} size="btn" className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -2670,10 +2686,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <div className="overflow-x-auto scroll-x-safe">
-              <table className="w-full text-left text-xs border-collapse min-w-[720px]">
+              <table className="w-full text-left text-xs border-collapse min-w-[860px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] border-b border-slate-200">
                     <th className="p-3">User Profile</th>
+                    <th className="p-3">Joined</th>
                     <th className="p-3">Role</th>
                     <th className="p-3">Subscription Plan</th>
                     <th className="p-3">Mock Quota</th>
@@ -2682,6 +2699,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-6 text-center text-slate-400 text-xs">
+                        No users match this search / plan filter.
+                      </td>
+                    </tr>
+                  ) : null}
                   {filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="p-3">
@@ -2700,6 +2724,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             <div className="text-[11px] text-slate-400 font-mono">{user.email}</div>
                           </div>
                         </div>
+                      </td>
+
+                      <td className="p-3 whitespace-nowrap">
+                        {user.createdAt ? (
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-slate-800">
+                              {new Date(user.createdAt).toLocaleDateString(undefined, {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </div>
+                            <div className="text-[10px] font-mono text-slate-400">
+                              {new Date(user.createdAt).toLocaleTimeString(undefined, {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
                       </td>
 
                       <td className="p-3">

@@ -67,12 +67,18 @@ export function isSubscriptionSeasonActive(now: Date = new Date()): boolean {
 /**
  * Paid plans (Premium tier / Unlimited tier) are season-bound.
  * Free remains available outside the season window.
+ * Optional per-user planExpiresAt (e.g. 100% promo 2-month session) wins when set.
  */
 export function isPaidPlanSeasonValid(
   plan: string | null | undefined,
-  now: Date = new Date()
+  now: Date = new Date(),
+  planExpiresAt?: string | null
 ): boolean {
   const p = plan || 'Free';
   if (p === 'Free') return true;
+  if (planExpiresAt) {
+    const exp = new Date(planExpiresAt).getTime();
+    if (!Number.isNaN(exp)) return now.getTime() <= exp;
+  }
   return isSubscriptionSeasonActive(now);
 }

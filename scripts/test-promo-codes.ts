@@ -8,11 +8,14 @@ import path from 'path';
 import {
   canManagePromoCodes,
   computePromoDiscount,
+  computePromoPlanExpiresAt,
   evaluatePromoForCheckout,
+  isZeroPayablePromo,
   normalizePromoCode,
   validatePromoCodeCreateInput,
   type PromoCodeRecord,
 } from '../server/promoCodesDomain.ts';
+import { freePromoClaimPlaceholders } from '../server/paymentsDomain.ts';
 import { createSqlitePromoCodesRepo } from '../server/db/sqlitePromoCodes.ts';
 import { createSqlitePaymentClaimsRepo } from '../server/db/sqlitePaymentClaims.ts';
 
@@ -36,7 +39,21 @@ const fixed = computePromoDiscount(149, 'fixed', 50);
 assert(fixed.discountNpr === 50 && fixed.payableNpr === 99, 'fixed off');
 
 const almostFree = computePromoDiscount(100, 'percent', 100);
-assert(almostFree.payableNpr === 1 && almostFree.discountNpr === 99, 'keep min payable 1');
+assert(almostFree.payableNpr === 0 && almostFree.discountNpr === 100, '100% yields payable 0');
+assert(isZeroPayablePromo(almostFree.payableNpr), 'zero payable helper');
+
+const fullFixed = computePromoDiscount(149, 'fixed', 149);
+assert(fullFixed.payableNpr === 0 && fullFixed.discountNpr === 149, 'full fixed yields 0');
+
+const nearFull = computePromoDiscount(100, 'percent', 99);
+assert(nearFull.payableNpr === 1 && nearFull.discountNpr === 99, 'partial keeps min payable 1');
+
+const placeholders = freePromoClaimPlaceholders('FREE100');
+assert(placeholders.transactionRef === 'PROMO-FREE100', 'promo tx ref');
+assert(placeholders.screenshotUrl.startsWith('promo://'), 'promo screenshot placeholder');
+
+const expires = computePromoPlanExpiresAt(new Date('2026-08-25T00:00:00.000Z'));
+assert(expires.startsWith('2026-10-25'), `2-month session expiry got ${expires}`);
 
 const parsed = validatePromoCodeCreateInput({
   code: 'LAUNCH20',
@@ -71,6 +88,12 @@ const basePromo: PromoCodeRecord = {
 
 const ok = evaluatePromoForCheckout(basePromo, { planCode: 'Premium', listAmountNpr: 149 });
 assert(ok.ok && ok.payableNpr === 119, 'apply premium');
+
+const fullPromo = evaluatePromoForCheckout(
+  { ...basePromo, code: 'FREE100', discountType: 'percent', discountValue: 100, applicablePlanCodes: [] },
+  { planCode: 'Unlimited', listAmountNpr: 999 }
+);
+assert(fullPromo.ok && fullPromo.payableNpr === 0 && fullPromo.discountNpr === 999, '100% checkout');
 
 const wrongPlan = evaluatePromoForCheckout(basePromo, {
   planCode: 'Unlimited',

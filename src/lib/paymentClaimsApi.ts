@@ -34,7 +34,12 @@ export async function submitPaymentClaim(
     userNotes?: string;
     promoCode?: string;
   }
-): Promise<PaymentClaim> {
+): Promise<{
+  claim: PaymentClaim;
+  autoActivated?: boolean;
+  activatedUser?: unknown;
+  planExpiresAt?: string;
+}> {
   const headers = await authHeaders(getToken);
   // Put remarks first so they are never dropped if payload size is tight.
   const res = await fetch('/api/payment-claims', {
@@ -53,7 +58,12 @@ export async function submitPaymentClaim(
   });
   if (!res.ok) throw new Error(await readError(res));
   const data = await res.json();
-  return data.claim as PaymentClaim;
+  return {
+    claim: data.claim as PaymentClaim,
+    autoActivated: Boolean(data.autoActivated),
+    activatedUser: data.activatedUser,
+    planExpiresAt: typeof data.planExpiresAt === 'string' ? data.planExpiresAt : undefined,
+  };
 }
 
 export async function approvePaymentClaim(

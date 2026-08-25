@@ -1299,7 +1299,7 @@ export function App() {
     claimData: Omit<PaymentClaim, 'id' | 'status' | 'submittedAt'>
   ) => {
     try {
-      const claim = await submitPaymentClaim(getToken, {
+      const result = await submitPaymentClaim(getToken, {
         planCode: claimData.planCode,
         amountNpr: claimData.amountNpr,
         paymentMethod: claimData.paymentMethod,
@@ -1308,22 +1308,47 @@ export function App() {
         userNotes: claimData.userNotes?.trim() || '',
         promoCode: claimData.promoCode,
       });
+      const claim = result.claim;
       setPaymentClaims((prev) => {
         const without = prev.filter((c) => c.id !== claim.id);
         return [claim, ...without];
       });
-      pushNotification({
-        userId: userProfile.id,
-        kind: 'payment',
-        title: 'Payment claim submitted',
-        desc: `${claim.planCode} · Rs. ${claim.amountNpr} · pending review`,
-        hrefTab: 'payment',
-        refId: `${claim.id}-pending`,
-      });
-      feedback.toast({
-        variant: 'success',
-        message: 'Payment claim submitted for review.',
-      });
+      if (result.autoActivated && result.activatedUser && typeof result.activatedUser === 'object') {
+        const activated = result.activatedUser as UserProfile;
+        setUsersList((prev) => {
+          const exists = prev.some((u) => u.clerkId === activated.clerkId || u.id === activated.id);
+          if (!exists) return [activated, ...prev];
+          return prev.map((u) =>
+            u.clerkId === activated.clerkId || u.id === activated.id ? { ...u, ...activated } : u
+          );
+        });
+        if (user?.id) await user.reload();
+        pushNotification({
+          userId: userProfile.id,
+          kind: 'payment',
+          title: 'Plan activated',
+          desc: `${claim.planCode} · 100% promo · 2-month session`,
+          hrefTab: 'payment',
+          refId: `${claim.id}-approved`,
+        });
+        feedback.toast({
+          variant: 'success',
+          message: `${claim.planCode} plan activated for 2 months — no payment required.`,
+        });
+      } else {
+        pushNotification({
+          userId: userProfile.id,
+          kind: 'payment',
+          title: 'Payment claim submitted',
+          desc: `${claim.planCode} · Rs. ${claim.amountNpr} · pending review`,
+          hrefTab: 'payment',
+          refId: `${claim.id}-pending`,
+        });
+        feedback.toast({
+          variant: 'success',
+          message: 'Payment claim submitted for review.',
+        });
+      }
       void refreshPaymentClaims();
     } catch (err: any) {
       await feedback.alert({

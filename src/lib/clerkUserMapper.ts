@@ -35,6 +35,7 @@ export type ClerkMetaSource = {
   emailAddresses?: Array<{ emailAddress: string }>;
   publicMetadata?: Record<string, unknown> | null;
   unsafeMetadata?: Record<string, unknown> | null;
+  createdAt?: number | string | Date | null;
 };
 
 function firstEmail(user: ClerkMetaSource): string {
@@ -60,6 +61,32 @@ function defaultMocks(plan: PlanTier): number | null {
   return 3;
 }
 
+function toIsoCreatedAt(raw: ClerkMetaSource['createdAt']): string | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return new Date(raw).toISOString();
+  }
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    return raw.toISOString();
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    const t = new Date(raw).getTime();
+    if (!Number.isNaN(t)) return new Date(t).toISOString();
+  }
+  return undefined;
+}
+
+function effectivePlan(
+  stored: PlanTier,
+  planExpiresAt: string | undefined,
+  now: Date = new Date()
+): PlanTier {
+  if (stored === 'Free' || !planExpiresAt) return stored;
+  const exp = new Date(planExpiresAt).getTime();
+  if (Number.isNaN(exp)) return stored;
+  return exp < now.getTime() ? 'Free' : stored;
+}
+
 /** Map a Clerk user (client or Backend API shape) into app UserProfile. Clerk is source of truth. */
 export function mapClerkUserToProfile(user: ClerkMetaSource): UserProfile {
   const email = firstEmail(user);
@@ -67,7 +94,12 @@ export function mapClerkUserToProfile(user: ClerkMetaSource): UserProfile {
   const meta = { ...(user.publicMetadata || {}) };
 
   const isBootstrapAdmin = email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
-  const plan = (meta.plan as PlanTier) || (isBootstrapAdmin ? 'Unlimited' : 'Free');
+  const storedPlan = (meta.plan as PlanTier) || (isBootstrapAdmin ? 'Unlimited' : 'Free');
+  const planExpiresAt =
+    typeof meta.planExpiresAt === 'string' && meta.planExpiresAt.trim()
+      ? meta.planExpiresAt.trim()
+      : undefined;
+  const plan = isBootstrapAdmin ? 'Unlimited' : effectivePlan(storedPlan, planExpiresAt);
   const role: UserRole = isBootstrapAdmin
     ? 'Admin'
     : normalizeUserRole(meta.role);
@@ -96,6 +128,8 @@ export function mapClerkUserToProfile(user: ClerkMetaSource): UserProfile {
     isClerkLive: true,
     lastMockScore: typeof meta.lastMockScore === 'number' ? meta.lastMockScore : undefined,
     lastPercentile: typeof meta.lastPercentile === 'number' ? meta.lastPercentile : undefined,
+    createdAt: toIsoCreatedAt(user.createdAt),
+    planExpiresAt,
   };
 }
 
@@ -112,6 +146,7 @@ export function buildPublicMetadataPatch(profile: Partial<UserProfile>): Record<
   if (profile.darkTheme !== undefined) patch.darkTheme = profile.darkTheme;
   if (profile.lastMockScore !== undefined) patch.lastMockScore = profile.lastMockScore;
   if (profile.lastPercentile !== undefined) patch.lastPercentile = profile.lastPercentile;
+  if (profile.planExpiresAt !== undefined) patch.planExpiresAt = profile.planExpiresAt;
   return patch;
 }
 

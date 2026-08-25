@@ -65,6 +65,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   const [appliedPromo, setAppliedPromo] = useState<PromoValidation | null>(null);
   const [promoBusy, setPromoBusy] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  const [submittedWasFreePromo, setSubmittedWasFreePromo] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // FAQ collapse state
@@ -76,6 +77,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     ) || defaultPaidPlan;
   const listAmount = selectedPlanObj ? selectedPlanObj.priceNpr : 0;
   const payableAmount = appliedPromo?.payableNpr ?? listAmount;
+  const isFreePromo = Boolean(appliedPromo) && payableAmount <= 0;
   const selectedPlanLabel = selectedPlanObj?.name || selectedPlanObj?.code || 'Select a plan';
   const upgradeCtaPlan =
     activePlans.find((p) => p.isPopular && p.priceNpr > 0) ||
@@ -157,10 +159,17 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       });
       setAppliedPromo(result);
       setPromoInput(result.code);
-      feedback.toast({
-        variant: 'success',
-        message: `Promo applied — save NPR ${result.discountNpr}. Pay NPR ${result.payableNpr}.`,
-      });
+      if (result.payableNpr <= 0) {
+        feedback.toast({
+          variant: 'success',
+          message: `100% promo applied — ${selectedPlanObj.name || selectedPlanObj.code} activates for 2 months (no payment).`,
+        });
+      } else {
+        feedback.toast({
+          variant: 'success',
+          message: `Promo applied — save NPR ${result.discountNpr}. Pay NPR ${result.payableNpr}.`,
+        });
+      }
     } catch (err: any) {
       setAppliedPromo(null);
       await feedback.alert({
@@ -188,21 +197,24 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       });
       return;
     }
-    if (!transactionRef.trim()) {
-      await feedback.alert({
-        variant: 'warning',
-        title: 'Reference ID required',
-        message: 'Enter the payment reference / transaction ID from your Fonepay or bank receipt.',
-      });
-      return;
-    }
-    if (!screenshotUrl.trim().startsWith('data:image/')) {
-      await feedback.alert({
-        variant: 'warning',
-        title: 'Payment screenshot required',
-        message: 'Attach a clear image of your payment receipt before submitting the claim.',
-      });
-      return;
+
+    if (!isFreePromo) {
+      if (!transactionRef.trim()) {
+        await feedback.alert({
+          variant: 'warning',
+          title: 'Reference ID required',
+          message: 'Enter the payment reference / transaction ID from your Fonepay or bank receipt.',
+        });
+        return;
+      }
+      if (!screenshotUrl.trim().startsWith('data:image/')) {
+        await feedback.alert({
+          variant: 'warning',
+          title: 'Payment screenshot required',
+          message: 'Attach a clear image of your payment receipt before submitting the claim.',
+        });
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -217,17 +229,21 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         promoCode: appliedPromo?.code,
         promoDiscountNpr: appliedPromo?.discountNpr,
         paymentMethod,
-        transactionRef: transactionRef.trim(),
-        screenshotUrl,
+        transactionRef: isFreePromo ? '' : transactionRef.trim(),
+        screenshotUrl: isFreePromo ? '' : screenshotUrl,
         userNotes: userNotes.trim(),
       });
 
+      setSubmittedWasFreePromo(isFreePromo);
       setSubmittedSuccess(true);
       setTransactionRef('');
       setUserNotes('');
       clearPromo();
       clearScreenshot();
-      setTimeout(() => setSubmittedSuccess(false), 5000);
+      setTimeout(() => {
+        setSubmittedSuccess(false);
+        setSubmittedWasFreePromo(false);
+      }, 5000);
     } catch {
       /* parent surfaces errors */
     } finally {
@@ -622,10 +638,13 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       {/* 5. PAYMENT METHODS & QR VERIFICATION */}
       {!guestMode && (
       <section id="claim-form-section" className="space-y-6">
-        <h3 className="font-black text-slate-900 text-lg text-center">3. Secure checkout options</h3>
+        <h3 className="font-black text-slate-900 text-lg text-center">
+          {isFreePromo ? '3. Activate with promo' : '3. Secure checkout options'}
+        </h3>
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left QR details */}
+          {/* Left QR details — not needed for 100% promo */}
+          {!isFreePromo && (
           <div className="lg:col-span-6 space-y-6">
             <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
               <h3 className="font-bold text-slate-900 text-sm pb-2 border-b border-slate-100 flex items-center justify-between">
@@ -677,24 +696,42 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
               </div>
             </div>
           </div>
+          )}
 
           {/* Verification Claim Form */}
-          <div className="lg:col-span-6 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-5">
+          <div className={`${isFreePromo ? 'lg:col-span-12 max-w-xl mx-auto w-full' : 'lg:col-span-6'} bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-5`}>
             <h3 className="font-bold text-slate-900 text-sm pb-2 border-b border-slate-100">
-              Submit Payment Receipt Form
+              {isFreePromo ? 'Activate plan (100% promo)' : 'Submit Payment Receipt Form'}
             </h3>
 
             {submittedSuccess && (
               <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl flex items-start gap-2">
                 <AppIcon icon={CheckCircle2} size="card" className="text-emerald-600 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold block">Claim Submitted Successfully!</span>
-                  <span>Our active moderators will verify your payment reference ID within 2 hours.</span>
+                  <span className="font-bold block">
+                    {submittedWasFreePromo ? 'Plan activated!' : 'Claim Submitted Successfully!'}
+                  </span>
+                  <span>
+                    {submittedWasFreePromo
+                      ? 'Your selected plan is active for a 2-month session. No payment screenshot was required.'
+                      : 'Our active moderators will verify your payment reference ID within 2 hours.'}
+                  </span>
                 </div>
               </div>
             )}
 
+            {isFreePromo && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl space-y-1">
+                <div className="font-bold">No payment required — promo covers NPR {listAmount}</div>
+                <p className="text-emerald-800/90">
+                  Confirm below to assign <span className="font-semibold">{selectedPlanLabel}</span> for
+                  the current 2-month session. Payment screenshot and transaction ID are not needed.
+                </p>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
+              {!isFreePromo && (
               <div className="space-y-1.5">
                 <label htmlFor="payment-gateway" className="block text-xs font-bold text-slate-700">
                   Payment gateway
@@ -708,6 +745,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   <option value="Bank Transfer">Direct Bank Transfer</option>
                 </Select>
               </div>
+              )}
 
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -744,8 +782,10 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 </div>
                 {appliedPromo ? (
                   <p className="text-[11px] text-emerald-700 font-semibold">
-                    {appliedPromo.code}: save NPR {appliedPromo.discountNpr} · pay NPR{' '}
-                    {appliedPromo.payableNpr} (list NPR {appliedPromo.listAmountNpr})
+                    {appliedPromo.code}:{' '}
+                    {isFreePromo
+                      ? `100% off · activate ${selectedPlanLabel} for 2 months (no payment)`
+                      : `save NPR ${appliedPromo.discountNpr} · pay NPR ${appliedPromo.payableNpr} (list NPR ${appliedPromo.listAmountNpr})`}
                   </p>
                 ) : (
                   <p className="text-[10px] text-slate-500">
@@ -754,6 +794,8 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 )}
               </div>
 
+              {!isFreePromo && (
+              <>
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Reference Transaction ID *:</label>
                 <input
@@ -818,6 +860,8 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   </div>
                 ) : null}
               </div>
+              </>
+              )}
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700 font-sans">
@@ -842,8 +886,12 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
               >
                 {submitting
-                  ? 'Submitting…'
-                  : `Submit Verification Claim (NPR ${payableAmount})`}
+                  ? isFreePromo
+                    ? 'Activating…'
+                    : 'Submitting…'
+                  : isFreePromo
+                    ? `Activate ${selectedPlanLabel} (2 months · free)`
+                    : `Submit Verification Claim (NPR ${payableAmount})`}
               </button>
             </form>
           </div>

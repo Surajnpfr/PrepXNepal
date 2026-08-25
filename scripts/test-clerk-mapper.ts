@@ -29,6 +29,37 @@ function testMapStudentDefaults() {
   assert.equal(profile.examDate, '');
   assert.equal(profile.isClerkLive, true);
   assert.equal(profile.id, 'usr-clerk-user_abc');
+  assert.equal(profile.createdAt, undefined);
+}
+
+function testMapJoinDateAndPromoExpiry() {
+  const joined = Date.parse('2026-08-01T10:15:30.000Z');
+  const active = mapClerkUserToProfile({
+    id: 'user_promo',
+    fullName: 'Promo User',
+    imageUrl: '',
+    primaryEmailAddress: { emailAddress: 'promo@example.com' },
+    createdAt: joined,
+    publicMetadata: {
+      plan: 'Premium',
+      planExpiresAt: '2026-10-25T00:00:00.000Z',
+    },
+  });
+  assert.equal(active.plan, 'Premium');
+  assert.equal(active.createdAt, '2026-08-01T10:15:30.000Z');
+  assert.equal(active.planExpiresAt, '2026-10-25T00:00:00.000Z');
+
+  const expired = mapClerkUserToProfile({
+    id: 'user_expired',
+    fullName: 'Expired User',
+    imageUrl: '',
+    primaryEmailAddress: { emailAddress: 'expired@example.com' },
+    publicMetadata: {
+      plan: 'Unlimited',
+      planExpiresAt: '2020-01-01T00:00:00.000Z',
+    },
+  });
+  assert.equal(expired.plan, 'Free', 'expired promo session falls back to Free');
 }
 
 function testMapBootstrapAdmin() {
@@ -135,6 +166,7 @@ function testRoleConfirmationPolicy() {
 }
 
 testMapStudentDefaults();
+testMapJoinDateAndPromoExpiry();
 testMapBootstrapAdmin();
 testPublicOverridesUnsafe();
 testLegacyRoleAliases();

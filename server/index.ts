@@ -58,6 +58,7 @@ import {
 import {
   canModeratePaymentClaims,
   defaultEntitlementsForPlan,
+  freePromoClaimPlaceholders,
   isPaymentMethod,
   sortClaimsForQueue,
 } from './paymentsDomain.ts';
@@ -70,7 +71,9 @@ import {
 import { parseFormulaImportBatch } from './formulasDomain.ts';
 import {
   canManagePromoCodes,
+  computePromoPlanExpiresAt,
   evaluatePromoForCheckout,
+  isZeroPayablePromo,
   normalizePromoCode,
   validatePromoCodeCreateInput,
 } from './promoCodesDomain.ts';
@@ -194,7 +197,29 @@ type AppMeta = {
   lastPercentile?: number;
   referredByClerkId?: string;
   referralCode?: string;
+  planExpiresAt?: string;
 };
+
+function clerkCreatedAtIso(raw: unknown): string | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return new Date(raw).toISOString();
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw.toISOString();
+  if (typeof raw === 'string' && raw.trim()) {
+    const t = new Date(raw).getTime();
+    if (!Number.isNaN(t)) return new Date(t).toISOString();
+  }
+  return undefined;
+}
+
+function effectivePlanFromMeta(
+  stored: string,
+  planExpiresAt: string | undefined,
+  now = new Date()
+): string {
+  if (stored === 'Free' || !planExpiresAt) return stored;
+  const exp = new Date(planExpiresAt).getTime();
+  if (Number.isNaN(exp)) return stored;
+  return exp < now.getTime() ? 'Free' : stored;
+}
 
 function mapUser(user: Awaited<ReturnType<typeof clerk.users.getUser>>) {
   const email =
@@ -204,7 +229,14 @@ function mapUser(user: Awaited<ReturnType<typeof clerk.users.getUser>>) {
   // Authorization entitlements: publicMetadata ONLY (never merge unsafeMetadata).
   const meta = (user.publicMetadata || {}) as AppMeta;
   const isBootstrapAdmin = email.toLowerCase() === BOOTSTRAP_ADMIN_EMAIL;
-  const plan = meta.plan || (isBootstrapAdmin ? 'Unlimited' : 'Free');
+  const planExpiresAt =
+    typeof meta.planExpiresAt === 'string' && meta.planExpiresAt.trim()
+      ? meta.planExpiresAt.trim()
+      : undefined;
+  const storedPlan = meta.plan || (isBootstrapAdmin ? 'Unlimited' : 'Free');
+  const plan = isBootstrapAdmin
+    ? 'Unlimited'
+    : effectivePlanFromMeta(storedPlan, planExpiresAt);
   const role = isBootstrapAdmin ? 'Admin' : normalizeUserRole(meta.role);
   const mocksRemaining =
     meta.mocksRemaining !== undefined
@@ -235,8 +267,9 @@ function mapUser(user: Awaited<ReturnType<typeof clerk.users.getUser>>) {
     isClerkLive: true,
     lastMockScore: typeof meta.lastMockScore === 'number' ? meta.lastMockScore : undefined,
     lastPercentile: typeof meta.lastPercentile === 'number' ? meta.lastPercentile : undefined,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
+    createdAt: clerkCreatedAtIso(user.createdAt),
+    updatedAt: clerkCreatedAtIso(user.updatedAt),
+    planExpiresAt,
   };
 }
 
@@ -2636,14 +2669,77 @@ function toClientPaymentClaim(c: Awaited<ReturnType<PaymentClaimsRepository['get
   };
 }
 
+async function activatePlanFromClaim(
+  claim: { clerkUserId: string; planCode: string },
+  opts?: { planExpiresAt?: string | null }
+): Promise<{
+  activatedUser: ReturnType<typeof mapUser> | null;
+  entitlements: ReturnType<typeof defaultEntitlementsForPlan>;
+}> {
+  const entitlements = defaultEntitlementsForPlan(claim.planCode, getPlanEntitlements());
+  let activatedUser = null as ReturnType<typeof mapUser> | null;
+  try {
+    const updated = await updatePublicMetadataAtomic({
+      userId: claim.clerkUserId,
+      getUser: (id) => clerk.users.getUser(id),
+      updateUser: (id, data) => clerk.users.updateUser(id, data),
+      mutator: (draft) => {
+        const prevMocks =
+          typeof draft.mocksRemaining === 'number' || draft.mocksRemaining === null
+            ? (draft.mocksRemaining as number | null)
+            : 0;
+        const prevCoins =
+          typeof draft.studyCoinBalance === 'number' ? (draft.studyCoinBalance as number) : 0;
+        const nextMocks =
+          entitlements.mocksGranted === null
+            ? null
+            : (prevMocks ?? 0) + entitlements.mocksGranted;
+        const next: PublicMeta = {
+          ...draft,
+          plan: entitlements.tier,
+          mocksRemaining: nextMocks,
+          studyCoinBalance: prevCoins + entitlements.coinsGranted,
+        };
+        if (opts?.planExpiresAt !== undefined) {
+          if (opts.planExpiresAt) next.planExpiresAt = opts.planExpiresAt;
+          else delete next.planExpiresAt;
+        }
+        return { ok: true, next };
+      },
+    });
+    if ('user' in updated) {
+      activatedUser = mapUser(updated.user as any);
+    }
+  } catch (activateErr: any) {
+    console.error('Activate plan from claim failed:', activateErr?.message || activateErr);
+  }
+  return { activatedUser, entitlements };
+}
+
+async function bumpPromoRedemption(promoCode: string | null | undefined, claimId: string) {
+  if (!promoCode) return;
+  try {
+    const bumped = await promoCodesRepo.tryIncrementRedemption(promoCode);
+    if (!bumped) {
+      console.warn(
+        `Claim ${claimId}: promo ${promoCode} redemption not incremented (exhausted or inactive)`
+      );
+    }
+  } catch (promoErr: any) {
+    console.error('Promo redemption failed:', promoErr?.message || promoErr);
+  }
+}
+
+const PROMO_SESSION_LABEL = '2-month session';
+
 /** Student: submit payment claim. Staff queue is server-backed (dynamic). */
 app.post('/api/payment-claims', requireAuth, async (req, res) => {
   try {
     const { userId, profile } = (req as any).auth;
     const planCode = typeof req.body?.planCode === 'string' ? req.body.planCode.trim() : '';
-    const transactionRef =
+    let transactionRef =
       typeof req.body?.transactionRef === 'string' ? req.body.transactionRef.trim() : '';
-    const screenshotUrl =
+    let screenshotUrl =
       typeof req.body?.screenshotUrl === 'string' ? req.body.screenshotUrl.trim() : '';
     const userNotesRaw =
       typeof req.body?.userNotes === 'string'
@@ -2658,7 +2754,7 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
     const listAmountNpr = Math.round(
       typeof amountRaw === 'number' ? amountRaw : Number(amountRaw)
     );
-    const paymentMethod = req.body?.paymentMethod;
+    let paymentMethod = req.body?.paymentMethod;
     const promoRaw =
       typeof req.body?.promoCode === 'string'
         ? req.body.promoCode
@@ -2667,17 +2763,8 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
           : '';
 
     if (!planCode) return res.status(400).json({ error: 'planCode is required' });
-    if (!transactionRef) return res.status(400).json({ error: 'transactionRef is required' });
-    if (!isPaymentMethod(paymentMethod)) {
-      return res.status(400).json({ error: 'paymentMethod must be Fonepay, eSewa, Khalti, or Bank Transfer' });
-    }
     if (!Number.isFinite(listAmountNpr) || listAmountNpr <= 0) {
       return res.status(400).json({ error: 'amountNpr must be a positive number' });
-    }
-    if (!screenshotUrl.startsWith('data:image/') && !/^https?:\/\//i.test(screenshotUrl)) {
-      return res.status(400).json({
-        error: 'Payment screenshot is required (attach an image of your payment receipt)',
-      });
     }
 
     let payableNpr = listAmountNpr;
@@ -2702,7 +2789,27 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
       payableNpr = applied.payableNpr;
     }
 
-    const claim = await paymentClaimsRepo.insert({
+    const freePromo = isZeroPayablePromo(payableNpr) && Boolean(promoCode);
+    if (freePromo && promoCode) {
+      const placeholders = freePromoClaimPlaceholders(promoCode);
+      transactionRef = placeholders.transactionRef;
+      screenshotUrl = placeholders.screenshotUrl;
+      paymentMethod = placeholders.paymentMethod;
+    } else {
+      if (!transactionRef) return res.status(400).json({ error: 'transactionRef is required' });
+      if (!isPaymentMethod(paymentMethod)) {
+        return res.status(400).json({
+          error: 'paymentMethod must be Fonepay, eSewa, Khalti, or Bank Transfer',
+        });
+      }
+      if (!screenshotUrl.startsWith('data:image/') && !/^https?:\/\//i.test(screenshotUrl)) {
+        return res.status(400).json({
+          error: 'Payment screenshot is required (attach an image of your payment receipt)',
+        });
+      }
+    }
+
+    let claim = await paymentClaimsRepo.insert({
       id: `pay-claim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       userId: profile.id || `usr-clerk-${userId}`,
       clerkUserId: userId,
@@ -2718,6 +2825,29 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
       screenshotUrl,
       userNotes: userNotes || null,
     });
+
+    // 100% / full-discount promo: skip payment SS & moderator queue — assign plan for 2 months now.
+    if (freePromo) {
+      const resolved = await paymentClaimsRepo.resolve(claim.id, {
+        status: 'approved',
+        verifiedBy: 'Promo auto-activate',
+        verifiedByClerkId: userId,
+        moderatorNotes: `Auto-approved: 100% promo ${promoCode} · ${PROMO_SESSION_LABEL}`,
+      });
+      if (resolved) claim = resolved;
+      await bumpPromoRedemption(promoCode, claim.id);
+      const planExpiresAt = computePromoPlanExpiresAt();
+      const { activatedUser, entitlements } = await activatePlanFromClaim(claim, {
+        planExpiresAt,
+      });
+      return res.status(201).json({
+        claim: toClientPaymentClaim(claim),
+        autoActivated: true,
+        activatedUser,
+        entitlements,
+        planExpiresAt,
+      });
+    }
 
     res.status(201).json({ claim: toClientPaymentClaim(claim) });
   } catch (err: any) {
@@ -2774,60 +2904,15 @@ app.post('/api/payment-claims/:id/approve', requireAuth, async (req, res) => {
       return res.status(409).json({ error: 'Claim was already resolved by another moderator' });
     }
 
-    if (claim.promoCode) {
-      try {
-        const bumped = await promoCodesRepo.tryIncrementRedemption(claim.promoCode);
-        if (!bumped) {
-          console.warn(
-            `Approve claim ${claim.id}: promo ${claim.promoCode} redemption not incremented (exhausted or inactive)`
-          );
-        }
-      } catch (promoErr: any) {
-        console.error('Approve claim: promo redemption failed:', promoErr?.message || promoErr);
-      }
-    }
+    await bumpPromoRedemption(claim.promoCode, claim.id);
 
-    const entitlements = defaultEntitlementsForPlan(claim.planCode, getPlanEntitlements());
-    let activatedUser = null as ReturnType<typeof mapUser> | null;
-    try {
-      const updated = await updatePublicMetadataAtomic({
-        userId: claim.clerkUserId,
-        getUser: (id) => clerk.users.getUser(id),
-        updateUser: (id, data) => clerk.users.updateUser(id, data),
-        mutator: (draft) => {
-          const prevMocks =
-            typeof draft.mocksRemaining === 'number' || draft.mocksRemaining === null
-              ? (draft.mocksRemaining as number | null)
-              : 0;
-          const prevCoins =
-            typeof draft.studyCoinBalance === 'number' ? (draft.studyCoinBalance as number) : 0;
-          const nextMocks =
-            entitlements.mocksGranted === null
-              ? null
-              : (prevMocks ?? 0) + entitlements.mocksGranted;
-          return {
-            ok: true,
-            next: {
-              ...draft,
-              plan: entitlements.tier,
-              mocksRemaining: nextMocks,
-              studyCoinBalance: prevCoins + entitlements.coinsGranted,
-            },
-          };
-        },
-      });
-      if ('user' in updated) {
-        activatedUser = mapUser(updated.user as any);
-      }
-    } catch (activateErr: any) {
-      console.error('Approve claim: Clerk activation failed:', activateErr?.message || activateErr);
-    }
+    const { activatedUser, entitlements } = await activatePlanFromClaim(claim);
 
     let commission = null as any;
     let commissionRecorded = false;
     try {
       const attribution = await referralsRepo.getAttribution(claim.clerkUserId);
-      if (attribution) {
+      if (attribution && claim.amountNpr > 0) {
         const commissionAmountNpr = computeCommissionAmountNpr(
           claim.amountNpr,
           REFERRAL_COMMISSION_RATE

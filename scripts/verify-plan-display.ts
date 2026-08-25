@@ -78,6 +78,16 @@ assert.ok(SUBSCRIPTION_VALIDITY_LABEL.includes('CEE 2026'));
 assert.equal(isPaidPlanSeasonValid('Free', new Date('2027-01-01')), true);
 assert.equal(isPaidPlanSeasonValid('Premium', new Date('2026-11-30T12:00:00')), true);
 assert.equal(isPaidPlanSeasonValid('Unlimited', new Date('2026-12-01')), false);
+assert.equal(
+  isPaidPlanSeasonValid('Premium', new Date('2026-09-01'), '2026-10-25T00:00:00.000Z'),
+  true,
+  'promo session still valid'
+);
+assert.equal(
+  isPaidPlanSeasonValid('Premium', new Date('2026-11-01'), '2026-10-25T00:00:00.000Z'),
+  false,
+  'promo session expired'
+);
 assert.equal(isSubscriptionSeasonActive(new Date('2026-06-01')), true);
 
 const withBenefits = applyEntitlementsToPlans(legacy, PLAN_ENTITLEMENTS_SEED);
