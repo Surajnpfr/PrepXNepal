@@ -14,14 +14,42 @@ type CustomSignUpPageProps = {
   onSignedIn: () => void;
 };
 
+type VerifyChannel = 'email' | 'phone';
+
 function clerkErrorMessage(err: unknown, fallback: string): string {
   const e = err as { errors?: Array<{ longMessage?: string; message?: string }>; message?: string };
   const first = e?.errors?.[0];
   return first?.longMessage || first?.message || e?.message || fallback;
 }
 
+/** Normalize Nepal / international phone input to E.164. */
+function toE164Phone(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return null;
+  if (trimmed.startsWith('+') && digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  // Nepal mobile: 10 digits starting 97/98 → +977…
+  if (digits.length === 10 && /^9[78]\d{8}$/.test(digits)) {
+    return `+977${digits}`;
+  }
+  if (digits.startsWith('977') && digits.length === 13) {
+    return `+${digits}`;
+  }
+  if (digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  return null;
+}
+
+function isValidUsername(raw: string): boolean {
+  return /^[a-zA-Z0-9_]{3,30}$/.test(raw.trim());
+}
+
 /**
- * Custom PrepX sign-up page — attribution lives on the same form as email/password/OTP.
+ * Custom PrepX sign-up — account fields first, “How did you hear about us?” last.
  */
 export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
   onBackToWelcome,
@@ -31,13 +59,16 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
   const { isSignedIn } = useAuth();
   const { openSignIn } = useClerk();
 
-  const [heardAboutUs, setHeardAboutUs] = useState<HeardAboutUs | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
+  const [heardAboutUs, setHeardAboutUs] = useState<HeardAboutUs | null>(null);
   const [code, setCode] = useState('');
   const [pendingVerification, setPendingVerification] = useState(false);
+  const [verifyChannel, setVerifyChannel] = useState<VerifyChannel>('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,33 +76,89 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
     if (isSignedIn) onSignedIn();
   }, [isSignedIn, onSignedIn]);
 
+  const finishIfComplete = async (status: string | null | undefined, sessionId: string | null | undefined) => {
+    if (status === 'complete' && sessionId) {
+      await setActive({ session: sessionId });
+      onSignedIn();
+      return true;
+    }
+    return false;
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLoaded || !signUp) return;
-    if (!heardAboutUs) {
-      setError('Please tell us how you heard about PrepX Nepal.');
+
+    const user = username.trim();
+    const email = emailAddress.trim();
+    const phoneRaw = phoneNumber.trim();
+    const phoneE164 = phoneRaw ? toE164Phone(phoneRaw) : null;
+
+    if (!user || !isValidUsername(user)) {
+      setError('Username must be 3–30 characters (letters, numbers, underscore).');
       return;
     }
-    if (!emailAddress.trim() || !password) {
+    // Phone is optional (not required for login); if filled, it must be valid.
+    if (phoneRaw && !phoneE164) {
+      setError('Enter a valid phone number (e.g. 98XXXXXXXX or +97798XXXXXXXX), or leave it blank.');
+      return;
+    }
+    if (!email || !password) {
       setError('Email and password are required.');
+      return;
+    }
+    if (!heardAboutUs) {
+      setError('Please tell us how you heard about PrepX Nepal.');
       return;
     }
 
     setBusy(true);
     setError(null);
     try {
-      await signUp.create({
-        emailAddress: emailAddress.trim(),
+      const created = await signUp.create({
+        emailAddress: email,
         password,
+        username: user,
+        ...(phoneE164 ? { phoneNumber: phoneE164 } : {}),
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
-        unsafeMetadata: { heardAboutUs },
+        unsafeMetadata: {
+          heardAboutUs,
+          ...(phoneRaw ? { phoneLocal: phoneRaw } : {}),
+        },
       });
 
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-      setPendingVerification(true);
+      if (await finishIfComplete(created.status, created.createdSessionId)) return;
+
+      // Prefer email OTP. Phone verify only if user provided a number and Clerk still needs it.
+      const emailStatus = created.verifications?.emailAddress?.status;
+      const phoneStatus = created.verifications?.phoneNumber?.status;
+
+      if (emailStatus !== 'verified') {
+        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+        setVerifyChannel('email');
+        setPendingVerification(true);
+        return;
+      }
+
+      if (phoneE164 && phoneStatus && phoneStatus !== 'verified') {
+        await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' });
+        setVerifyChannel('phone');
+        setPendingVerification(true);
+        return;
+      }
+
+      setError('Account created but still incomplete. Try verifying again or contact support.');
     } catch (err) {
-      setError(clerkErrorMessage(err, 'Could not start sign-up. Check your details and try again.'));
+      const msg = clerkErrorMessage(err, 'Could not start sign-up. Check your details and try again.');
+      const lower = msg.toLowerCase();
+      if (lower.includes('username') && (lower.includes('not enabled') || lower.includes('disabled'))) {
+        setError(
+          'Username is not enabled in Clerk. Turn on Username under Clerk Dashboard → User & authentication → Email, phone, username.'
+        );
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -81,20 +168,33 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
     e.preventDefault();
     if (!isLoaded || !signUp) return;
     if (!code.trim()) {
-      setError('Enter the verification code from your email.');
+      setError('Enter the verification code.');
       return;
     }
 
     setBusy(true);
     setError(null);
     try {
-      const result = await signUp.attemptEmailAddressVerification({
-        code: code.trim(),
-      });
+      const result =
+        verifyChannel === 'phone'
+          ? await signUp.attemptPhoneNumberVerification({ code: code.trim() })
+          : await signUp.attemptEmailAddressVerification({ code: code.trim() });
 
-      if (result.status === 'complete' && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
-        onSignedIn();
+      if (await finishIfComplete(result.status, result.createdSessionId)) return;
+
+      // After email, only verify phone if the user provided one and Clerk still needs it.
+      const phoneStatus = result.verifications?.phoneNumber?.status;
+      const hasPhone = Boolean(toE164Phone(phoneNumber.trim()) || signUp.phoneNumber);
+      if (
+        verifyChannel === 'email' &&
+        hasPhone &&
+        phoneStatus &&
+        phoneStatus !== 'verified'
+      ) {
+        await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' });
+        setVerifyChannel('phone');
+        setCode('');
+        setPendingVerification(true);
         return;
       }
 
@@ -136,8 +236,10 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
             <h1 className="text-xl font-bold tracking-tight text-slate-900">Create your account</h1>
             <p className="text-sm text-slate-500">
               {pendingVerification
-                ? 'Enter the email code we sent you to finish signing up.'
-                : 'Tell us how you found us, then create your PrepX Nepal account.'}
+                ? verifyChannel === 'phone'
+                  ? 'Enter the SMS code we sent to your phone.'
+                  : 'Enter the email code we sent you to finish signing up.'
+                : 'Fill in your details — how you found us comes last.'}
             </p>
           </div>
 
@@ -149,7 +251,100 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
             )}
 
             {!pendingVerification ? (
-              <form onSubmit={(e) => void handleCreate(e)} className="space-y-5">
+              <form onSubmit={(e) => void handleCreate(e)} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="space-y-1.5 block">
+                    <span className="text-xs font-bold text-slate-700">First name</span>
+                    <input
+                      type="text"
+                      autoComplete="given-name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-blue-600"
+                    />
+                  </label>
+                  <label className="space-y-1.5 block">
+                    <span className="text-xs font-bold text-slate-700">Last name</span>
+                    <input
+                      type="text"
+                      autoComplete="family-name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-blue-600"
+                    />
+                  </label>
+                </div>
+
+                <label className="space-y-1.5 block">
+                  <span className="text-xs font-bold text-slate-700">
+                    Username <span className="text-rose-500">*</span>
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    autoComplete="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
+                    placeholder="e.g. suraj_cee"
+                    minLength={3}
+                    maxLength={30}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm font-mono text-slate-900 focus:outline-none focus:border-blue-600"
+                  />
+                  <span className="text-[10px] text-slate-500">3–30 characters · letters, numbers, _</span>
+                </label>
+
+                <label className="space-y-1.5 block">
+                  <span className="text-xs font-bold text-slate-700">
+                    Phone number <span className="text-slate-400 font-semibold">(optional)</span>
+                  </span>
+                  <div className="flex gap-2">
+                    <span className="inline-flex items-center px-3 rounded-xl border border-slate-300 bg-slate-100 text-xs font-bold text-slate-600 shrink-0">
+                      +977
+                    </span>
+                    <input
+                      type="tel"
+                      autoComplete="tel-national"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="98XXXXXXXX"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm font-mono text-slate-900 focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500">
+                    Optional — not needed for login. Nepal mobile preferred, or paste full +…
+                  </span>
+                </label>
+
+                <label className="space-y-1.5 block">
+                  <span className="text-xs font-bold text-slate-700">
+                    Email <span className="text-rose-500">*</span>
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={emailAddress}
+                    onChange={(e) => setEmailAddress(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-blue-600"
+                  />
+                </label>
+
+                <label className="space-y-1.5 block">
+                  <span className="text-xs font-bold text-slate-700">
+                    Password <span className="text-rose-500">*</span>
+                  </span>
+                  <input
+                    type="password"
+                    required
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    minLength={8}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-blue-600"
+                  />
+                  <span className="text-[10px] text-slate-500">At least 8 characters.</span>
+                </label>
+
                 <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/80 p-4 space-y-3">
                   <div className="space-y-1">
                     <h2 className="text-sm font-black text-slate-900 tracking-tight">
@@ -159,7 +354,7 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
                       </span>
                     </h2>
                     <p className="text-[11px] text-slate-600 font-medium">
-                      Required — pick one before creating your account.
+                      Last step — pick one source.
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -201,59 +396,6 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
                   ) : null}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="space-y-1.5 block">
-                    <span className="text-xs font-bold text-slate-700">First name</span>
-                    <input
-                      type="text"
-                      autoComplete="given-name"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-blue-600"
-                    />
-                  </label>
-                  <label className="space-y-1.5 block">
-                    <span className="text-xs font-bold text-slate-700">Last name</span>
-                    <input
-                      type="text"
-                      autoComplete="family-name"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-blue-600"
-                    />
-                  </label>
-                </div>
-
-                <label className="space-y-1.5 block">
-                  <span className="text-xs font-bold text-slate-700">
-                    Email <span className="text-rose-500">*</span>
-                  </span>
-                  <input
-                    type="email"
-                    required
-                    autoComplete="email"
-                    value={emailAddress}
-                    onChange={(e) => setEmailAddress(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-blue-600"
-                  />
-                </label>
-
-                <label className="space-y-1.5 block">
-                  <span className="text-xs font-bold text-slate-700">
-                    Password <span className="text-rose-500">*</span>
-                  </span>
-                  <input
-                    type="password"
-                    required
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    minLength={8}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm text-slate-900 focus:outline-none focus:border-blue-600"
-                  />
-                  <span className="text-[10px] text-slate-500">At least 8 characters.</span>
-                </label>
-
                 <button
                   type="submit"
                   disabled={busy || !isLoaded}
@@ -274,8 +416,16 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900 flex items-start gap-2">
                   <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0 mt-0.5" />
                   <span>
-                    Code sent to <span className="font-bold">{emailAddress}</span>. Check your inbox
-                    (and spam).
+                    {verifyChannel === 'phone' ? (
+                      <>
+                        SMS code sent to <span className="font-bold">{phoneNumber || 'your phone'}</span>.
+                      </>
+                    ) : (
+                      <>
+                        Code sent to <span className="font-bold">{emailAddress}</span>. Check inbox
+                        (and spam).
+                      </>
+                    )}
                   </span>
                 </div>
 
