@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth, useClerk, useSignUp } from '@clerk/clerk-react';
 import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import {
@@ -46,6 +46,40 @@ function isValidUsername(raw: string): boolean {
   return /^[a-zA-Z0-9_]{3,30}$/.test(raw.trim());
 }
 
+type EmailVerifyMode = 'code' | 'link';
+
+function signUpEmailRedirectUrl(): string {
+  return `${window.location.origin}/sign-up`;
+}
+
+/** Infer which email verification strategy Clerk allows for this sign-up attempt. */
+function inferEmailVerifyMode(signUpResource: {
+  verifications?: {
+    emailAddress?: {
+      status?: string;
+      strategy?: string;
+      nextAction?: string | { strategy?: string };
+    };
+  };
+}): EmailVerifyMode | null {
+  const emailVerification = signUpResource.verifications?.emailAddress;
+  if (!emailVerification || emailVerification.status === 'verified') return null;
+
+  const nextAction = emailVerification.nextAction;
+  const hinted =
+    emailVerification.strategy ||
+    (typeof nextAction === 'string' ? nextAction : nextAction?.strategy);
+
+  if (hinted?.includes('link')) return 'link';
+  if (hinted?.includes('code')) return 'code';
+  return null;
+}
+
+function isEmailCodeStrategyRejected(err: unknown): boolean {
+  const msg = clerkErrorMessage(err, '').toLowerCase();
+  return msg.includes('email_code') && (msg.includes('allowed') || msg.includes('match'));
+}
+
 /**
  * Custom PrepX sign-up — account fields first, “How did you hear about us?” last.
  */
@@ -66,8 +100,17 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
   const [heardAboutUs, setHeardAboutUs] = useState<HeardAboutUs | null>(null);
   const [code, setCode] = useState('');
   const [pendingVerification, setPendingVerification] = useState(false);
+  const [emailVerifyMode, setEmailVerifyMode] = useState<EmailVerifyMode>('code');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cancelEmailLinkFlowRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      cancelEmailLinkFlowRef.current?.();
+      cancelEmailLinkFlowRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (isSignedIn) onSignedIn();
@@ -80,6 +123,90 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
       return true;
     }
     return false;
+  };
+
+  const waitForEmailLinkVerification = async () => {
+    if (!signUp) return;
+
+    const redirectUrl = signUpEmailRedirectUrl();
+
+    if (typeof signUp.createEmailLinkFlow !== 'function') {
+      try {
+        await signUp.prepareEmailAddressVerification({ strategy: 'email_link', redirectUrl });
+        setEmailVerifyMode('link');
+        setPendingVerification(true);
+        setError(null);
+        return;
+      } catch (err) {
+        setError(
+          clerkErrorMessage(
+            err,
+            'Email link verification is required. Enable Email verification link in Clerk Dashboard → User & authentication → Email.'
+          )
+        );
+        return;
+      }
+    }
+
+    const { startEmailLinkFlow, cancelEmailLinkFlow } = signUp.createEmailLinkFlow();
+    cancelEmailLinkFlowRef.current?.();
+    cancelEmailLinkFlowRef.current = cancelEmailLinkFlow;
+
+    setEmailVerifyMode('link');
+    setPendingVerification(true);
+    setBusy(true);
+    setError(null);
+
+    try {
+      const linked = await startEmailLinkFlow({ redirectUrl });
+      if (await finishIfComplete(linked.status, linked.createdSessionId)) return;
+      setError('Email link verification incomplete. Open the link from your inbox and try again.');
+    } catch (err) {
+      setError(clerkErrorMessage(err, 'Could not verify your email link. Try again.'));
+    } finally {
+      cancelEmailLinkFlowRef.current = null;
+      setBusy(false);
+    }
+  };
+
+  const beginEmailVerification = async (
+    signUpResource: NonNullable<ReturnType<typeof useSignUp>['signUp']>
+  ): Promise<boolean> => {
+    const inferred = inferEmailVerifyMode(signUpResource);
+    const redirectUrl = signUpEmailRedirectUrl();
+
+    if (inferred === 'link') {
+      await waitForEmailLinkVerification();
+      return true;
+    }
+
+    if (inferred === 'code') {
+      await signUpResource.prepareEmailAddressVerification({ strategy: 'email_code' });
+      setEmailVerifyMode('code');
+      setPendingVerification(true);
+      return true;
+    }
+
+    // Unknown strategy — try OTP first (Dashboard default), then email link.
+    try {
+      await signUpResource.prepareEmailAddressVerification({ strategy: 'email_code' });
+      setEmailVerifyMode('code');
+      setPendingVerification(true);
+      return true;
+    } catch (codeErr) {
+      if (!isEmailCodeStrategyRejected(codeErr)) {
+        const emailStatus = signUpResource.verifications?.emailAddress?.status;
+        if (emailStatus === 'unverified') {
+          setEmailVerifyMode('code');
+          setPendingVerification(true);
+          return true;
+        }
+        throw codeErr;
+      }
+    }
+
+    await waitForEmailLinkVerification();
+    return true;
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -130,10 +257,8 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
       if (await finishIfComplete(created.status, created.createdSessionId)) return;
 
       const emailStatus = created.verifications?.emailAddress?.status;
-
       if (emailStatus !== 'verified') {
-        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-        setPendingVerification(true);
+        await beginEmailVerification(signUp);
         return;
       }
 
@@ -206,7 +331,9 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
             <h1 className="text-xl font-bold tracking-tight text-slate-900">Create your account</h1>
             <p className="text-sm text-slate-500">
               {pendingVerification
-                ? 'Enter the email code we sent you to finish signing up.'
+                ? emailVerifyMode === 'link'
+                  ? 'Open the verification link we emailed you to finish signing up.'
+                  : 'Enter the email code we sent you to finish signing up.'
                 : 'Fill in your details — how you found us comes last.'}
             </p>
           </div>
@@ -379,6 +506,40 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
                   )}
                 </button>
               </form>
+            ) : emailVerifyMode === 'link' ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900 flex items-start gap-2">
+                  <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0 mt-0.5" />
+                  <span>
+                    Verification link sent to <span className="font-bold">{emailAddress}</span>.
+                    Open it in this browser (check spam). This page will continue automatically.
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={busy || !isLoaded}
+                  onClick={() => void waitForEmailLinkVerification()}
+                  className="w-full py-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 text-slate-800 text-sm font-bold cursor-pointer"
+                >
+                  {busy ? 'Waiting for email link…' : 'Resend verification link'}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    cancelEmailLinkFlowRef.current?.();
+                    cancelEmailLinkFlowRef.current = null;
+                    setPendingVerification(false);
+                    setCode('');
+                    setError(null);
+                  }}
+                  className="w-full py-2 text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
+                >
+                  Back to account details
+                </button>
+              </div>
             ) : (
               <form onSubmit={(e) => void handleVerify(e)} className="space-y-4">
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900 flex items-start gap-2">
