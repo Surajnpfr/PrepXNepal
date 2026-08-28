@@ -14,8 +14,6 @@ type CustomSignUpPageProps = {
   onSignedIn: () => void;
 };
 
-type VerifyChannel = 'email' | 'phone';
-
 function clerkErrorMessage(err: unknown, fallback: string): string {
   const e = err as { errors?: Array<{ longMessage?: string; message?: string }>; message?: string };
   const first = e?.errors?.[0];
@@ -68,7 +66,6 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
   const [heardAboutUs, setHeardAboutUs] = useState<HeardAboutUs | null>(null);
   const [code, setCode] = useState('');
   const [pendingVerification, setPendingVerification] = useState(false);
-  const [verifyChannel, setVerifyChannel] = useState<VerifyChannel>('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,35 +112,27 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
     setBusy(true);
     setError(null);
     try {
+      // Phone is contact info only — Clerk sign-up does not accept phoneNumber unless
+      // Phone is enabled as a sign-up identifier in the Dashboard (not required here).
       const created = await signUp.create({
         emailAddress: email,
         password,
         username: user,
-        ...(phoneE164 ? { phoneNumber: phoneE164 } : {}),
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
         unsafeMetadata: {
           heardAboutUs,
           ...(phoneRaw ? { phoneLocal: phoneRaw } : {}),
+          ...(phoneE164 ? { phoneE164 } : {}),
         },
       });
 
       if (await finishIfComplete(created.status, created.createdSessionId)) return;
 
-      // Prefer email OTP. Phone verify only if user provided a number and Clerk still needs it.
       const emailStatus = created.verifications?.emailAddress?.status;
-      const phoneStatus = created.verifications?.phoneNumber?.status;
 
       if (emailStatus !== 'verified') {
         await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-        setVerifyChannel('email');
-        setPendingVerification(true);
-        return;
-      }
-
-      if (phoneE164 && phoneStatus && phoneStatus !== 'verified') {
-        await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' });
-        setVerifyChannel('phone');
         setPendingVerification(true);
         return;
       }
@@ -175,28 +164,9 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
     setBusy(true);
     setError(null);
     try {
-      const result =
-        verifyChannel === 'phone'
-          ? await signUp.attemptPhoneNumberVerification({ code: code.trim() })
-          : await signUp.attemptEmailAddressVerification({ code: code.trim() });
+      const result = await signUp.attemptEmailAddressVerification({ code: code.trim() });
 
       if (await finishIfComplete(result.status, result.createdSessionId)) return;
-
-      // After email, only verify phone if the user provided one and Clerk still needs it.
-      const phoneStatus = result.verifications?.phoneNumber?.status;
-      const hasPhone = Boolean(toE164Phone(phoneNumber.trim()) || signUp.phoneNumber);
-      if (
-        verifyChannel === 'email' &&
-        hasPhone &&
-        phoneStatus &&
-        phoneStatus !== 'verified'
-      ) {
-        await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' });
-        setVerifyChannel('phone');
-        setCode('');
-        setPendingVerification(true);
-        return;
-      }
 
       setError('Verification incomplete. Try the code again or restart sign-up.');
     } catch (err) {
@@ -236,9 +206,7 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
             <h1 className="text-xl font-bold tracking-tight text-slate-900">Create your account</h1>
             <p className="text-sm text-slate-500">
               {pendingVerification
-                ? verifyChannel === 'phone'
-                  ? 'Enter the SMS code we sent to your phone.'
-                  : 'Enter the email code we sent you to finish signing up.'
+                ? 'Enter the email code we sent you to finish signing up.'
                 : 'Fill in your details — how you found us comes last.'}
             </p>
           </div>
@@ -311,7 +279,7 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
                     />
                   </div>
                   <span className="text-[10px] text-slate-500">
-                    Optional — not needed for login. Nepal mobile preferred, or paste full +…
+                    Optional contact info — stored on your profile, not used for login.
                   </span>
                 </label>
 
@@ -416,16 +384,8 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900 flex items-start gap-2">
                   <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0 mt-0.5" />
                   <span>
-                    {verifyChannel === 'phone' ? (
-                      <>
-                        SMS code sent to <span className="font-bold">{phoneNumber || 'your phone'}</span>.
-                      </>
-                    ) : (
-                      <>
-                        Code sent to <span className="font-bold">{emailAddress}</span>. Check inbox
-                        (and spam).
-                      </>
-                    )}
+                    Code sent to <span className="font-bold">{emailAddress}</span>. Check inbox
+                    (and spam).
                   </span>
                 </div>
 
