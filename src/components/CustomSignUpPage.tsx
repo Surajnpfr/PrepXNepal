@@ -46,38 +46,20 @@ function isValidUsername(raw: string): boolean {
   return /^[a-zA-Z0-9_]{3,30}$/.test(raw.trim());
 }
 
-type EmailVerifyMode = 'code' | 'link';
+type VerifyStep = 'account' | 'pick-method' | 'code' | 'link';
 
 function signUpEmailRedirectUrl(): string {
   return `${window.location.origin}/sign-up`;
 }
 
-/** Infer which email verification strategy Clerk allows for this sign-up attempt. */
-function inferEmailVerifyMode(signUpResource: {
-  verifications?: {
-    emailAddress?: {
-      status?: string;
-      strategy?: string;
-      nextAction?: string | { strategy?: string };
-    };
-  };
-}): EmailVerifyMode | null {
-  const emailVerification = signUpResource.verifications?.emailAddress;
-  if (!emailVerification || emailVerification.status === 'verified') return null;
-
-  const nextAction = emailVerification.nextAction;
-  const hinted =
-    emailVerification.strategy ||
-    (typeof nextAction === 'string' ? nextAction : nextAction?.strategy);
-
-  if (hinted?.includes('link')) return 'link';
-  if (hinted?.includes('code')) return 'code';
-  return null;
-}
-
 function isEmailCodeStrategyRejected(err: unknown): boolean {
   const msg = clerkErrorMessage(err, '').toLowerCase();
   return msg.includes('email_code') && (msg.includes('allowed') || msg.includes('match'));
+}
+
+function isEmailLinkStrategyRejected(err: unknown): boolean {
+  const msg = clerkErrorMessage(err, '').toLowerCase();
+  return msg.includes('email_link') && (msg.includes('allowed') || msg.includes('match'));
 }
 
 /**
@@ -99,16 +81,26 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
   const [password, setPassword] = useState('');
   const [heardAboutUs, setHeardAboutUs] = useState<HeardAboutUs | null>(null);
   const [code, setCode] = useState('');
-  const [pendingVerification, setPendingVerification] = useState(false);
-  const [emailVerifyMode, setEmailVerifyMode] = useState<EmailVerifyMode>('code');
+  const [verifyStep, setVerifyStep] = useState<VerifyStep>('account');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cancelEmailLinkFlowRef = useRef<(() => void) | null>(null);
 
+  const cancelLinkPolling = () => {
+    cancelEmailLinkFlowRef.current?.();
+    cancelEmailLinkFlowRef.current = null;
+  };
+
+  const backToAccountForm = () => {
+    cancelLinkPolling();
+    setVerifyStep('account');
+    setCode('');
+    setError(null);
+  };
+
   useEffect(() => {
     return () => {
-      cancelEmailLinkFlowRef.current?.();
-      cancelEmailLinkFlowRef.current = null;
+      cancelLinkPolling();
     };
   }, []);
 
@@ -129,31 +121,32 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
     if (!signUp) return;
 
     const redirectUrl = signUpEmailRedirectUrl();
+    cancelLinkPolling();
 
     if (typeof signUp.createEmailLinkFlow !== 'function') {
+      setBusy(true);
+      setError(null);
       try {
         await signUp.prepareEmailAddressVerification({ strategy: 'email_link', redirectUrl });
-        setEmailVerifyMode('link');
-        setPendingVerification(true);
-        setError(null);
-        return;
+        setVerifyStep('link');
       } catch (err) {
-        setError(
-          clerkErrorMessage(
-            err,
-            'Email link verification is required. Enable Email verification link in Clerk Dashboard → User & authentication → Email.'
-          )
-        );
-        return;
+        if (isEmailLinkStrategyRejected(err)) {
+          setError(
+            'Email link verification is not enabled in Clerk. Turn on Email verification link in Dashboard → User & authentication → Email, or use OTP code.'
+          );
+        } else {
+          setError(clerkErrorMessage(err, 'Could not send verification link.'));
+        }
+      } finally {
+        setBusy(false);
       }
+      return;
     }
 
     const { startEmailLinkFlow, cancelEmailLinkFlow } = signUp.createEmailLinkFlow();
-    cancelEmailLinkFlowRef.current?.();
     cancelEmailLinkFlowRef.current = cancelEmailLinkFlow;
 
-    setEmailVerifyMode('link');
-    setPendingVerification(true);
+    setVerifyStep('link');
     setBusy(true);
     setError(null);
 
@@ -164,49 +157,39 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
     } catch (err) {
       setError(clerkErrorMessage(err, 'Could not verify your email link. Try again.'));
     } finally {
-      cancelEmailLinkFlowRef.current = null;
+      cancelLinkPolling();
       setBusy(false);
     }
   };
 
-  const beginEmailVerification = async (
-    signUpResource: NonNullable<ReturnType<typeof useSignUp>['signUp']>
-  ): Promise<boolean> => {
-    const inferred = inferEmailVerifyMode(signUpResource);
-    const redirectUrl = signUpEmailRedirectUrl();
+  const sendOtpCode = async () => {
+    if (!signUp) return;
 
-    if (inferred === 'link') {
-      await waitForEmailLinkVerification();
-      return true;
-    }
+    cancelLinkPolling();
+    setBusy(true);
+    setError(null);
 
-    if (inferred === 'code') {
-      await signUpResource.prepareEmailAddressVerification({ strategy: 'email_code' });
-      setEmailVerifyMode('code');
-      setPendingVerification(true);
-      return true;
-    }
-
-    // Unknown strategy — try OTP first (Dashboard default), then email link.
     try {
-      await signUpResource.prepareEmailAddressVerification({ strategy: 'email_code' });
-      setEmailVerifyMode('code');
-      setPendingVerification(true);
-      return true;
-    } catch (codeErr) {
-      if (!isEmailCodeStrategyRejected(codeErr)) {
-        const emailStatus = signUpResource.verifications?.emailAddress?.status;
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      setVerifyStep('code');
+      setCode('');
+    } catch (err) {
+      if (isEmailCodeStrategyRejected(err)) {
+        setError(
+          'Email OTP is not enabled in Clerk. Turn on Email verification code in Dashboard → User & authentication → Email, or use email link.'
+        );
+      } else {
+        const emailStatus = signUp.verifications?.emailAddress?.status;
         if (emailStatus === 'unverified') {
-          setEmailVerifyMode('code');
-          setPendingVerification(true);
-          return true;
+          setVerifyStep('code');
+          setCode('');
+        } else {
+          setError(clerkErrorMessage(err, 'Could not send OTP code.'));
         }
-        throw codeErr;
       }
+    } finally {
+      setBusy(false);
     }
-
-    await waitForEmailLinkVerification();
-    return true;
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -258,7 +241,7 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
 
       const emailStatus = created.verifications?.emailAddress?.status;
       if (emailStatus !== 'verified') {
-        await beginEmailVerification(signUp);
+        setVerifyStep('pick-method');
         return;
       }
 
@@ -330,11 +313,13 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
           <div className="px-5 sm:px-7 pt-6 pb-4 border-b border-slate-100 space-y-1">
             <h1 className="text-xl font-bold tracking-tight text-slate-900">Create your account</h1>
             <p className="text-sm text-slate-500">
-              {pendingVerification
-                ? emailVerifyMode === 'link'
+              {verifyStep === 'pick-method'
+                ? 'Choose how to verify your email — OTP code or magic link.'
+                : verifyStep === 'link'
                   ? 'Open the verification link we emailed you to finish signing up.'
-                  : 'Enter the email code we sent you to finish signing up.'
-                : 'Fill in your details — how you found us comes last.'}
+                  : verifyStep === 'code'
+                    ? 'Enter the email code we sent you to finish signing up.'
+                    : 'Fill in your details — how you found us comes last.'}
             </p>
           </div>
 
@@ -345,7 +330,7 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
               </div>
             )}
 
-            {!pendingVerification ? (
+            {verifyStep === 'account' ? (
               <form onSubmit={(e) => void handleCreate(e)} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="space-y-1.5 block">
@@ -506,7 +491,56 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
                   )}
                 </button>
               </form>
-            ) : emailVerifyMode === 'link' ? (
+            ) : verifyStep === 'pick-method' ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-900">
+                  Account created for <span className="font-bold">{emailAddress}</span>. Pick how
+                  you want to verify your email.
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    disabled={busy || !isLoaded}
+                    onClick={() => void sendOtpCode()}
+                    className="text-left rounded-xl border-2 border-slate-200 bg-white px-4 py-4 hover:border-blue-400 hover:bg-blue-50/40 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="text-sm font-black text-slate-900">Email OTP</span>
+                    <p className="mt-1 text-[11px] text-slate-600 font-medium">
+                      6-digit code in your inbox — paste it here.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={busy || !isLoaded}
+                    onClick={() => void waitForEmailLinkVerification()}
+                    className="text-left rounded-xl border-2 border-slate-200 bg-white px-4 py-4 hover:border-blue-400 hover:bg-blue-50/40 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="text-sm font-black text-slate-900">Email link</span>
+                    <p className="mt-1 text-[11px] text-slate-600 font-medium">
+                      One-click link — open it in this browser.
+                    </p>
+                  </button>
+                </div>
+
+                {busy ? (
+                  <p className="text-xs font-semibold text-slate-500 inline-flex items-center gap-2">
+                    <AppIcon icon={Loader2} size="btn" className="animate-spin" />
+                    Sending…
+                  </p>
+                ) : null}
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={backToAccountForm}
+                  className="w-full py-2 text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
+                >
+                  Back to account details
+                </button>
+              </div>
+            ) : verifyStep === 'link' ? (
               <div className="space-y-4">
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900 flex items-start gap-2">
                   <AppIcon icon={CheckCircle2} size="btn" className="text-emerald-600 shrink-0 mt-0.5" />
@@ -529,12 +563,18 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
                   type="button"
                   disabled={busy}
                   onClick={() => {
-                    cancelEmailLinkFlowRef.current?.();
-                    cancelEmailLinkFlowRef.current = null;
-                    setPendingVerification(false);
-                    setCode('');
+                    setVerifyStep('pick-method');
                     setError(null);
                   }}
+                  className="w-full py-2 text-xs font-bold text-[#2563EB] hover:text-blue-700 cursor-pointer"
+                >
+                  Use OTP code instead
+                </button>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={backToAccountForm}
                   className="w-full py-2 text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
                 >
                   Back to account details
@@ -580,12 +620,30 @@ export const CustomSignUpPage: React.FC<CustomSignUpPageProps> = ({
 
                 <button
                   type="button"
+                  disabled={busy || !isLoaded}
+                  onClick={() => void sendOtpCode()}
+                  className="w-full py-2 text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
+                >
+                  Resend OTP code
+                </button>
+
+                <button
+                  type="button"
                   disabled={busy}
                   onClick={() => {
-                    setPendingVerification(false);
-                    setCode('');
+                    cancelLinkPolling();
+                    setVerifyStep('pick-method');
                     setError(null);
                   }}
+                  className="w-full py-2 text-xs font-bold text-[#2563EB] hover:text-blue-700 cursor-pointer"
+                >
+                  Use email link instead
+                </button>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={backToAccountForm}
                   className="w-full py-2 text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
                 >
                   Back to account details
