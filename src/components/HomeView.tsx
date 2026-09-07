@@ -11,10 +11,11 @@ import {
 } from 'lucide-react';
 import { UserProfile, MockTest, AttemptReport, StudyPlanTask } from '../types';
 import {
-  TENTATIVE_EXAM_LABEL,
+  OFFICIAL_MBBS_EXAM_DATE_ISO,
+  OFFICIAL_MBBS_EXAM_LABEL,
   daysUntilExamDate,
   formatExamDateShort,
-  isExamDateSet,
+  resolveExamDate,
 } from '../lib/examSchedule';
 import {
   formatWindowLabel,
@@ -129,8 +130,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return { label: 'Needs Attention', badge: 'bg-amber-50 text-amber-800 border-amber-200', bar: 'bg-amber-600' };
   };
 
-  const examDateSet = isExamDateSet(userProfile.examDate);
-  const daysRemaining = examDateSet ? daysUntilExamDate(userProfile.examDate) : null;
+  const examDate = resolveExamDate(userProfile.examDate);
+  const daysRemaining = daysUntilExamDate(examDate);
 
   const handleScoreUpdate = async () => {
     const target = await feedback.prompt({
@@ -162,9 +163,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         subtitle={
           latestReport
             ? `Latest mock: ${latestReport.overallScore}/200. Target ${userProfile.targetScore}/200.`
-            : examDateSet
-              ? `Target ${userProfile.targetScore}/200 · ${daysRemaining} days until exam.`
-              : `Target ${userProfile.targetScore}/200 · ${TENTATIVE_EXAM_LABEL}.`
+            : `Target ${userProfile.targetScore}/200 · ${daysRemaining} days until exam.`
         }
         actions={
           <>
@@ -240,28 +239,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <span>Days to exam</span>
             <AppIcon icon={Calendar} size="btn" className="text-[var(--px-muted)]" />
           </div>
-          {examDateSet ? (
-            <>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-display font-bold tabular-nums text-[var(--px-heading)]">
-                  {daysRemaining}
-                </span>
-                <span className="text-xs text-[var(--px-muted)]">days</span>
-              </div>
-              <div className="text-[11px] text-[var(--px-muted)]">
-                {formatExamDateShort(userProfile.examDate)}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl font-display font-bold text-[var(--px-heading)] tracking-tight">
-                  TBA
-                </span>
-              </div>
-              <div className="text-[11px] text-[var(--px-muted)]">{TENTATIVE_EXAM_LABEL}</div>
-            </>
-          )}
+          <>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-display font-bold tabular-nums text-[var(--px-heading)]">
+                {daysRemaining}
+              </span>
+              <span className="text-xs text-[var(--px-muted)]">days</span>
+            </div>
+            <div className="text-[11px] text-[var(--px-muted)]">
+              {examDate === OFFICIAL_MBBS_EXAM_DATE_ISO
+                ? OFFICIAL_MBBS_EXAM_LABEL
+                : formatExamDateShort(examDate)}
+            </div>
+          </>
         </Card>
 
       </div>

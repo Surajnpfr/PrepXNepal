@@ -1,10 +1,23 @@
 /**
  * Nepal CEE exam schedule helpers.
- * Official date is TBA; public window is tentative Ashoj–Kartik until MEC announces.
+ * MBBS CEE 2026: Kartik 14, 2083 BS (31 Oct 2026 AD).
  */
 
-/** Shown when the student (or product) has no official exam date. */
+/** Official MBBS CEE date (Gregorian / ISO calendar date). */
+export const OFFICIAL_MBBS_EXAM_DATE_ISO = '2026-10-31';
+
+/** Official MBBS CEE date in Bikram Sambat. */
+export const OFFICIAL_MBBS_EXAM_DATE_BS = 'Kartik 14, 2083';
+
+/** Student-facing label for the confirmed MBBS exam day. */
+export const OFFICIAL_MBBS_EXAM_LABEL = `${OFFICIAL_MBBS_EXAM_DATE_BS} · 31 Oct 2026`;
+
+/**
+ * @deprecated Official MBBS date is set; kept for any leftover tentative copy paths.
+ * Prefer OFFICIAL_MBBS_EXAM_LABEL / resolveExamDate().
+ */
 export const TENTATIVE_EXAM_WINDOW = 'Ashoj–Kartik';
+/** @deprecated Prefer OFFICIAL_MBBS_EXAM_LABEL. */
 export const TENTATIVE_EXAM_LABEL = `Tentative · ${TENTATIVE_EXAM_WINDOW}`;
 
 /** PrepX product season tied to MEC CEE year. */
@@ -12,8 +25,7 @@ export const CEE_SEASON_YEAR = 2026;
 
 /**
  * Inclusive calendar end of paid-plan validity for the CEE 2026 season.
- * Covers the tentative Ashoj–Kartik exam window; plans remain valid through this date.
- * (Update when MEC publishes the official exam date / close of the 2026 cycle.)
+ * Plans remain valid through Kartik after the MBBS exam date.
  */
 export const SUBSCRIPTION_VALID_UNTIL_ISO = '2026-11-30';
 
@@ -26,7 +38,7 @@ export const SUBSCRIPTION_VALIDITY_SHORT = 'until CEE 2026';
 
 /**
  * Legacy mapper default that was never an official MEC date.
- * Treat as unset so existing profiles don't show a fake countdown.
+ * Treat as unset so existing profiles fall back to the official MBBS date.
  */
 const LEGACY_PLACEHOLDER_EXAM_DATES = new Set(['2026-09-15']);
 
@@ -36,6 +48,14 @@ export function isExamDateSet(examDate?: string | null): boolean {
   if (LEGACY_PLACEHOLDER_EXAM_DATES.has(raw)) return false;
   const t = new Date(raw).getTime();
   return !Number.isNaN(t);
+}
+
+/**
+ * Effective exam date for countdowns: personal override if set, else official MBBS CEE.
+ */
+export function resolveExamDate(userExamDate?: string | null): string {
+  if (isExamDateSet(userExamDate)) return (userExamDate || '').trim();
+  return OFFICIAL_MBBS_EXAM_DATE_ISO;
 }
 
 export function daysUntilExamDate(examDate: string): number {

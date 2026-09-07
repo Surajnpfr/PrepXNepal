@@ -9,7 +9,7 @@
  */
 
 import { SUPPORT_EMAIL, SUPPORT_INSTAGRAM_URL } from './supportContacts';
-import { TENTATIVE_EXAM_LABEL } from './examSchedule';
+import { OFFICIAL_MBBS_EXAM_LABEL } from './examSchedule';
 
 export const SITE_NAME = 'PrepX Nepal';
 export const SITE_DEFAULT_ORIGIN = 'https://prepxnepal.com';
@@ -52,7 +52,7 @@ export const ABOUT_US = {
   audience:
     'Nepal Medical Education Commission (MEC) CEE / MBBS entrance students, plus parents and mentors who review progress reports.',
   location: 'Kathmandu, Nepal',
-  examWindow: `${TENTATIVE_EXAM_LABEL} (official MEC date TBA)`,
+  examWindow: `MBBS CEE · ${OFFICIAL_MBBS_EXAM_LABEL}`,
   website: SITE_DEFAULT_ORIGIN,
   email: SUPPORT_EMAIL,
   offers: [
@@ -86,7 +86,7 @@ export const ABOUT_FAQS: { question: string; answer: string }[] = [
   },
   {
     question: 'When is the Nepal CEE exam according to PrepX Nepal?',
-    answer: `The official MEC date is not fixed yet. PrepX Nepal lists the tentative window as ${ABOUT_US.examWindow}. Countdown days appear only after a confirmed date is set.`,
+    answer: `PrepX Nepal lists the MBBS CEE on ${OFFICIAL_MBBS_EXAM_LABEL}. Dashboard countdowns use that date unless a student sets a personal exam date.`,
   },
   {
     question: 'How do I contact PrepX Nepal?',

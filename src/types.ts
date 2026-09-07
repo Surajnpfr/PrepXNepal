@@ -25,7 +25,7 @@ export interface UserProfile {
   role: UserRole;
   targetScore: number;
   targetExam: ExamType;
-  examDate: string; // ISO date when set; empty = tentative Ashoj–Kartik (official TBA)
+  examDate: string; // ISO date when set; empty = product default (MBBS Kartik 14, 2083)
   plan: PlanTier;
   mocksRemaining: number | null; // null = unlimited
   studyCoinBalance: number;
