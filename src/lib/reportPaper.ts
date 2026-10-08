@@ -1,9 +1,15 @@
 import type { AttemptReport, Question } from '../types';
+import { loadCachedPaperQuestions } from './reportsStorage';
 
 export type PaperAnswerKey = 'A' | 'B' | 'C' | 'D';
 
 export type AnswerClassification = 'correct' | 'wrong' | 'skipped';
 
+/**
+ * Resolve the paper for review/PDF.
+ * Prefers an in-memory `paperQuestions` snapshot (fresh score response),
+ * otherwise loads the dedicated `prepx_paper_*` cache — never from the reports blob.
+ */
 export function resolvePaper(report: AttemptReport): {
   questions: Question[];
   answers: Record<string, PaperAnswerKey>;
@@ -14,15 +20,9 @@ export function resolvePaper(report: AttemptReport): {
       answers: report.paperAnswers || {},
     };
   }
-  try {
-    const raw = localStorage.getItem(`prepx_paper_${report.mockId}`);
-    if (!raw) return null;
-    const questions = JSON.parse(raw) as Question[];
-    if (!Array.isArray(questions) || questions.length === 0) return null;
-    return { questions, answers: report.paperAnswers || {} };
-  } catch {
-    return null;
-  }
+  const questions = loadCachedPaperQuestions(report.mockId);
+  if (!questions?.length) return null;
+  return { questions, answers: report.paperAnswers || {} };
 }
 
 export function classifyAnswer(

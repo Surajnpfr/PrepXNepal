@@ -199,9 +199,12 @@ export interface AttemptReport {
   targetGap: number;
   recommendations: RecommendationTask[];
   shareToken: string;
-  /** Snapshot of the paper for PDF review (optional for older reports). */
+  /**
+   * Full paper snapshot from the score API / server row.
+   * Never persist inside `prepx_reports` — cache via `prepx_paper_${mockId}` instead.
+   */
   paperQuestions?: Question[];
-  /** Student answers keyed by question id. */
+  /** Student answers keyed by question id (compact; safe to keep on the report). */
   paperAnswers?: Record<string, 'A' | 'B' | 'C' | 'D'>;
 }
 

@@ -84,6 +84,16 @@ import {
   type PaymentClaimEditInput,
 } from './lib/paymentClaimsApi';
 import { fetchAttemptReports } from './lib/reportsApi';
+import {
+  cachePaperQuestions,
+  compactAttemptReport,
+  loadCachedPaperQuestions,
+  loadPastReportsFromStorage,
+  normalizeReportForCache,
+  normalizeReportsForCache,
+  persistReportsCache,
+} from './lib/reportsStorage';
+import { safeStorageSet } from './lib/safeStorage';
 import { fetchActiveNotice, type SiteNotice } from './lib/noticesApi';
 import {
   bootstrapFromActivity,
@@ -236,6 +246,7 @@ export function App() {
     const hasClearedLegacy = localStorage.getItem('prepx_legacy_cleared_v7');
     if (!hasClearedLegacy) {
       localStorage.removeItem('prepx_reports');
+      localStorage.removeItem('prepx_reports_schema_version');
       localStorage.removeItem('prepx_transactions');
       localStorage.removeItem('prepx_claims');
       localStorage.removeItem('prepx_notifications');
@@ -347,26 +358,30 @@ export function App() {
     if (!isSignedIn) return;
     try {
       const data = await fetchAttemptReports(getToken);
-      const serverReports = data.reports || [];
+      // Extract papers to prepx_paper_* and keep only compact report rows in state/cache.
+      const serverReports = normalizeReportsForCache(data.reports || []);
       setPastReports((prev) => {
         const byId = new Map<string, AttemptReport>();
         // Server wins for same id; keep local-only reports if present.
         for (const r of serverReports) byId.set(r.id, r);
         for (const r of prev) {
-          if (!byId.has(r.id)) byId.set(r.id, r);
+          const compact = compactAttemptReport(r);
+          if (!byId.has(compact.id)) byId.set(compact.id, compact);
         }
         return [...byId.values()].sort((a, b) =>
           String(b.completedAt).localeCompare(String(a.completedAt))
         );
       });
-      for (const r of serverReports) {
-        if (r.paperQuestions?.length) {
-          localStorage.setItem(
-            `prepx_paper_${r.mockId}`,
-            JSON.stringify(r.paperQuestions)
-          );
+      setActiveReport((current) => {
+        if (!current) return current;
+        const next = serverReports.find((r) => r.id === current.id);
+        // Prefer compact server row; keep in-memory paperQuestions if still present for review.
+        if (!next) return compactAttemptReport(current);
+        if (current.paperQuestions?.length && !next.paperQuestions?.length) {
+          return { ...next, paperQuestions: current.paperQuestions };
         }
-      }
+        return next;
+      });
     } catch (err: any) {
       console.warn('Failed to load attempt reports:', err?.message || err);
     }
@@ -664,10 +679,9 @@ export function App() {
   const [studyMock, setStudyMock] = useState<MockTest | null>(null);
   const isImmersivePaper = activeTab === 'mock-engine' || activeTab === 'mock-study';
 
-  const [pastReports, setPastReports] = useState<AttemptReport[]>(() => {
-    const saved = localStorage.getItem('prepx_reports');
-    return saved ? JSON.parse(saved) : INITIAL_PAST_REPORTS;
-  });
+  const [pastReports, setPastReports] = useState<AttemptReport[]>(() =>
+    loadPastReportsFromStorage(INITIAL_PAST_REPORTS)
+  );
   const [activeReport, setActiveReport] = useState<AttemptReport | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>(() => loadNotifications());
   const [siteNotice, setSiteNotice] = useState<SiteNotice | null>(null);
@@ -741,11 +755,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('prepx_reports', JSON.stringify(pastReports));
+    persistReportsCache(pastReports);
   }, [pastReports]);
 
   useEffect(() => {
-    localStorage.setItem('prepx_transactions', JSON.stringify(coinTransactions));
+    safeStorageSet('prepx_transactions', coinTransactions);
   }, [coinTransactions]);
 
   useEffect(() => {
@@ -1060,7 +1074,7 @@ export function App() {
         });
         return;
       }
-      localStorage.setItem(`prepx_paper_${resolved.id}`, JSON.stringify(resolved.questions));
+      cachePaperQuestions(resolved.id, resolved.questions);
       // Quota is consumed server-side; refresh Clerk profile for remaining count.
       if (user?.id) await user.reload();
       setActiveMock(resolved);
@@ -1158,7 +1172,7 @@ export function App() {
           message: `Started with ${got} of ${wanted} requested questions (some units were short in the bank).`,
         });
       }
-      localStorage.setItem(`prepx_paper_${resolved.id}`, JSON.stringify(resolved.questions));
+      cachePaperQuestions(resolved.id, resolved.questions);
       if (user?.id) await user.reload();
       setActiveMock(resolved);
       setActiveTab('mock-engine');
@@ -1174,14 +1188,7 @@ export function App() {
   };
 
   const handleSubmitAttempt = async (attempt: AttemptState) => {
-    const paperFromStorage = (() => {
-      try {
-        const raw = localStorage.getItem(`prepx_paper_${attempt.mockId}`);
-        return raw ? (JSON.parse(raw) as Question[]) : [];
-      } catch {
-        return [] as Question[];
-      }
-    })();
+    const paperFromStorage = loadCachedPaperQuestions(attempt.mockId) || [];
     const mockMeta = mockTests.find((m) => m.id === attempt.mockId);
     const questions =
       (activeMock?.id === attempt.mockId && activeMock.questions.length
@@ -1223,14 +1230,16 @@ export function App() {
         wrongMarks: mock.wrongMarks,
       });
 
-      const newReport = scored.report as AttemptReport;
-      localStorage.setItem(
-        `prepx_paper_${mock.id}`,
-        JSON.stringify(newReport.paperQuestions || questions)
-      );
+      const scoredReport = scored.report as AttemptReport;
+      // Ensure paper is attached for caching + in-session review, then strip for pastReports.
+      const fullReport: AttemptReport = scoredReport.paperQuestions?.length
+        ? scoredReport
+        : { ...scoredReport, paperQuestions: questions };
+      const cachedReport = normalizeReportForCache(fullReport);
 
-      setPastReports((prev) => [newReport, ...prev]);
-      setActiveReport(newReport);
+      setPastReports((prev) => [cachedReport, ...prev.filter((r) => r.id !== cachedReport.id)]);
+      // Keep paper on the active in-memory report for immediate review this session.
+      setActiveReport(fullReport);
 
       if (scored.user) {
         setUsersList((prev) => {
@@ -1258,10 +1267,10 @@ export function App() {
       pushNotification({
         userId: userProfile.id,
         kind: 'mock_complete',
-        title: `Scored ${newReport.overallScore}/${newReport.maxScore} on ${mock.title}`,
-        desc: `Accuracy ${newReport.accuracyPercentage}%`,
+        title: `Scored ${fullReport.overallScore}/${fullReport.maxScore} on ${mock.title}`,
+        desc: `Accuracy ${fullReport.accuracyPercentage}%`,
         hrefTab: 'reports',
-        refId: newReport.id,
+        refId: fullReport.id,
       });
 
       setActiveMock(null);

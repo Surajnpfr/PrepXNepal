@@ -35,6 +35,7 @@
     "test:notices": "tsx scripts/test-notices-domain.ts",
     "test:daily-quick": "tsx scripts/test-daily-quick-domain.ts",
     "test:math-text": "tsx scripts/test-math-text.ts",
+    "test:reports-storage": "tsx scripts/test-reports-storage.ts",
     "db:seed": "tsx scripts/seed-questions.ts"
   },
   "main": "server.js",
