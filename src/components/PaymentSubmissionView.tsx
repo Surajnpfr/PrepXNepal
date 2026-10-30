@@ -20,6 +20,7 @@ import { PaymentClaim, UserProfile, PricingPlan } from '../types';
 import { validatePromoCode, type PromoValidation } from '../lib/promoCodesApi';
 import { planDisplayName } from '../lib/planDisplay';
 import { SUBSCRIPTION_VALIDITY_SHORT } from '../lib/examSchedule';
+import { SITE_PLANS_COMPLIMENTARY } from '../lib/sitePlans';
 import { useFeedback } from './FeedbackProvider';
 import { AppIcon, Select } from './ui';
 import { LandingSignInButton, LandingSignUpButton } from './ClerkAuthControls';
@@ -50,9 +51,12 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   const { getToken } = useAuth();
   const screenshotInputRef = useRef<HTMLInputElement>(null);
   const activePlans = (pricingPlans || []).filter((p) => p.status === 'active');
-  const defaultPaidPlan = activePlans.find((p) => p.priceNpr > 0) || activePlans[0];
+  const defaultClaimPlan =
+    activePlans.find((p) => p.isPopular && p.tier !== 'Free') ||
+    activePlans.find((p) => p.tier !== 'Free' && p.priceNpr > 0) ||
+    activePlans[0];
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>(
-    () => defaultPaidPlan?.code || 'Premium'
+    () => defaultClaimPlan?.code || 'Premium'
   );
   const [paymentMethod, setPaymentMethod] = useState<'Fonepay' | 'eSewa' | 'Khalti' | 'Bank Transfer'>(
     'Fonepay'
@@ -74,14 +78,19 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
   const selectedPlanObj =
     activePlans.find(
       (p) => p.code === selectedPlanCode || p.id === selectedPlanCode || p.tier === selectedPlanCode
-    ) || defaultPaidPlan;
+    ) || defaultClaimPlan;
   const listAmount = selectedPlanObj ? selectedPlanObj.priceNpr : 0;
-  const payableAmount = appliedPromo?.payableNpr ?? listAmount;
+  const payableAmount = SITE_PLANS_COMPLIMENTARY
+    ? 0
+    : appliedPromo?.payableNpr ?? listAmount;
   const isFreePromo = Boolean(appliedPromo) && payableAmount <= 0;
+  const isComplimentaryClaim =
+    SITE_PLANS_COMPLIMENTARY && selectedPlanObj?.tier !== 'Free';
+  const isNoPaymentClaim = isComplimentaryClaim || isFreePromo;
   const selectedPlanLabel = selectedPlanObj?.name || selectedPlanObj?.code || 'Select a plan';
   const upgradeCtaPlan =
-    activePlans.find((p) => p.isPopular && p.priceNpr > 0) ||
-    activePlans.find((p) => p.priceNpr > 0);
+    activePlans.find((p) => p.isPopular && p.tier !== 'Free') ||
+    activePlans.find((p) => p.tier !== 'Free' && p.priceNpr > 0);
 
   useEffect(() => {
     setAppliedPromo(null);
@@ -189,16 +198,18 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPlanObj || selectedPlanObj.priceNpr <= 0) {
+    if (!selectedPlanObj || selectedPlanObj.tier === 'Free') {
       await feedback.alert({
         variant: 'warning',
-        title: 'Select a paid plan',
-        message: 'Choose a paid plan before submitting a payment claim.',
+        title: 'Select a plan',
+        message: SITE_PLANS_COMPLIMENTARY
+          ? 'Choose Standard or Premium, then claim it for free.'
+          : 'Choose a paid plan before submitting a payment claim.',
       });
       return;
     }
 
-    if (!isFreePromo) {
+    if (!isNoPaymentClaim) {
       if (!transactionRef.trim()) {
         await feedback.alert({
           variant: 'warning',
@@ -229,12 +240,12 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         promoCode: appliedPromo?.code,
         promoDiscountNpr: appliedPromo?.discountNpr,
         paymentMethod,
-        transactionRef: isFreePromo ? '' : transactionRef.trim(),
-        screenshotUrl: isFreePromo ? '' : screenshotUrl,
+        transactionRef: isNoPaymentClaim ? '' : transactionRef.trim(),
+        screenshotUrl: isNoPaymentClaim ? '' : screenshotUrl,
         userNotes: userNotes.trim(),
       });
 
-      setSubmittedWasFreePromo(isFreePromo);
+      setSubmittedWasFreePromo(isNoPaymentClaim);
       setSubmittedSuccess(true);
       setTransactionRef('');
       setUserNotes('');
@@ -255,32 +266,55 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
     setOpenFaqIndex(prev => (prev === index ? null : index));
   };
 
-  const faqs = [
-    {
-      q: "Can I upgrade my subscription plan later?",
-      a: "Yes! You can upgrade your plan or purchase additional mock credits at any time. When you select a plan, submit your payment reference ID for verification."
-    },
-    {
-      q: "Can I retake a completed mock test?",
-      a: "Yes. You can retake any unlocked mock to practise and track improvement."
-    },
-    {
-      q: "Do purchased mock attempts expire?",
-      a: "Standard and Premium plan access is valid until CEE 2026 finishes (through Kartik 2026). Unused Standard mock credits stay available within that season window. Free demo access does not expire."
-    },
-    {
-      q: "How long is my subscription valid?",
-      a: "Paid plans (Standard and Premium) are valid for the CEE 2026 preparation season — until CEE 2026 finishes (through Kartik 2026). After that window, paid entitlements end unless you purchase a new season plan."
-    },
-    {
-      q: "What happens if my payment claim is rejected?",
-      a: "If a moderator rejects your payment claim (due to a typo in the Reference ID or incorrect amount), your plan status will remain unchanged. You can review the rejection reason in your history log and submit a corrected claim receipt."
-    },
-    {
-      q: "How are Study Coins earned and spent?",
-      a: "Study Coins rewards and redemptions are coming soon. The wallet will open after we finish redesigning earn and redeem rules."
-    }
-  ];
+  const faqs = SITE_PLANS_COMPLIMENTARY
+    ? [
+        {
+          q: 'Are plans really free right now?',
+          a: 'Yes. PrepX Nepal is in a complimentary launch period. Choose Standard or Premium and claim it — no payment, QR, or transaction ID is required. Paid checkout will return later.',
+        },
+        {
+          q: 'Can I retake a completed mock test?',
+          a: 'Yes. You can retake any unlocked mock to practise and track improvement.',
+        },
+        {
+          q: 'Do claimed mock attempts expire?',
+          a: 'Standard and Premium access is valid until CEE 2026 finishes (through Kartik 2026). Unused Standard mock credits stay available within that season window. Free demo access does not expire.',
+        },
+        {
+          q: 'How long is my claimed plan valid?',
+          a: 'Complimentary Standard and Premium claims follow the CEE 2026 preparation season — until CEE 2026 finishes (through Kartik 2026).',
+        },
+        {
+          q: 'How are Study Coins earned and spent?',
+          a: 'Study Coins rewards and redemptions are coming soon. The wallet will open after we finish redesigning earn and redeem rules.',
+        },
+      ]
+    : [
+        {
+          q: 'Can I upgrade my subscription plan later?',
+          a: 'Yes! You can upgrade your plan or purchase additional mock credits at any time. When you select a plan, submit your payment reference ID for verification.',
+        },
+        {
+          q: 'Can I retake a completed mock test?',
+          a: 'Yes. You can retake any unlocked mock to practise and track improvement.',
+        },
+        {
+          q: 'Do purchased mock attempts expire?',
+          a: 'Standard and Premium plan access is valid until CEE 2026 finishes (through Kartik 2026). Unused Standard mock credits stay available within that season window. Free demo access does not expire.',
+        },
+        {
+          q: 'How long is my subscription valid?',
+          a: 'Paid plans (Standard and Premium) are valid for the CEE 2026 preparation season — until CEE 2026 finishes (through Kartik 2026). After that window, paid entitlements end unless you purchase a new season plan.',
+        },
+        {
+          q: 'What happens if my payment claim is rejected?',
+          a: 'If a moderator rejects your payment claim (due to a typo in the Reference ID or incorrect amount), your plan status will remain unchanged. You can review the rejection reason in your history log and submit a corrected claim receipt.',
+        },
+        {
+          q: 'How are Study Coins earned and spent?',
+          a: 'Study Coins rewards and redemptions are coming soon. The wallet will open after we finish redesigning earn and redeem rules.',
+        },
+      ];
 
   const latestClaim = claimsHistory[0] || null;
 
@@ -290,13 +324,22 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       <section className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 space-y-4">
         <div className="max-w-2xl space-y-2">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            Plans and payment
+            {SITE_PLANS_COMPLIMENTARY ? 'Plans' : 'Plans and payment'}
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
-            {guestMode
-              ? 'Compare PrepX Nepal plans for Nepal CEE mocks. Sign in to pay via merchant QR and submit a verification claim.'
-              : 'Pick a plan, scan the Merchant QR to pay, then submit your transaction reference for verification.'}
+            {SITE_PLANS_COMPLIMENTARY
+              ? guestMode
+                ? 'All PrepX Nepal plans are free for now. Sign in to claim Standard or Premium — payment is paused.'
+                : 'All plans are free for now. Choose Standard or Premium and claim it — no payment required while checkout is paused.'
+              : guestMode
+                ? 'Compare PrepX Nepal plans for Nepal CEE mocks. Sign in to pay via merchant QR and submit a verification claim.'
+                : 'Pick a plan, scan the Merchant QR to pay, then submit your transaction reference for verification.'}
           </p>
+          {SITE_PLANS_COMPLIMENTARY ? (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+              Launch period · payments paused · claim any plan for free
+            </div>
+          ) : null}
           {!guestMode && (
             <div className="flex flex-wrap items-center gap-3 pt-1 text-sm">
               <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
@@ -335,16 +378,26 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-1 min-w-0">
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Your payment status
+              {SITE_PLANS_COMPLIMENTARY ? 'Your plan status' : 'Your payment status'}
             </div>
             {!latestClaim ? (
               <p className="text-sm font-semibold text-slate-700">
-                No payment submitted yet. Pay with the merchant QR, then enter your transaction details below.
+                {SITE_PLANS_COMPLIMENTARY
+                  ? 'No plan claimed yet. Pick Standard or Premium below and claim it for free.'
+                  : 'No payment submitted yet. Pay with the merchant QR, then enter your transaction details below.'}
               </p>
             ) : (
               <>
                 <p className="text-base sm:text-lg font-black text-slate-900">
-                  {latestClaim.planCode} · NPR {latestClaim.amountNpr}
+                  {latestClaim.planCode}
+                  {SITE_PLANS_COMPLIMENTARY ? (
+                    <span className="text-slate-500 font-semibold text-sm ml-2">Free</span>
+                  ) : (
+                    <>
+                      {' '}
+                      · NPR {latestClaim.amountNpr}
+                    </>
+                  )}
                   <span className="text-slate-500 font-semibold text-sm ml-2">
                     ({latestClaim.paymentMethod})
                   </span>
@@ -401,7 +454,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {activePlans.map((plan) => {
           const isCurrent = userProfile.plan === plan.tier || userProfile.plan === plan.code;
-          const isFree = plan.priceNpr === 0 || plan.tier === 'Free';
+          const isFree = plan.tier === 'Free' || (!SITE_PLANS_COMPLIMENTARY && plan.priceNpr === 0);
           const isUnlimited = plan.tier === 'Unlimited';
 
           return (
@@ -434,12 +487,18 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 </div>
 
                 <div className={`flex items-baseline font-mono ${isUnlimited ? 'text-white' : 'text-slate-900'}`}>
-                  <span className="text-3xl font-black">Rs. {plan.priceNpr}</span>
-                  {plan.originalPriceNpr && plan.originalPriceNpr > plan.priceNpr ? (
-                    <span className="text-xs text-slate-400 line-through font-mono ml-2">
-                      Rs. {plan.originalPriceNpr}
-                    </span>
-                  ) : null}
+                  {SITE_PLANS_COMPLIMENTARY ? (
+                    <span className="text-3xl font-black">Free</span>
+                  ) : (
+                    <>
+                      <span className="text-3xl font-black">Rs. {plan.priceNpr}</span>
+                      {plan.originalPriceNpr && plan.originalPriceNpr > plan.priceNpr ? (
+                        <span className="text-xs text-slate-400 line-through font-mono ml-2">
+                          Rs. {plan.originalPriceNpr}
+                        </span>
+                      ) : null}
+                    </>
+                  )}
                   <span className="text-xs text-slate-400 font-sans ml-1">
                     {isFree
                       ? '/ forever'
@@ -478,7 +537,9 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 </button>
               ) : guestMode ? (
                 <LandingSignUpButton className="w-full py-2.5 text-xs font-black rounded-xl shadow-md cursor-pointer text-center bg-blue-600 hover:bg-blue-700 text-white">
-                  {`Sign up to subscribe · Rs. ${plan.priceNpr}`}
+                  {SITE_PLANS_COMPLIMENTARY
+                    ? 'Sign up to claim for free'
+                    : `Sign up to subscribe · Rs. ${plan.priceNpr}`}
                 </LandingSignUpButton>
               ) : (
                 <button 
@@ -495,7 +556,11 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                       : 'bg-slate-900 hover:bg-slate-800 text-white'
                   }`}
                 >
-                  {isCurrent ? 'Your Current Plan' : `Subscribe for Rs. ${plan.priceNpr}`}
+                  {isCurrent
+                    ? 'Your Current Plan'
+                    : SITE_PLANS_COMPLIMENTARY
+                      ? 'Claim for free'
+                      : `Subscribe for Rs. ${plan.priceNpr}`}
                 </button>
               )}
             </div>
@@ -522,10 +587,14 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
               <tr>
-                <td className="p-3 font-bold text-slate-800">Price (NPR)</td>
+                <td className="p-3 font-bold text-slate-800">
+                  {SITE_PLANS_COMPLIMENTARY ? 'Access' : 'Price (NPR)'}
+                </td>
                 {activePlans.map((plan) => (
                   <td key={`${plan.id}-price`} className="p-3 font-mono font-bold">
-                    {plan.priceNpr === 0 ? 'Free' : `Rs. ${plan.priceNpr}`}
+                    {SITE_PLANS_COMPLIMENTARY || plan.priceNpr === 0
+                      ? 'Free'
+                      : `Rs. ${plan.priceNpr}`}
                   </td>
                 ))}
               </tr>
@@ -611,7 +680,9 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
               <span>Affordable MEC Prep</span>
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed font-medium">
-              Standard plans are priced to match Nepalese student budgets without sacrificing interface quality.
+              {SITE_PLANS_COMPLIMENTARY
+                ? 'Claim Standard or Premium for free during this launch period. Paid checkout will return later.'
+                : 'Standard plans are priced to match Nepalese student budgets without sacrificing interface quality.'}
             </p>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-2">
@@ -636,48 +707,75 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       </section>
 
       {/* 5. PAYMENT METHODS & QR VERIFICATION */}
-      {!guestMode && (
+      {(!guestMode || SITE_PLANS_COMPLIMENTARY) && (
       <section id="claim-form-section" className="space-y-6">
         <h3 className="font-black text-slate-900 text-lg text-center">
-          {isFreePromo ? '3. Activate with promo' : '3. Secure checkout options'}
+          {isComplimentaryClaim
+            ? '3. Claim your plan'
+            : isFreePromo
+              ? '3. Activate with promo'
+              : '3. Secure checkout options'}
         </h3>
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left QR details — not needed for 100% promo */}
+          {/* Left QR — always shown, blurred while payments are paused */}
           {!isFreePromo && (
           <div className="lg:col-span-6 space-y-6">
             <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
               <h3 className="font-bold text-slate-900 text-sm pb-2 border-b border-slate-100 flex items-center justify-between">
                 <span>Scan Merchant QR</span>
                 <span className="text-xs font-mono text-emerald-600 font-bold">
-                  Selected Plan: {selectedPlanLabel} (NPR {payableAmount}
-                  {appliedPromo ? ` · was ${listAmount}` : ''})
+                  {SITE_PLANS_COMPLIMENTARY
+                    ? `Selected: ${selectedPlanLabel} · Free`
+                    : `Selected Plan: ${selectedPlanLabel} (NPR ${payableAmount}${
+                        appliedPromo ? ` · was ${listAmount}` : ''
+                      })`}
                 </span>
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
                 <div className="bg-slate-950 p-4 rounded-2xl text-center text-white space-y-3 border border-slate-800">
-                  <div className="bg-white p-3 rounded-xl inline-block">
+                  <div className="relative bg-white p-3 rounded-xl inline-block overflow-hidden">
                     <img
                       src={PAYMENT_QR_SRC}
-                      alt="PrepX Nepal merchant payment QR"
+                      alt={
+                        SITE_PLANS_COMPLIMENTARY
+                          ? 'Payment QR paused'
+                          : 'PrepX Nepal merchant payment QR'
+                      }
                       width={160}
                       height={160}
-                      className="w-40 h-40 object-contain"
+                      className={`w-40 h-40 object-contain ${
+                        SITE_PLANS_COMPLIMENTARY
+                          ? 'blur-md scale-110 pointer-events-none select-none'
+                          : ''
+                      }`}
                       decoding="async"
+                      aria-hidden={SITE_PLANS_COMPLIMENTARY}
                     />
+                    {SITE_PLANS_COMPLIMENTARY ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/55">
+                        <span className="px-2 py-1 rounded-lg bg-slate-900 text-white text-[10px] font-black uppercase tracking-wide">
+                          Payments paused
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="text-[11px] font-bold text-slate-300">
-                    Scan with any Fonepay-supported app
+                    {SITE_PLANS_COMPLIMENTARY
+                      ? 'QR hidden until paid checkout returns'
+                      : 'Scan with any Fonepay-supported app'}
                   </div>
-                  <a
-                    href={PAYMENT_QR_PNG_SRC}
-                    download="PrepX-Nepal-payment-QR.png"
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white text-slate-900 text-[11px] font-bold hover:bg-slate-100 transition-colors"
-                  >
-                    <AppIcon icon={Download} size="btn" />
-                    Download QR (PNG)
-                  </a>
+                  {!SITE_PLANS_COMPLIMENTARY ? (
+                    <a
+                      href={PAYMENT_QR_PNG_SRC}
+                      download="PrepX-Nepal-payment-QR.png"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white text-slate-900 text-[11px] font-bold hover:bg-slate-100 transition-colors"
+                    >
+                      <AppIcon icon={Download} size="btn" />
+                      Download QR (PNG)
+                    </a>
+                  ) : null}
                 </div>
 
                 <div className="space-y-3 text-xs">
@@ -688,9 +786,11 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   </div>
 
                   <p className="text-[10px] text-slate-500 leading-relaxed px-0.5">
-                    Scan the Merchant QR to pay NPR {payableAmount}
-                    {appliedPromo ? ` (promo ${appliedPromo.code})` : ''}. Then submit your transaction
-                    reference below for verification. No wallet phone numbers are required.
+                    {SITE_PLANS_COMPLIMENTARY
+                      ? 'Payment is paused. Claim Standard or Premium on the right — no scan, screenshot, or transaction ID needed.'
+                      : `Scan the Merchant QR to pay NPR ${payableAmount}${
+                          appliedPromo ? ` (promo ${appliedPromo.code})` : ''
+                        }. Then submit your transaction reference below for verification. No wallet phone numbers are required.`}
                   </p>
                 </div>
               </div>
@@ -699,9 +799,27 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
           )}
 
           {/* Verification Claim Form */}
+          {guestMode ? (
+          <div className="lg:col-span-6 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+            <h3 className="font-bold text-slate-900 text-sm pb-2 border-b border-slate-100">
+              Sign in to claim
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Create a free account, then claim Standard or Premium instantly. Payment is paused.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <LandingSignUpButton className="px-4 py-2.5 text-xs font-black rounded-xl" />
+              <LandingSignInButton className="px-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-800 hover:bg-slate-50" />
+            </div>
+          </div>
+          ) : (
           <div className={`${isFreePromo ? 'lg:col-span-12 max-w-xl mx-auto w-full' : 'lg:col-span-6'} bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-5`}>
             <h3 className="font-bold text-slate-900 text-sm pb-2 border-b border-slate-100">
-              {isFreePromo ? 'Activate plan (100% promo)' : 'Submit Payment Receipt Form'}
+              {isComplimentaryClaim
+                ? 'Claim plan for free'
+                : isFreePromo
+                  ? 'Activate plan (100% promo)'
+                  : 'Submit Payment Receipt Form'}
             </h3>
 
             {submittedSuccess && (
@@ -713,14 +831,24 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   </span>
                   <span>
                     {submittedWasFreePromo
-                      ? 'Your selected plan is active for a 2-month session. No payment screenshot was required.'
+                      ? SITE_PLANS_COMPLIMENTARY
+                        ? 'Your selected plan is now active. No payment was required.'
+                        : 'Your selected plan is active for a 2-month session. No payment screenshot was required.'
                       : 'Our active moderators will verify your payment reference ID within 2 hours.'}
                   </span>
                 </div>
               </div>
             )}
 
-            {isFreePromo && (
+            {isComplimentaryClaim ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl space-y-1">
+                <div className="font-bold">No payment required — launch period</div>
+                <p className="text-emerald-800/90">
+                  Confirm below to activate <span className="font-semibold">{selectedPlanLabel}</span>.
+                  The merchant QR is paused. Screenshot and transaction ID are not needed.
+                </p>
+              </div>
+            ) : isFreePromo ? (
               <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl space-y-1">
                 <div className="font-bold">No payment required — promo covers NPR {listAmount}</div>
                 <p className="text-emerald-800/90">
@@ -728,10 +856,10 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   the current 2-month session. Payment screenshot and transaction ID are not needed.
                 </p>
               </div>
-            )}
+            ) : null}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isFreePromo && (
+              {!isNoPaymentClaim && (
               <div className="space-y-1.5">
                 <label htmlFor="payment-gateway" className="block text-xs font-bold text-slate-700">
                   Payment gateway
@@ -747,6 +875,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
               </div>
               )}
 
+              {!SITE_PLANS_COMPLIMENTARY && (
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <AppIcon icon={Tag} size="btn" className="text-emerald-600" />
@@ -793,8 +922,9 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   </p>
                 )}
               </div>
+              )}
 
-              {!isFreePromo && (
+              {!isNoPaymentClaim && (
               <>
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Reference Transaction ID *:</label>
@@ -886,15 +1016,18 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60"
               >
                 {submitting
-                  ? isFreePromo
+                  ? isNoPaymentClaim
                     ? 'Activating…'
                     : 'Submitting…'
-                  : isFreePromo
-                    ? `Activate ${selectedPlanLabel} (2 months · free)`
-                    : `Submit Verification Claim (NPR ${payableAmount})`}
+                  : isComplimentaryClaim
+                    ? `Claim ${selectedPlanLabel} for free`
+                    : isFreePromo
+                      ? `Activate ${selectedPlanLabel} (2 months · free)`
+                      : `Submit Verification Claim (NPR ${payableAmount})`}
               </button>
             </form>
           </div>
+          )}
         </div>
       </section>
       )}
@@ -926,13 +1059,17 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
         <div className="max-w-xl space-y-3">
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Need more mock attempts?</h2>
           <p className="text-sm text-blue-100 leading-relaxed">
-            {guestMode
-              ? 'Create a free PrepX Nepal account, then choose a paid plan and submit payment for verification.'
-              : 'Choose a paid plan above, complete payment, then submit your transaction reference for verification.'}
+            {SITE_PLANS_COMPLIMENTARY
+              ? guestMode
+                ? 'Create a PrepX Nepal account, then claim Standard or Premium for free while payments are paused.'
+                : 'Choose Standard or Premium above and claim it for free. Payment is paused during this launch period.'
+              : guestMode
+                ? 'Create a free PrepX Nepal account, then choose a paid plan and submit payment for verification.'
+                : 'Choose a paid plan above, complete payment, then submit your transaction reference for verification.'}
           </p>
           {guestMode ? (
             <LandingSignUpButton className="px-5 py-2.5 bg-white text-[#2563EB] hover:bg-slate-50 text-sm font-semibold rounded-xl transition-colors cursor-pointer">
-              Sign up to upgrade
+              {SITE_PLANS_COMPLIMENTARY ? 'Sign up to claim a plan' : 'Sign up to upgrade'}
             </LandingSignUpButton>
           ) : upgradeCtaPlan ? (
             <button 
@@ -952,13 +1089,17 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
       {!guestMode && (
       <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
         <h3 className="font-semibold text-slate-900 text-base pb-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
-          <span>Payment claims</span>
-          <span className="text-xs text-slate-500">Typical review within 2 hours</span>
+          <span>{SITE_PLANS_COMPLIMENTARY ? 'Plan claims' : 'Payment claims'}</span>
+          <span className="text-xs text-slate-500">
+            {SITE_PLANS_COMPLIMENTARY ? 'Activated instantly' : 'Typical review within 2 hours'}
+          </span>
         </h3>
 
         {claimsHistory.length === 0 ? (
           <p className="text-sm text-slate-500 text-center py-4">
-            You haven&apos;t submitted a payment for review yet.
+            {SITE_PLANS_COMPLIMENTARY
+              ? "You haven't claimed a plan yet."
+              : "You haven't submitted a payment for review yet."}
           </p>
         ) : (
           <div className="overflow-x-auto scroll-x-safe">
@@ -969,7 +1110,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                   <th className="p-3">Plan Tier</th>
                   <th className="p-3">Method</th>
                   <th className="p-3 font-mono">Reference ID</th>
-                  <th className="p-3 text-right">Amount</th>
+                  <th className="p-3 text-right">{SITE_PLANS_COMPLIMENTARY ? 'Access' : 'Amount'}</th>
                   <th className="p-3 text-right">Status</th>
                   <th className="p-3">Your remarks</th>
                   <th className="p-3">Moderator note</th>
@@ -985,7 +1126,7 @@ export const PaymentSubmissionView: React.FC<PaymentSubmissionViewProps> = ({
                     <td className="p-3 text-slate-600">{claim.paymentMethod}</td>
                     <td className="p-3 font-mono text-slate-800">{claim.transactionRef}</td>
                     <td className="p-3 text-right font-mono font-bold">
-                      NPR {claim.amountNpr}
+                      {SITE_PLANS_COMPLIMENTARY ? 'Free' : `NPR ${claim.amountNpr}`}
                       {claim.promoCode ? (
                         <div className="text-[10px] font-sans font-semibold text-emerald-700">
                           {claim.promoCode}

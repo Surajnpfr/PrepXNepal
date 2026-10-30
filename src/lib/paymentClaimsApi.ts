@@ -37,6 +37,7 @@ export async function submitPaymentClaim(
 ): Promise<{
   claim: PaymentClaim;
   autoActivated?: boolean;
+  complimentary?: boolean;
   activatedUser?: unknown;
   planExpiresAt?: string;
 }> {
@@ -61,6 +62,7 @@ export async function submitPaymentClaim(
   return {
     claim: data.claim as PaymentClaim,
     autoActivated: Boolean(data.autoActivated),
+    complimentary: Boolean(data.complimentary),
     activatedUser: data.activatedUser,
     planExpiresAt: typeof data.planExpiresAt === 'string' ? data.planExpiresAt : undefined,
   };

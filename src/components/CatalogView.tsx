@@ -15,6 +15,7 @@ import {
   isFreePlan,
 } from '../lib/mockAccess';
 import { planDisplayName } from '../lib/planDisplay';
+import { SITE_PLANS_COMPLIMENTARY } from '../lib/sitePlans';
 import {
   filterMocksByAttempt,
   givenMockIdSet,
@@ -318,7 +319,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 onClick={() => onNavigate('payment')}
                 className="px-4 py-2 bg-amber-500 text-slate-950 font-bold text-xs rounded-xl cursor-pointer"
               >
-                View Pricing
+                {SITE_PLANS_COMPLIMENTARY ? 'Claim a plan' : 'View Pricing'}
               </button>
             </div>
           ) : (

@@ -63,6 +63,10 @@ import {
   sortClaimsForQueue,
 } from './paymentsDomain.ts';
 import {
+  SITE_COMPLIMENTARY_CLAIM_MARKER,
+  SITE_PLANS_COMPLIMENTARY,
+} from './sitePlans.ts';
+import {
   canTriageSupportIssues,
   isSupportIssueCategory,
   normalizeIssueBody,
@@ -2825,8 +2829,21 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
     }
 
     const freePromo = isZeroPayablePromo(payableNpr) && Boolean(promoCode);
+    const planIsFreeTier = planCode.trim().toLowerCase() === 'free';
+    const complimentary =
+      SITE_PLANS_COMPLIMENTARY && !freePromo && !planIsFreeTier;
+    if (complimentary) {
+      payableNpr = 0;
+      promoDiscountNpr = Math.max(promoDiscountNpr, listAmountNpr);
+    }
+
     if (freePromo && promoCode) {
       const placeholders = freePromoClaimPlaceholders(promoCode);
+      transactionRef = placeholders.transactionRef;
+      screenshotUrl = placeholders.screenshotUrl;
+      paymentMethod = placeholders.paymentMethod;
+    } else if (complimentary) {
+      const placeholders = freePromoClaimPlaceholders(SITE_COMPLIMENTARY_CLAIM_MARKER);
       transactionRef = placeholders.transactionRef;
       screenshotUrl = placeholders.screenshotUrl;
       paymentMethod = placeholders.paymentMethod;
@@ -2881,6 +2898,25 @@ app.post('/api/payment-claims', requireAuth, async (req, res) => {
         activatedUser,
         entitlements,
         planExpiresAt,
+      });
+    }
+
+    // Launch mode: catalog plans are complimentary until paid checkout returns.
+    if (complimentary) {
+      const resolved = await paymentClaimsRepo.resolve(claim.id, {
+        status: 'approved',
+        verifiedBy: 'Complimentary auto-activate',
+        verifiedByClerkId: userId,
+        moderatorNotes: 'Auto-approved: site plans complimentary (payments paused)',
+      });
+      if (resolved) claim = resolved;
+      const { activatedUser, entitlements } = await activatePlanFromClaim(claim);
+      return res.status(201).json({
+        claim: toClientPaymentClaim(claim),
+        autoActivated: true,
+        complimentary: true,
+        activatedUser,
+        entitlements,
       });
     }
 

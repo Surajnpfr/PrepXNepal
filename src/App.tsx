@@ -1361,13 +1361,17 @@ export function App() {
           userId: userProfile.id,
           kind: 'payment',
           title: 'Plan activated',
-          desc: `${claim.planCode} · 100% promo · 2-month session`,
+          desc: result.complimentary
+            ? `${claim.planCode} · complimentary (payments paused)`
+            : `${claim.planCode} · 100% promo · 2-month session`,
           hrefTab: 'payment',
           refId: `${claim.id}-approved`,
         });
         feedback.toast({
           variant: 'success',
-          message: `${claim.planCode} plan activated for 2 months — no payment required.`,
+          message: result.complimentary
+            ? `${claim.planCode} plan activated — no payment required.`
+            : `${claim.planCode} plan activated for 2 months — no payment required.`,
         });
       } else {
         pushNotification({

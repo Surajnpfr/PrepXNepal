@@ -164,10 +164,10 @@ export const PAGE_SEO: Record<string, PageSeoConfig> = {
   },
   payment: {
     path: '/payment',
-    title: 'Plans & Payment | PrepX Nepal Subscription',
+    title: 'Plans | PrepX Nepal',
     description:
-      'Choose PrepX Nepal Free, Standard, or Premium plans for Nepal CEE mocks, then submit Fonepay payment for verification.',
-    h1: 'PrepX Nepal plans and secure payment',
+      'Compare PrepX Nepal Free, Standard, and Premium plans for Nepal CEE mocks. Plans are complimentary during the current launch period.',
+    h1: 'PrepX Nepal plans',
   },
   policies: {
     path: '/help',

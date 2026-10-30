@@ -18,6 +18,7 @@ import {
 import { UserProfile } from '../types';
 import { isStaffRole } from '../lib/clerkUserMapper';
 import { planDisplayName } from '../lib/planDisplay';
+import { SITE_PLANS_COMPLIMENTARY } from '../lib/sitePlans';
 import { BrandLogo } from './BrandLogo';
 import { AppIcon } from './ui';
 
@@ -71,7 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const coreNavItems: NavItem[] = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'catalog', label: 'Mock Tests', icon: FileCheck },
-    { id: 'payment', label: 'Pricing & Plans', icon: Zap },
+    { id: 'payment', label: SITE_PLANS_COMPLIMENTARY ? 'Plans' : 'Pricing & Plans', icon: Zap },
   ];
 
   const studyNavItems: NavItem[] = [

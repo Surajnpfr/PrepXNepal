@@ -11,6 +11,7 @@ import {
 import { UserRole, UserProfile } from '../types';
 import { isStaffRole } from '../lib/clerkUserMapper';
 import { planDisplayName } from '../lib/planDisplay';
+import { SITE_PLANS_COMPLIMENTARY } from '../lib/sitePlans';
 import { BrandLogo } from './BrandLogo';
 import { AppIcon } from './ui';
 
@@ -52,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => handleNavClick('payment')}
               className="hidden sm:inline-block text-amber-300 font-bold underline hover:text-amber-200 transition-colors cursor-pointer"
             >
-              Get Standard (Rs.149)
+              {SITE_PLANS_COMPLIMENTARY ? 'Claim a plan (free)' : 'Get Standard (Rs.149)'}
             </button>
           </div>
 

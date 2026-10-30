@@ -22,6 +22,7 @@ import {
   useLandingAuthModals,
 } from './ClerkAuthControls';
 import { captureReferralCodeFromLocation } from '../lib/referralCapture';
+import { SITE_PLANS_COMPLIMENTARY } from '../lib/sitePlans';
 import { DailyQuickPractice } from './DailyQuickPractice';
 
 interface BrainLandingProps {
@@ -76,7 +77,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
     { label: 'Resources', id: 'split-brain-section' },
     { label: 'Performance', id: 'performance-section' },
     { label: 'Study Plan', id: 'how-it-works-section' },
-    { label: 'Pricing', action: 'payment' as const },
+    { label: SITE_PLANS_COMPLIMENTARY ? 'Plans' : 'Pricing', action: 'payment' as const },
   ];
 
   return (
@@ -487,7 +488,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
             Plans, help, and contact
           </h2>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Browse pricing, FAQs, and how to reach PrepX Nepal — no account required.
+            Browse plans, FAQs, and how to reach PrepX Nepal — no account required.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -500,9 +501,13 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
             className="group block bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-6 space-y-3 transition-colors shadow-sm hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <AppIcon icon={CreditCard} size="card" className="text-blue-600" />
-            <h3 className="font-bold text-slate-900 text-base group-hover:text-blue-700">Pricing</h3>
+            <h3 className="font-bold text-slate-900 text-base group-hover:text-blue-700">
+              {SITE_PLANS_COMPLIMENTARY ? 'Plans' : 'Pricing'}
+            </h3>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Compare Free, Standard, and Premium mock plans before you sign up.
+              {SITE_PLANS_COMPLIMENTARY
+                ? 'All plans are free for now. Compare Free, Standard, and Premium, then claim one after you sign up.'
+                : 'Compare Free, Standard, and Premium mock plans before you sign up.'}
             </p>
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600">
               View plans
@@ -622,7 +627,7 @@ export const BrainLanding: React.FC<BrainLandingProps> = ({ onNavigatePublic }) 
                 }}
                 className="hover:text-blue-600"
               >
-                Pricing
+                {SITE_PLANS_COMPLIMENTARY ? 'Plans' : 'Pricing'}
               </a>
               <a
                 href="/help"

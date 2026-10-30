@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
+import { SITE_PLANS_COMPLIMENTARY } from '../lib/sitePlans';
 import { AppIcon } from './ui';
 
 interface FooterProps {
@@ -22,7 +23,7 @@ const EXPLORE_LINKS: FooterLink[] = [
   { label: 'Performance Reports', tab: 'reports' },
   { label: 'Saved Questions', tab: 'saved' },
   { label: 'Study Coins (Coming soon)', tab: 'coins' },
-  { label: 'Subscription Pricing', tab: 'payment' },
+  { label: SITE_PLANS_COMPLIMENTARY ? 'Plans' : 'Subscription Pricing', tab: 'payment' },
 ];
 
 const HELP_LINKS: FooterLink[] = [
@@ -30,7 +31,7 @@ const HELP_LINKS: FooterLink[] = [
   { label: 'Help Centre', tab: 'policies', subTab: 'info' },
   { label: 'Contact', tab: 'policies', subTab: 'contact' },
   { label: 'Frequently Asked Questions', tab: 'policies', subTab: 'faq' },
-  { label: 'Payment Reference Claim', tab: 'payment' },
+  { label: SITE_PLANS_COMPLIMENTARY ? 'Claim a plan' : 'Payment Reference Claim', tab: 'payment' },
   { label: 'Report a Problem', tab: 'policies', subTab: 'issue', tone: 'danger' },
   { label: 'Share Feedback', tab: 'policies', subTab: 'feedback' },
 ];
